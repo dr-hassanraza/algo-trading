@@ -35,9 +35,7 @@ try:
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
-    from pdf_generator import PDFReportGenerator, create_download_link
     MODULES_AVAILABLE = True
-    PDF_AVAILABLE = True
 except ImportError as e:
     st.error(f"Required modules not available: {e}")
     MODULES_AVAILABLE = False

@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit
+.streamlit/
+*.log
+
+# Data files
+*.csv
+*.json
+scan_reports/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Firebase
+.firebase/
+build/
+firebase-debug.log
+
+# Node modules
+node_modules/
+
+# Secrets and config
+config.json
+*.key
+*.pem

@@ -12,3 +12,7 @@
   scikit-learn>=1.0.0
   scipy>=1.7.0
   ta>=0.10.0
+  reportlab>=4.0.0
+  fpdf2>=2.7.0
+  pillow>=9.0.0
+  base64

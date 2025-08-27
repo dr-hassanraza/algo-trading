@@ -489,16 +489,26 @@ class TradingDashboard:
         if st.button("🧮 Calculate Position Size"):
             self.calculate_position_sizing(current_price, stop_loss, risk_pct)
         
-        st.markdown("---")
-        
-        # Portfolio risk analysis
-        st.subheader("📊 Portfolio Risk Analysis")
-        self.show_portfolio_risk()def quick_analysis(self, symbol: str):
-      """Perform quick analysis on a symbol with decision graphs"""
+        st.markdown("---")# Portfolio risk analysis
+          st.subheader("📊 Portfolio Risk Analysis")
+          self.show_portfolio_risk()def quick_analysis(self, symbol: str):
+        """Perform quick analysis on a symbol with decision graphs"""
 
-      if not MODULES_AVAILABLE:
-          st.error("Analysis modules not available")
-          return
+        if not MODULES_AVAILABLE:
+            st.error("Analysis modules not available")
+            return
+
+  With this corrected version:
+          # Portfolio risk analysis
+          st.subheader("📊 Portfolio Risk Analysis")
+          self.show_portfolio_risk()
+
+      def quick_analysis(self, symbol: str):
+          """Perform quick analysis on a symbol with decision graphs"""
+
+          if not MODULES_AVAILABLE:
+              st.error("Analysis modules not available")
+              return
 
       # Initialize session state for storing analysis results
       if 'analysis_results' not in st.session_state:

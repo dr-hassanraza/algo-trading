@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 import logging
 import json
 from pathlib import Path
+import base64
+import io
 
 # Configure Streamlit page
 st.set_page_config(
@@ -33,10 +35,13 @@ try:
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
+    from pdf_generator import PDFReportGenerator, create_download_link
     MODULES_AVAILABLE = True
+    PDF_AVAILABLE = True
 except ImportError as e:
     st.error(f"Required modules not available: {e}")
     MODULES_AVAILABLE = False
+    PDF_AVAILABLE = False
 
 # Configure logging for Streamlit
 logging.basicConfig(level=logging.INFO)
@@ -623,6 +628,60 @@ class TradingDashboard:
                     st.subheader("🎯 Key Decision Factors")
                     factors_text = " | ".join(signal['factors'][:3])  # Top 3 factors
                     st.info(f"**Primary factors:** {factors_text}")
+                
+                # PDF Export functionality
+                st.markdown("---")
+                st.subheader("📄 Export Report")
+                
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    if st.button("📄 Generate Report", type="primary"):
+                        try:
+                            # Prepare analysis data
+                            analysis_data = {
+                                'recommendation': signal['recommendation'],
+                                'signal_strength': signal['grade'],
+                                'current_price': f"{result['price']:.2f} PKR",
+                                'target_price': f"{risk['target1']:.2f} PKR",
+                                'stop_loss': f"{risk['stop_loss']:.2f} PKR",
+                                'risk_score': f"{signal['score']:.0f}/100",
+                                'volatility': 'Medium',  # You can enhance this
+                                'technical_indicators': {
+                                    'RSI': {'value': f"{tech['rsi']:.1f}", 'signal': rsi_status},
+                                    'MA44': {'value': f"{tech['ma44']:.2f}", 'signal': tech.get('ma44_trend', 'Unknown')},
+                                    'Bollinger Bands %B': {'value': f"{tech['bb_pctb']:.2f}", 'signal': bb_status},
+                                    'Volume Ratio': {'value': f"{tech['volume_ratio']:.1f}x", 'signal': vol_status}
+                                }
+                            }
+                            
+                            # Generate HTML report
+                            html_report = self.generate_simple_pdf_report(symbol, analysis_data)
+                            
+                            # Store in session state to prevent reset
+                            if 'html_report' not in st.session_state:
+                                st.session_state.html_report = {}
+                            st.session_state.html_report[symbol] = html_report
+                            
+                            st.success("✅ Report Generated Successfully!")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Report generation failed: {str(e)}")
+                
+                with col2:
+                    # Show download button if report exists in session state
+                    if hasattr(st.session_state, 'html_report') and symbol in st.session_state.html_report:
+                        filename = f"PSX_Analysis_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                        b64 = base64.b64encode(st.session_state.html_report[symbol].encode()).decode()
+                        href = f'''
+                        <a href="data:text/html;base64,{b64}" download="{filename}" 
+                           style="display: inline-block; padding: 12px 20px; background-color: #ff4b4b; 
+                                  color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                           📥 Download Analysis Report
+                        </a>
+                        '''
+                        st.markdown(href, unsafe_allow_html=True)
+                        st.info("💡 **Tip:** Download creates an HTML report that you can print as PDF from your browser (Ctrl+P → Save as PDF).")
         
         except Exception as e:
             st.error(f"Analysis error: {str(e)}")
@@ -1592,6 +1651,117 @@ class TradingDashboard:
         
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
+    
+    def generate_simple_pdf_report(self, symbol: str, analysis_data: dict):
+        """Generate a simple HTML report for PDF conversion"""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>PSX Trading Analysis Report - {symbol}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                h1 {{ color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }}
+                h2 {{ color: #A23B72; margin-top: 30px; }}
+                .header-info {{ background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                .metrics {{ display: flex; justify-content: space-between; margin: 20px 0; }}
+                .metric {{ text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }}
+                .recommendation {{ text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
+                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }}
+                table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #2E86AB; color: white; }}
+                .footer {{ margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
+                          border-radius: 5px; font-style: italic; text-align: center; }}
+                @media print {{
+                    body {{ margin: 20px; }}
+                    .metrics {{ flex-wrap: wrap; }}
+                    .metric {{ margin: 10px 0; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>PSX Trading Analysis Report</h1>
+            
+            <div class="header-info">
+                <strong>Symbol:</strong> {symbol}<br>
+                <strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}<br>
+                <strong>Market:</strong> Pakistan Stock Exchange (PSX)
+            </div>
+            
+            <div class="recommendation">
+                🎯 RECOMMENDATION: {analysis_data.get('recommendation', 'N/A')}
+            </div>
+            
+            <h2>📊 Executive Summary</h2>
+            <div class="metrics">
+                <div class="metric">
+                    <strong>Signal Grade</strong><br>
+                    {analysis_data.get('signal_strength', 'N/A')}
+                </div>
+                <div class="metric">
+                    <strong>Current Price</strong><br>
+                    {analysis_data.get('current_price', 'N/A')}
+                </div>
+                <div class="metric">
+                    <strong>Target Price</strong><br>
+                    {analysis_data.get('target_price', 'N/A')}
+                </div>
+                <div class="metric">
+                    <strong>Stop Loss</strong><br>
+                    {analysis_data.get('stop_loss', 'N/A')}
+                </div>
+            </div>
+            
+            <h2>🔍 Technical Analysis</h2>
+            <table>
+                <tr><th>Indicator</th><th>Value</th><th>Signal</th></tr>"""
+        
+        # Add technical indicators if available
+        if 'technical_indicators' in analysis_data:
+            for indicator, data in analysis_data['technical_indicators'].items():
+                if isinstance(data, dict):
+                    value = data.get('value', 'N/A')
+                    signal = data.get('signal', 'N/A')
+                else:
+                    value = str(data)
+                    signal = 'N/A'
+                html_content += f"<tr><td>{indicator}</td><td>{value}</td><td>{signal}</td></tr>"
+        
+        html_content += f"""
+            </table>
+            
+            <h2>⚖️ Risk Analysis</h2>
+            <table>
+                <tr><th>Risk Factor</th><th>Value</th></tr>
+                <tr><td>Risk Score</td><td>{analysis_data.get('risk_score', 'N/A')}</td></tr>
+                <tr><td>Volatility</td><td>{analysis_data.get('volatility', 'N/A')}</td></tr>
+                <tr><td>Stop Loss Level</td><td>{analysis_data.get('stop_loss', 'N/A')}</td></tr>
+                <tr><td>Target Price</td><td>{analysis_data.get('target_price', 'N/A')}</td></tr>
+            </table>
+            
+            <h2>📈 Key Metrics Summary</h2>
+            <table>
+                <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                <tr><td>Overall Recommendation</td><td>{analysis_data.get('recommendation', 'N/A')}</td><td>Primary trading decision</td></tr>
+                <tr><td>Signal Strength</td><td>{analysis_data.get('signal_strength', 'N/A')}</td><td>Quality grade of analysis</td></tr>
+                <tr><td>Risk Score</td><td>{analysis_data.get('risk_score', 'N/A')}</td><td>Overall confidence level</td></tr>
+                <tr><td>Current Price</td><td>{analysis_data.get('current_price', 'N/A')}</td><td>Latest market price</td></tr>
+            </table>
+            
+            <div class="footer">
+                <strong>Disclaimer:</strong> This report is generated by PSX Trading Bot for informational purposes only. 
+                Please consult with a financial advisor before making investment decisions.<br><br>
+                <strong>Generated by:</strong> PSX Trading Bot | <strong>Website:</strong> Pakistan Stock Exchange Analysis System<br>
+                <strong>Note:</strong> To save as PDF, use your browser's print function (Ctrl+P) and select "Save as PDF"
+            </div>
+        </body>
+        </html>
+        """
+        
+        return html_content
     
     def create_factor_contribution_chart(self, signal: dict):
         """Create factor contribution bar chart"""

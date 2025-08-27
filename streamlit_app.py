@@ -35,6 +35,7 @@ try:
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
+    from pdf_generator import PDFReportGenerator, create_download_link
     MODULES_AVAILABLE = True
     PDF_AVAILABLE = True
 except ImportError as e:
@@ -489,140 +490,206 @@ class TradingDashboard:
         if st.button("🧮 Calculate Position Size"):
             self.calculate_position_sizing(current_price, stop_loss, risk_pct)
         
-        st.markdown("---")# Portfolio risk analysis
-          st.subheader("📊 Portfolio Risk Analysis")
-          self.show_portfolio_risk()def quick_analysis(self, symbol: str):
+        st.markdown("---")
+        
+        # Portfolio risk analysis
+        st.subheader("📊 Portfolio Risk Analysis")
+        self.show_portfolio_risk()
+    
+    def quick_analysis(self, symbol: str):
         """Perform quick analysis on a symbol with decision graphs"""
-
+        
         if not MODULES_AVAILABLE:
             st.error("Analysis modules not available")
             return
-
-  With this corrected version:
-          # Portfolio risk analysis
-          st.subheader("📊 Portfolio Risk Analysis")
-          self.show_portfolio_risk()
-
-      def quick_analysis(self, symbol: str):
-          """Perform quick analysis on a symbol with decision graphs"""
-
-          if not MODULES_AVAILABLE:
-              st.error("Analysis modules not available")
-              return
-
-      # Initialize session state for storing analysis results
-      if 'analysis_results' not in st.session_state:
-          st.session_state.analysis_results = {}
-
-      # Check if we need to run new analysis or use cached results
-      run_analysis = st.session_state.get('run_analysis', True)
-
-      if run_analysis or symbol not in st.session_state.analysis_results:
-          try:
-              with st.container():
-                  result = enhanced_signal_analysis(symbol)
-
-                  if 'error' not in result:
-                      # Store results in session state
-                      st.session_state.analysis_results[symbol] = result
-                      st.session_state.run_analysis = False
-                  # ... rest of your analysis code
-
-  2. Modify the PDF generation section to use session state:
-
-  Replace your PDF export section with this improved version:
-
-                  # PDF Export functionality
-                  st.markdown("---")
-                  st.subheader("📄 Export Report")
-
-                  # Use session state data for PDF generation
-                  if symbol in st.session_state.get('analysis_results',
-  {}):
-                      stored_result =
-  st.session_state.analysis_results[symbol]
-                      stored_signal = stored_result['signal_strength']
-                      stored_tech = stored_result['technical_data']
-                      stored_risk = stored_result['risk_management']
-
-                      col1, col2 = st.columns([1, 2])
-
-                      with col1:
-                          if st.button("📄 Generate Report",
-  type="primary", key=f"pdf_{symbol}"):
-                              try:
-                                  # Define status variables from stored 
-  data
-                                  rsi_status = "Oversold" if
-  stored_tech['rsi'] < 30 else "Overbought" if stored_tech['rsi'] > 70 else
-   "Normal"
-                                  bb_status = "Lower band" if
-  stored_tech['bb_pctb'] < 0.2 else "Upper band" if stored_tech['bb_pctb']
-  > 0.8 else "Middle range"
-                                  vol_status = "High" if
-  stored_tech['volume_ratio'] > 1.5 else "Low" if
-  stored_tech['volume_ratio'] < 0.8 else "Normal"
-
-                                  # Create comprehensive report text
-                                  report_content = f"""
-  PSX TRADING ANALYSIS REPORT
-  ===========================
-  Symbol: {symbol}
-  Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-  Market: Pakistan Stock Exchange (PSX)
-
-  RECOMMENDATION: {stored_signal['recommendation']}
-  Grade: {stored_signal['grade']} ({stored_signal['score']:.0f}/100)
-
-  CURRENT METRICS:
-  • Current Price: {stored_result['price']:.2f} PKR
-  • Target Price: {stored_risk['target1']:.2f} PKR
-  • Stop Loss: {stored_risk['stop_loss']:.2f} PKR
-  • Risk/Reward Ratio: {stored_risk['risk_reward_ratio']:.2f}
-
-  TECHNICAL ANALYSIS:
-  • RSI: {stored_tech['rsi']:.1f} ({rsi_status})
-  • MA44: {stored_tech['ma44']:.2f} PKR ({stored_tech.get('ma44_trend', 
-  'Unknown')} trend)
-  • Bollinger Bands %B: {stored_tech['bb_pctb']:.2f} ({bb_status})
-  • Volume Ratio: {stored_tech['volume_ratio']:.1f}x ({vol_status})
-
-  RISK MANAGEMENT:
-  • Stop Loss: {stored_risk['stop_loss']:.2f} PKR 
-  ({stored_risk['stop_loss_pct']:+.1f}%)
-  • Target 1: {stored_risk['target1']:.2f} PKR 
-  ({stored_risk['target1_pct']:+.1f}%)
-  • Distance from MA44: {((stored_result['price'] - stored_tech['ma44']) / 
-  stored_tech['ma44'] * 100):+.1f}%
-
-  Generated by PSX Trading Bot
-                                  """
-
-                                  # Create download button
-                                  b64 =
-  base64.b64encode(report_content.encode()).decode()
-                                  filename =
-  f"PSX_Analysis_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-
-                                  href = f'<a 
-  href="data:text/plain;base64,{b64}" download="{filename}" style="display:
-   inline-block; padding: 12px 20px; background-color: #ff4b4b; color: 
-  white; text-decoration: none; border-radius: 5px; font-weight: bold;">📄 
-  Download Analysis Report</a>'
-
-                                  st.success("✅ Report Generated 
-  Successfully!")
-                                  st.markdown(href, unsafe_allow_html=True)
-
-                              except Exception as e:
-                                  st.error(f"❌ Report generation failed: 
-  {str(e)}")
-
-                      with col2:
-                          st.info("💡 **Tip:** Downloads a detailed text 
-  report with all analysis data.")
-                  else:
-                      st.info("📄 Run analysis first to generate report")
+        
+        try:
+            with st.container():
+                result = enhanced_signal_analysis(symbol)
+                
+                if 'error' in result:
+                    st.error(f"❌ Analysis failed for {symbol}")
+                    st.warning(f"Error details: {result['error']}")
+                    
+                    if symbol == 'FYBL':
+                        st.info("💡 **Note:** FYBL (Faisal Bank) data is not currently available in the EODHD API. This may be due to limited coverage of smaller PSX stocks.")
+                    else:
+                        st.info("💡 **Suggestion:** Try selecting a different symbol from the verified list. Some symbols may not be available in the EODHD API.")
+                    
+                    # Show alternative symbols
+                    st.markdown("**Available verified banking symbols you can try:**")
+                    verified_alternatives = ['UBL', 'MCB', 'ABL', 'HBL', 'NBP', 'BAFL', 'AKBL', 'BAHL']
+                    st.write(", ".join(verified_alternatives))
+                    return
+                
+                # Display results
+                signal = result['signal_strength']
+                tech = result['technical_data']
+                risk = result['risk_management']
+                
+                # Header with main decision
+                st.markdown("### 🎯 Trading Decision Analysis")
+                
+                # Main decision banner
+                decision_color = {
+                    "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
+                    "HOLD": "🔵", "AVOID": "🔴"
+                }.get(signal['recommendation'], "⚫")
+                
+                st.markdown(f"## {decision_color} **{signal['recommendation']}** | Grade {signal['grade']} ({signal['score']:.0f}/100)")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Current Price", f"{result['price']:.2f} PKR", "")
+                
+                with col2:
+                    st.metric("Stop Loss", f"{risk['stop_loss']:.2f} PKR", f"-{risk['stop_loss_pct']:.1f}%")
+                
+                with col3:
+                    st.metric("Target", f"{risk['target1']:.2f} PKR", f"+{risk['target1_pct']:.1f}%")
+                
+                st.markdown("---")
+                
+                # Decision Graphs Section
+                st.subheader("📊 Decision Analysis Graphs")
+                
+                # Create three columns for decision graphs
+                graph_col1, graph_col2 = st.columns(2)
+                
+                with graph_col1:
+                    # 1. Signal Strength Radar Chart
+                    self.create_signal_strength_radar(signal, tech, result)
+                    
+                    # 3. Risk-Reward Decision Matrix
+                    self.create_risk_reward_matrix(risk, signal)
+                
+                with graph_col2:
+                    # 2. Technical Indicators Decision Chart
+                    self.create_technical_indicators_chart(tech, signal)
+                    
+                    # 4. Buy/Sell Signal Confidence Gauge
+                    self.create_confidence_gauge(signal, tech)
+                
+                # 5. Factor Contribution Bar Chart (full width)
+                st.markdown("---")
+                self.create_factor_contribution_chart(signal)
+                
+                st.markdown("---")
+                
+                # Enhanced Technical Summary
+                st.subheader("📊 Detailed Technical Metrics")
+                
+                # Main indicators row
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    rsi_status = "Oversold" if tech['rsi'] < 30 else "Overbought" if tech['rsi'] > 70 else "Normal"
+                    st.metric("RSI", f"{tech['rsi']:.1f}", rsi_status)
+                
+                with col2:
+                    st.metric("MA44", f"{tech['ma44']:.2f}", f"{tech.get('ma44_trend', 'Unknown')} trend")
+                
+                with col3:
+                    bb_status = "Lower band" if tech['bb_pctb'] < 0.2 else "Upper band" if tech['bb_pctb'] > 0.8 else "Middle range"
+                    st.metric("BB %B", f"{tech['bb_pctb']:.2f}", bb_status)
+                
+                with col4:
+                    vol_status = "High" if tech['volume_ratio'] > 1.5 else "Low" if tech['volume_ratio'] < 0.8 else "Normal"
+                    st.metric("Volume", f"{tech['volume_ratio']:.1f}x", vol_status)
+                
+                # Additional detailed metrics
+                st.markdown("---")
+                st.subheader("🔍 Additional Analysis")
+                
+                detail_col1, detail_col2, detail_col3 = st.columns(3)
+                
+                with detail_col1:
+                    st.write("**📈 Price Levels:**")
+                    st.write(f"• Current: {result['price']:.2f} PKR")
+                    st.write(f"• MA44: {tech['ma44']:.2f} PKR")
+                    st.write(f"• Distance from MA44: {((result['price'] - tech['ma44']) / tech['ma44'] * 100):+.1f}%")
+                    
+                with detail_col2:
+                    st.write("**⚖️ Risk Management:**")
+                    st.write(f"• Stop Loss: {risk['stop_loss']:.2f} PKR ({risk['stop_loss_pct']:+.1f}%)")
+                    st.write(f"• Target 1: {risk['target1']:.2f} PKR ({risk['target1_pct']:+.1f}%)")
+                    st.write(f"• Risk/Reward: {risk['risk_reward_ratio']:.2f}")
+                    
+                with detail_col3:
+                    st.write("**📊 Signal Quality:**")
+                    st.write(f"• Overall Grade: {signal['grade']}")
+                    st.write(f"• Confidence: {signal['score']:.1f}/100")
+                    st.write(f"• Recommendation: {signal['recommendation']}")
+                
+                # Key factors summary
+                if signal.get('factors'):
+                    st.markdown("---")
+                    st.subheader("🎯 Key Decision Factors")
+                    factors_text = " | ".join(signal['factors'][:3])  # Top 3 factors
+                    st.info(f"**Primary factors:** {factors_text}")
+                
+                # PDF Export functionality
+                st.markdown("---")
+                st.subheader("📄 Export Report")
+                
+                if PDF_AVAILABLE:
+                    col1, col2, col3 = st.columns([1, 1, 2])
+                    
+                    with col1:
+                        if st.button("📄 Generate PDF Report", type="primary"):
+                            try:
+                                # Create PDF generator
+                                pdf_generator = PDFReportGenerator()
+                                
+                                # Prepare analysis data for PDF
+                                analysis_data = {
+                                    'recommendation': signal['recommendation'],
+                                    'signal_strength': signal['grade'],
+                                    'risk_level': 'Medium',  # You can enhance this based on risk analysis
+                                    'target_price': f"{risk['target1']:.2f} PKR",
+                                    'technical_indicators': {
+                                        'RSI': {'value': f"{tech['rsi']:.1f}", 'signal': rsi_status},
+                                        'MA44': {'value': f"{tech['ma44']:.2f}", 'signal': tech.get('ma44_trend', 'Unknown')},
+                                        'Bollinger Bands %B': {'value': f"{tech['bb_pctb']:.2f}", 'signal': bb_status},
+                                        'Volume Ratio': {'value': f"{tech['volume_ratio']:.1f}x", 'signal': vol_status}
+                                    },
+                                    'market_data': {
+                                        'current_price': f"{result['price']:.2f} PKR",
+                                        'change': 'N/A',  # You can add this if available
+                                        'change_percent': 'N/A',
+                                        'volume': 'N/A',
+                                        'high_52w': 'N/A',
+                                        'low_52w': 'N/A'
+                                    },
+                                    'risk_analysis': {
+                                        'volatility': 'N/A',  # You can calculate this if needed
+                                        'beta': 'N/A',
+                                        'risk_score': f"{signal['score']:.0f}/100",
+                                        'stop_loss': f"{risk['stop_loss']:.2f} PKR"
+                                    }
+                                }
+                                
+                                # Generate PDF
+                                pdf_buffer = pdf_generator.generate_analysis_report(symbol, analysis_data)
+                                
+                                # Create download button
+                                st.success("✅ PDF Report Generated!")
+                                
+                            except Exception as e:
+                                st.error(f"❌ PDF generation failed: {str(e)}")
+                    
+                    with col2:
+                        # Download button will be created after PDF generation
+                        if 'pdf_buffer' in locals():
+                            b64 = base64.b64encode(pdf_buffer.read()).decode()
+                            href = f'<a href="data:application/pdf;base64,{b64}" download="PSX_Analysis_{symbol}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf" style="display: inline-block; padding: 0.5rem 1rem; background-color: #ff4b4b; color: white; text-decoration: none; border-radius: 0.25rem;">📥 Download PDF</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                    
+                    with col3:
+                        st.info("💡 **Tip:** PDF reports include all analysis details, charts, and recommendations for offline review.")
+                else:
+                    st.warning("📄 PDF export not available - missing required libraries")
         
         except Exception as e:
             st.error(f"Analysis error: {str(e)}")

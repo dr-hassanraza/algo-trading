@@ -320,7 +320,7 @@ with col2:
     st.info("💡 **Tip:** Downloads a detailed text report with all analysis data.")
 
     
-    def run_signal_analysis(self, symbols: list, analysis_type: str, days: int):
+def run_signal_analysis(self, symbols: list, analysis_type: str, days: int):
     """Run comprehensive signal analysis"""
     
     if not MODULES_AVAILABLE:

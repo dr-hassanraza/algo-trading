@@ -358,7 +358,7 @@ def run_signal_analysis(self, symbols: list, analysis_type: str, days: int):
                         # Create comprehensive display
                     self.display_detailed_analysis(result)
                     
-                    except Exception as e:
+                except Exception as e:
                         st.error(f"Error analyzing {symbol}: {str(e)}")
     
     def display_detailed_analysis(self, result: dict):

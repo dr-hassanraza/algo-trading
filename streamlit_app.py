@@ -172,6 +172,10 @@ class TradingDashboard:
             ["🏠 Dashboard", "📊 Signal Analysis", "💼 Portfolio", "⚙️ Settings", "📈 Charts", "🎯 Risk Management"]
         )
         
+        # Check if page was changed via button click
+        if 'page' in st.session_state and st.session_state['page'] != page:
+            page = st.session_state['page']
+        
         # Main content area
         if page == "🏠 Dashboard":
             self.show_dashboard()
@@ -191,6 +195,59 @@ class TradingDashboard:
         
         st.title(f"🏠 Welcome, {st.session_state['username']}!")
         st.markdown("Welcome to your professional PSX trading system!")
+        
+        # Navigation Dashboard - Prominently placed at top
+        st.markdown("### 🚀 Quick Access Dashboard")
+        st.markdown("**Access all features quickly from here:**")
+        
+        # Custom CSS for navigation buttons
+        st.markdown("""
+        <style>
+        .stButton > button {
+            height: 60px;
+            font-weight: bold;
+            border-radius: 10px;
+            border: 2px solid #2E86AB;
+            background-color: #f0f8ff;
+        }
+        .stButton > button:hover {
+            background-color: #2E86AB;
+            color: white;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
+        
+        with nav_col1:
+            if st.button("📊 **Signal Analysis**", use_container_width=True, help="Analyze stock signals and technical indicators"):
+                st.session_state['page'] = "📊 Signal Analysis"
+                st.rerun()
+        
+        with nav_col2:
+            if st.button("💼 **Portfolio**", use_container_width=True, help="Manage your trading portfolio"):
+                st.session_state['page'] = "💼 Portfolio"
+                st.rerun()
+        
+        with nav_col3:
+            if st.button("📈 **Charts**", use_container_width=True, help="View interactive trading charts"):
+                st.session_state['page'] = "📈 Charts"
+                st.rerun()
+        
+        with nav_col4:
+            if st.button("🎯 **Risk Management**", use_container_width=True, help="Calculate position sizes and manage risk"):
+                st.session_state['page'] = "🎯 Risk Management"
+                st.rerun()
+        
+        # Second row of navigation buttons
+        nav_col5, nav_col6, nav_col7, nav_col8 = st.columns(4)
+        
+        with nav_col5:
+            if st.button("⚙️ **Settings**", use_container_width=True, help="Configure trading parameters"):
+                st.session_state['page'] = "⚙️ Settings"
+                st.rerun()
+        
+        st.markdown("---")
         
         # Quick stats
         col1, col2, col3, col4 = st.columns(4)

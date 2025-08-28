@@ -577,7 +577,7 @@ class TradingDashboard:
                 
                 # Main decision banner
                 decision_color = {
-                    "STRONG BUY": """"", "BUY": "'''", "WEAK BUY": "🟠", 
+                    "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
                     "HOLD": "🔵", "AVOID": "🔴"
                 }.get(signal['recommendation'], "⚫")
                 
@@ -890,7 +890,7 @@ class TradingDashboard:
                 st.markdown(f"### {medals[i]} {symbol}")
                 
                 # Grade with color
-                grade_colors = {"A": """"", "B": "'''", "C": "🟠", "D": "🔴", "F": "⚫"}
+                grade_colors = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
                 grade_emoji = grade_colors.get(signal['grade'], "⚫")
                 
                 st.markdown(f"**{grade_emoji} Grade {signal['grade']}**")
@@ -984,9 +984,9 @@ class TradingDashboard:
             st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
             
             if rr_ratio >= 2.0:
-                st.success("""" **Excellent Risk/Reward** (R/R ≥ 2.0)")
+                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
             elif rr_ratio >= 1.0:
-                st.warning("''' **Acceptable Risk/Reward** (R/R 1.0-2.0)")
+                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
             else:
                 st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
         
@@ -1000,11 +1000,11 @@ class TradingDashboard:
             adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
             
             st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'""" Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'""" Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'""" Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'""" Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'""" Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
             
             # 4. Signal Confidence Analysis
             st.info("🎯 **Signal Confidence Analysis**")
@@ -1014,11 +1014,11 @@ class TradingDashboard:
             st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
             
             if confidence >= 80:
-                st.success("""" **Very High Confidence** (80-100)")
+                st.success("🟢 **Very High Confidence** (80-100)")
             elif confidence >= 65:
                 st.info("🔵 **High Confidence** (65-79)")
             elif confidence >= 50:
-                st.warning("''' **Medium Confidence** (50-64)")
+                st.warning("🟡 **Medium Confidence** (50-64)")
             elif confidence >= 35:
                 st.warning("🟠 **Low Confidence** (35-49)")
             else:
@@ -1038,11 +1038,11 @@ class TradingDashboard:
             for i, factor in enumerate(factors, 1):
                 # Determine if factor is positive or negative
                 if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. """ {factor}")
+                    st.write(f"{i}. 🟢 {factor}")
                 elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
                     st.write(f"{i}. 🔴 {factor}")
                 else:
-                    st.write(f"{i}. ''' {factor}")
+                    st.write(f"{i}. 🟡 {factor}")
         
         st.markdown("---")
         
@@ -1501,11 +1501,11 @@ class TradingDashboard:
             adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
             
             st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'""" Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'""" Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'""" Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'""" Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '''' Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'""" Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
             return
             
         # Technical indicator signals
@@ -1568,9 +1568,9 @@ class TradingDashboard:
             st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
             
             if rr_ratio >= 2.0:
-                st.success("""" **Excellent Risk/Reward** (R/R ≥ 2.0)")
+                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
             elif rr_ratio >= 1.0:
-                st.warning("''' **Acceptable Risk/Reward** (R/R 1.0-2.0)")
+                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
             else:
                 st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
             return
@@ -1654,11 +1654,11 @@ class TradingDashboard:
             st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
             
             if confidence >= 80:
-                st.success("""" **Very High Confidence** (80-100)")
+                st.success("🟢 **Very High Confidence** (80-100)")
             elif confidence >= 65:
                 st.info("🔵 **High Confidence** (65-79)")
             elif confidence >= 50:
-                st.warning("''' **Medium Confidence** (50-64)")
+                st.warning("🟡 **Medium Confidence** (50-64)")
             elif confidence >= 35:
                 st.warning("🟠 **Low Confidence** (35-49)")
             else:
@@ -1830,11 +1830,11 @@ class TradingDashboard:
             for i, factor in enumerate(factors, 1):
                 # Determine if factor is positive or negative
                 if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. """ {factor}")
+                    st.write(f"{i}. 🟢 {factor}")
                 elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
                     st.write(f"{i}. 🔴 {factor}")
                 else:
-                    st.write(f"{i}. ''' {factor}")
+                    st.write(f"{i}. 🟡 {factor}")
             return
             
         st.subheader("🔍 Decision Factors")

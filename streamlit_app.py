@@ -156,12 +156,6 @@ class TradingDashboard:
         st.sidebar.title("🏛️ PSX Trading Bot")
         st.sidebar.markdown("---")
 
-        # Logout Button
-        if st.sidebar.button("Logout"):
-            st.session_state['authenticated'] = False
-            st.session_state['username'] = ""
-            st.rerun()
-
         # Market Status in Sidebar
         st.sidebar.markdown("### 📈 Market Status")
         market_status = self.get_market_status()
@@ -2196,6 +2190,38 @@ def show_sidebar_footer():
     st.sidebar.markdown("### 📊 System Status")
     st.sidebar.success("✅ Online")
     st.sidebar.info("🔄 Last Update: " + datetime.now().strftime("%H:%M"))
+    
+    # Enhanced Logout Button with styling
+    st.sidebar.markdown("""
+    <style>
+    .logout-button {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        font-weight: bold;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        width: 100%;
+        cursor: pointer;
+        text-align: center;
+        margin: 15px 0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    }
+    .logout-button:hover {
+        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(220, 53, 69, 0.4);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Logout Button
+    if st.sidebar.button("🚪 Logout", type="secondary", use_container_width=True, help="Sign out of your account"):
+        st.session_state['authenticated'] = False
+        st.session_state['username'] = ""
+        st.rerun()
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ℹ️ About")

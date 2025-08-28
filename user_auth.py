@@ -30,16 +30,30 @@ def get_users() -> dict:
     if not USERS_FILE.exists():
         return {}
     
-    with open(USERS_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return {}
+    try:
+        with open(USERS_FILE, "r") as f:
+            try:
+                users_data = json.load(f)
+                # Ensure it's a dictionary
+                if not isinstance(users_data, dict):
+                    return {}
+                return users_data
+            except json.JSONDecodeError:
+                # If JSON is corrupted, return empty dict
+                return {}
+    except (IOError, OSError):
+        # If file can't be read, return empty dict
+        return {}
 
 def save_users(users: dict):
     """Saves the users dictionary to the users.json file."""
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=4)
+    try:
+        with open(USERS_FILE, "w") as f:
+            json.dump(users, f, indent=4)
+    except (IOError, OSError) as e:
+        # If we can't save, at least log the error (but don't crash the app)
+        print(f"Warning: Could not save users file: {e}")
+        pass
 
 def add_user(username: str, password: str, name: str, email: str) -> bool:
     """Adds a new user to the users.json file."""
@@ -82,11 +96,40 @@ def update_user_ip(username: str, ip_address: str):
 def get_user_data(username: str) -> dict:
     """Retrieves all data for a specific user."""
     users = get_users()
-    return users.get(username, {})
+    user_data = users.get(username, {})
+    
+    # Ensure all required fields exist with default values
+    default_user = {
+        "password": "",
+        "name": username,
+        "email": "",
+        "usage_count": 0,
+        "ip_address": ""
+    }
+    
+    # Merge user data with defaults, ensuring all fields are present
+    for key, default_value in default_user.items():
+        if key not in user_data:
+            user_data[key] = default_value
+    
+    return user_data
 
 def increment_usage(username: str):
     """Increments the usage count for a user."""
     users = get_users()
     if username in users:
+        # Ensure usage_count field exists
+        if "usage_count" not in users[username]:
+            users[username]["usage_count"] = 0
         users[username]["usage_count"] += 1
+        save_users(users)
+    else:
+        # Create user entry if it doesn't exist
+        users[username] = {
+            "password": "",
+            "name": username,
+            "email": "",
+            "usage_count": 1,
+            "ip_address": ""
+        }
         save_users(users)

@@ -199,78 +199,162 @@ class TradingDashboard:
         st.title(f"🏠 Welcome, {st.session_state['username']}!")
         st.markdown("Welcome to your professional PSX trading system!")
         
-        # Navigation Dashboard - Prominently placed at top
-        st.markdown("### 🚀 Quick Access Dashboard")
-        st.markdown("**Access all features quickly from here:**")
+        # Professional Trading Hub
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 30px; border-radius: 15px; margin: 20px 0; text-align: center;">
+            <h2 style="color: white; margin-bottom: 10px;">🚀 PSX Trading Command Center</h2>
+            <p style="color: #f0f8ff; font-size: 16px; margin: 0;">
+                Professional tools for intelligent trading decisions
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Custom CSS for navigation buttons
+        # Enhanced CSS for professional navigation buttons
         st.markdown("""
         <style>
+        .trading-button {
+            background: linear-gradient(145deg, #ffffff, #f0f8ff);
+            border: 3px solid #2E86AB;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px;
+            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .trading-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.3);
+            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
+        }
         .stButton > button {
-            height: 60px;
+            height: 80px;
             font-weight: bold;
-            border-radius: 10px;
-            border: 2px solid #2E86AB;
-            background-color: #f0f8ff;
+            border-radius: 15px;
+            border: 3px solid #2E86AB;
+            background: linear-gradient(145deg, #ffffff, #f0f8ff);
+            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
+            transition: all 0.3s ease;
+            font-size: 16px;
         }
         .stButton > button:hover {
-            background-color: #2E86AB;
+            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
             color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.4);
         }
         </style>
         """, unsafe_allow_html=True)
         
-        nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
+        # Main navigation buttons in a clean 2x2 grid
+        st.markdown("#### 📈 Core Trading Features")
+        nav_col1, nav_col2 = st.columns(2)
         
         with nav_col1:
-            if st.button("📊 **Signal Analysis**", use_container_width=True, help="Analyze stock signals and technical indicators"):
+            if st.button("📊 **SIGNAL ANALYSIS**\n\n*Advanced Technical Analysis*", use_container_width=True, help="Analyze stock signals with professional indicators"):
                 st.session_state['page'] = "📊 Signal Analysis"
                 st.rerun()
         
         with nav_col2:
-            if st.button("💼 **Portfolio**", use_container_width=True, help="Manage your trading portfolio"):
+            if st.button("💼 **PORTFOLIO MANAGER**\n\n*Track Your Investments*", use_container_width=True, help="Manage and monitor your trading portfolio"):
                 st.session_state['page'] = "💼 Portfolio"
                 st.rerun()
         
+        nav_col3, nav_col4 = st.columns(2)
+        
         with nav_col3:
-            if st.button("📈 **Charts**", use_container_width=True, help="View interactive trading charts"):
+            if st.button("📈 **INTERACTIVE CHARTS**\n\n*Professional Visualization*", use_container_width=True, help="View detailed interactive trading charts"):
                 st.session_state['page'] = "📈 Charts"
                 st.rerun()
         
         with nav_col4:
-            if st.button("🎯 **Risk Management**", use_container_width=True, help="Calculate position sizes and manage risk"):
+            if st.button("🎯 **RISK MANAGEMENT**\n\n*Smart Position Sizing*", use_container_width=True, help="Calculate optimal position sizes and manage risk"):
                 st.session_state['page'] = "🎯 Risk Management"
                 st.rerun()
         
-        # Second row of navigation buttons
-        nav_col5, nav_col6, nav_col7, nav_col8 = st.columns(4)
+        # Professional Statistics Dashboard
+        st.markdown("#### 📊 Your Trading Overview")
+        st.markdown("""
+        <style>
+        .metric-container {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-left: 4px solid #2E86AB;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .metric-title {
+            color: #2E86AB;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+        }
+        .metric-change {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .positive { color: #28a745; }
+        .neutral { color: #6c757d; }
+        .warning { color: #ffc107; }
+        </style>
+        """, unsafe_allow_html=True)
         
-        with nav_col5:
-            if st.button("⚙️ **Settings**", use_container_width=True, help="Configure trading parameters"):
-                st.session_state['page'] = "⚙️ Settings"
-                st.rerun()
-        
-        st.markdown("---")
-        
-        # Quick stats
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("🎯 Signals Today", "5", "+2")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">🎯 SIGNALS TODAY</div>
+                <div class="metric-value">5</div>
+                <div class="metric-change positive">+2 from yesterday</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.metric("💼 Portfolio Value", "250,000 PKR", "+5.2%")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">💼 PORTFOLIO VALUE</div>
+                <div class="metric-value">250,000 PKR</div>
+                <div class="metric-change positive">+5.2% this month</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col3:
-            st.metric("📈 Active Positions", "8", "+1")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">📈 ACTIVE POSITIONS</div>
+                <div class="metric-value">8</div>
+                <div class="metric-change positive">+1 new position</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col4:
-            st.metric("🛡️ Risk Level", "Medium", "")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">🛡️ RISK LEVEL</div>
+                <div class="metric-value">Medium</div>
+                <div class="metric-change warning">Well balanced</div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        st.markdown("---")
-        
-        # Quick analysis section
-        st.subheader("🚀 Quick Analysis")
+        # Professional Quick Analysis Section  
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+                    padding: 25px; border-radius: 15px; margin: 30px 0; 
+                    border: 1px solid #dee2e6;">
+            <h3 style="color: #2E86AB; margin-bottom: 10px;">🚀 Professional Stock Analysis</h3>
+            <p style="color: #6c757d; font-size: 16px; margin: 0;">
+                Get instant insights with advanced technical analysis powered by real-time PSX data
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
         col1, col2 = st.columns([2, 1])
         

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 PSX Trading Bot - Streamlit Web Interface
 =========================================
@@ -18,6 +19,12 @@ import json
 from pathlib import Path
 import base64
 import io
+from streamlit_javascript import st_javascript
+
+# Import user authentication and usage tracking modules
+import user_auth
+import usage_tracker
+import ml_model
 
 # Configure Streamlit page
 st.set_page_config(
@@ -29,13 +36,14 @@ st.set_page_config(
 
 # Import our modules
 try:
-    from enhanced_signal_analyzer import enhanced_signal_analysis
+    from enhanced_signal_analyzer import enhanced_signal_analysis, enhanced_indicators
     from config_manager import get_config, set_config
     from portfolio_manager import PortfolioManager
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
     from pdf_generator import PDFReportGenerator, create_download_link
+    from psx_bbands_candle_scanner import EODHDFetcher, TODAY
     MODULES_AVAILABLE = True
     PDF_AVAILABLE = True
 except ImportError as e:
@@ -46,6 +54,33 @@ except ImportError as e:
 # Configure logging for Streamlit
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_ip():
+    # The JavaScript code to fetch the IP address from api.ipify.org
+    script = """
+        async function getIP() {
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch (error) {
+                console.log('IP fetch error:', error);
+                return 'fallback-ip';
+            }
+        }
+        return getIP();
+    """
+    # Execute the JavaScript and return the result
+    try:
+        ip_address = st_javascript(script)
+        # If JavaScript returns None, null, undefined, or empty string, use fallback
+        if not ip_address or ip_address in ['null', 'undefined', '']:
+            return 'fallback-ip'
+        return ip_address
+    except Exception as e:
+        # Handle cases where JavaScript execution might fail
+        st.warning(f"IP detection failed: {str(e)}. Using fallback IP.")
+        return 'fallback-ip'
 
 class TradingDashboard:
     """Main trading dashboard class"""
@@ -120,6 +155,16 @@ class TradingDashboard:
         # Sidebar navigation
         st.sidebar.title("🏛️ PSX Trading Bot")
         st.sidebar.markdown("---")
+
+        # Logout Button
+        if st.sidebar.button("Logout"):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = ""
+            st.rerun()
+
+        # Display remaining usage
+        remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
+        st.sidebar.metric("Remaining Analyses", remaining_usage)
         
         # Navigation
         page = st.sidebar.selectbox(
@@ -144,7 +189,7 @@ class TradingDashboard:
     def show_dashboard(self):
         """Main dashboard overview"""
         
-        st.title("🏠 PSX Trading Dashboard")
+        st.title(f"🏠 Welcome, {st.session_state['username']}!")
         st.markdown("Welcome to your professional PSX trading system!")
         
         # Quick stats
@@ -203,14 +248,20 @@ class TradingDashboard:
                 st.info(f"Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
             
             if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
+                if not usage_tracker.check_usage(st.session_state['username']):
+                    st.error("You have reached your analysis limit of 10.")
+                    return
+
                 if len(selected_symbols) == 1:
                     # Single stock - use the detailed quick_analysis
                     with st.spinner(f"Analyzing {selected_symbols[0]}..."):
                         self.quick_analysis(selected_symbols[0])
+                        usage_tracker.record_usage(st.session_state['username'])
                 else:
                     # Multiple stocks - use multi_stock_analysis
                     with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
                         self.multi_stock_analysis(selected_symbols)
+                        usage_tracker.record_usage(st.session_state['username'])
         
         with col2:
             st.subheader("📈 Market Status")
@@ -220,7 +271,7 @@ class TradingDashboard:
             if market_status['status'] == 'open':
                 st.success(f"✅ {market_status['message']}")
             elif market_status['status'] == 'pre_open':
-                st.info(f"🟡 {market_status['message']}")
+                st.info(f"''' {market_status['message']}")
             elif market_status['status'] == 'post_close':
                 st.warning(f"🟠 {market_status['message']}")
             elif market_status['status'] == 'closed':
@@ -380,8 +431,12 @@ class TradingDashboard:
         
         # Analysis button
         if st.button("🚀 Run Analysis"):
+            if not usage_tracker.check_usage(st.session_state['username']):
+                st.error("You have reached your analysis limit of 10.")
+                return
             self.run_signal_analysis(symbols, analysis_type, days)
-    
+            usage_tracker.record_usage(st.session_state['username'])
+
     def show_portfolio(self):
         """Portfolio management page"""
         
@@ -1655,32 +1710,35 @@ class TradingDashboard:
     def generate_simple_pdf_report(self, symbol: str, analysis_data: dict):
         """Generate a simple HTML report for PDF conversion"""
         
+        # CSS styles as a separate string to avoid f-string issues with decimals
+        css_styles = '''
+                body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+                h1 { color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }
+                h2 { color: #A23B72; margin-top: 30px; }
+                .header-info { background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .metrics { display: flex; justify-content: space-between; margin: 20px 0; }
+                .metric { text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }
+                .recommendation { text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
+                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                th { background-color: #2E86AB; color: white; }
+                .footer { margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
+                          border-radius: 5px; font-style: italic; text-align: center; }
+                @media print {
+                    body { margin: 20px; }
+                    .metrics { flex-wrap: wrap; }
+                    .metric { margin: 10px 0; }
+                }
+        '''
+        
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
             <title>PSX Trading Analysis Report - {symbol}</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                h1 {{ color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }}
-                h2 {{ color: #A23B72; margin-top: 30px; }}
-                .header-info {{ background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-                .metrics {{ display: flex; justify-content: space-between; margin: 20px 0; }}
-                .metric {{ text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }}
-                .recommendation {{ text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
-                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }}
-                table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-                th {{ background-color: #2E86AB; color: white; }}
-                .footer {{ margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
-                          border-radius: 5px; font-style: italic; text-align: center; }}
-                @media print {{
-                    body {{ margin: 20px; }}
-                    .metrics {{ flex-wrap: wrap; }}
-                    .metric {{ margin: 10px 0; }}
-                }}
-            </style>
+            <style>{css_styles}</style>
         </head>
         <body>
             <h1>PSX Trading Analysis Report</h1>
@@ -1692,10 +1750,10 @@ class TradingDashboard:
             </div>
             
             <div class="recommendation">
-                🎯 RECOMMENDATION: {analysis_data.get('recommendation', 'N/A')}
+                &#x1F3AF; RECOMMENDATION: {analysis_data.get('recommendation', 'N/A')}
             </div>
             
-            <h2>📊 Executive Summary</h2>
+            <h2>&#x1F4CA; Executive Summary</h2>
             <div class="metrics">
                 <div class="metric">
                     <strong>Signal Grade</strong><br>
@@ -1715,7 +1773,7 @@ class TradingDashboard:
                 </div>
             </div>
             
-            <h2>🔍 Technical Analysis</h2>
+            <h2>&#x1F50D; Technical Analysis</h2>
             <table>
                 <tr><th>Indicator</th><th>Value</th><th>Signal</th></tr>"""
         
@@ -1733,7 +1791,7 @@ class TradingDashboard:
         html_content += f"""
             </table>
             
-            <h2>⚖️ Risk Analysis</h2>
+            <h2>&#x2696; Risk Analysis</h2>
             <table>
                 <tr><th>Risk Factor</th><th>Value</th></tr>
                 <tr><td>Risk Score</td><td>{analysis_data.get('risk_score', 'N/A')}</td></tr>
@@ -1742,7 +1800,7 @@ class TradingDashboard:
                 <tr><td>Target Price</td><td>{analysis_data.get('target_price', 'N/A')}</td></tr>
             </table>
             
-            <h2>📈 Key Metrics Summary</h2>
+            <h2>&#x1F4C8; Key Metrics Summary</h2>
             <table>
                 <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
                 <tr><td>Overall Recommendation</td><td>{analysis_data.get('recommendation', 'N/A')}</td><td>Primary trading decision</td></tr>
@@ -1755,7 +1813,7 @@ class TradingDashboard:
                 <strong>Disclaimer:</strong> This report is generated by PSX Trading Bot for informational purposes only. 
                 Please consult with a financial advisor before making investment decisions.<br><br>
                 <strong>Generated by:</strong> PSX Trading Bot | <strong>Website:</strong> Pakistan Stock Exchange Analysis System<br>
-                <strong>Note:</strong> To save as PDF, use your browser's print function (Ctrl+P) and select "Save as PDF"
+                <strong>Note:</strong> To save as PDF, use your browser\\'s print function (Ctrl+P) and select \"Save as PDF\"
             </div>
         </body>
         </html>
@@ -1863,18 +1921,81 @@ def show_sidebar_footer():
     st.sidebar.markdown("Professional algorithmic trading system for PSX")
     st.sidebar.markdown("⚠️ *Educational use only*")
 
+def show_login_signup_page():
+    """Show the login/signup page."""
+    st.title("Welcome to the PSX Trading Bot")
+
+    tabs = st.tabs(["Login", "Sign Up"])
+
+    with tabs[0]:
+        st.subheader("Login")
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+
+            if submitted:
+                if user_auth.authenticate_user(username, password):
+                    ip_address = get_ip()
+                    if ip_address:
+                        user_auth.update_user_ip(username, ip_address)
+                        st.session_state['authenticated'] = True
+                        st.session_state['username'] = username
+                        st.rerun()
+                    else:
+                        st.error("Could not retrieve IP address. Please try again.")
+                else:
+                    st.error("Invalid username or password")
+
+    with tabs[1]:
+        st.subheader("Create a New Account")
+        with st.form("signup_form"):
+            new_username = st.text_input("New Username")
+            name = st.text_input("Name")
+            email = st.text_input("Email")
+            new_password = st.text_input("New Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            submitted = st.form_submit_button("Sign Up")
+
+            if submitted:
+                if not all([new_username, name, email, new_password, confirm_password]):
+                    st.error("All fields are required.")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match.")
+                elif user_auth.add_user(new_username, new_password, name, email):
+                    st.success("Account created successfully! You can now log in.")
+                else:
+                    st.error("Username already exists.")
+
+def check_ip():
+    """Check if the user's IP is consistent."""
+    if 'username' in st.session_state and st.session_state['username']:
+        user_data = user_auth.get_user_data(st.session_state['username'])
+        stored_ip = user_data.get("ip_address")
+        if stored_ip:
+            current_ip = get_ip()
+            if current_ip and current_ip != stored_ip:
+                st.error("IP address mismatch. For security, you have been logged out.")
+                st.session_state['authenticated'] = False
+                st.session_state['username'] = ""
+                st.rerun()
+
 # Main application
 def main():
     """Main Streamlit application"""
     
-    # Initialize dashboard
-    dashboard = TradingDashboard()
-    
-    # Show sidebar footer
-    show_sidebar_footer()
-    
-    # Run dashboard
-    dashboard.run()
+    if not st.session_state.get('authenticated'):
+        show_login_signup_page()
+    else:
+        check_ip()
+        # Initialize dashboard
+        dashboard = TradingDashboard()
+        
+        # Show sidebar footer
+        show_sidebar_footer()
+        
+        # Run dashboard
+        dashboard.run()
 
 if __name__ == "__main__":
     main()

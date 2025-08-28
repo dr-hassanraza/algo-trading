@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 import base64
 import io
+from streamlit_javascript import st_javascript
 
 # Import user authentication and usage tracking modules
 import user_auth
@@ -52,6 +53,24 @@ except ImportError as e:
 # Configure logging for Streamlit
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def get_ip():
+    # The JavaScript code to fetch the IP address from api.ipify.org
+    script = """
+        async function getIP() {
+            const response = await fetch('https://api.ipify.org?format=json');
+            const data = await response.json();
+            return data.ip;
+        }
+        return getIP();
+    """
+    # Execute the JavaScript and return the result
+    try:
+        ip_address = st_javascript(script)
+        return ip_address
+    except Exception as e:
+        # Handle cases where JavaScript execution might fail
+        return None
 
 class TradingDashboard:
     """Main trading dashboard class"""
@@ -220,7 +239,7 @@ class TradingDashboard:
             
             if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
                 if not usage_tracker.check_usage(st.session_state['username']):
-                    st.error("You have reached your daily analysis limit of 10.")
+                    st.error("You have reached your analysis limit of 10.")
                     return
 
                 if len(selected_symbols) == 1:
@@ -242,7 +261,7 @@ class TradingDashboard:
             if market_status['status'] == 'open':
                 st.success(f"✅ {market_status['message']}")
             elif market_status['status'] == 'pre_open':
-                st.info(f"🟡 {market_status['message']}")
+                st.info(f"''' {market_status['message']}")
             elif market_status['status'] == 'post_close':
                 st.warning(f"🟠 {market_status['message']}")
             elif market_status['status'] == 'closed':
@@ -403,7 +422,7 @@ class TradingDashboard:
         # Analysis button
         if st.button("🚀 Run Analysis"):
             if not usage_tracker.check_usage(st.session_state['username']):
-                st.error("You have reached your daily analysis limit of 10.")
+                st.error("You have reached your analysis limit of 10.")
                 return
             self.run_signal_analysis(symbols, analysis_type, days)
             usage_tracker.record_usage(st.session_state['username'])
@@ -558,7 +577,7 @@ class TradingDashboard:
                 
                 # Main decision banner
                 decision_color = {
-                    "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
+                    "STRONG BUY": """"", "BUY": "'''", "WEAK BUY": "🟠", 
                     "HOLD": "🔵", "AVOID": "🔴"
                 }.get(signal['recommendation'], "⚫")
                 
@@ -871,7 +890,7 @@ class TradingDashboard:
                 st.markdown(f"### {medals[i]} {symbol}")
                 
                 # Grade with color
-                grade_colors = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
+                grade_colors = {"A": """"", "B": "'''", "C": "🟠", "D": "🔴", "F": "⚫"}
                 grade_emoji = grade_colors.get(signal['grade'], "⚫")
                 
                 st.markdown(f"**{grade_emoji} Grade {signal['grade']}**")
@@ -917,7 +936,7 @@ class TradingDashboard:
         
         # Main decision banner
         decision_color = {
-            "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
+            "STRONG BUY": """"", "BUY": "'''", "WEAK BUY": "🟠", 
             "HOLD": "🔵", "AVOID": "🔴"
         }.get(signal['recommendation'], "⚫")
         
@@ -965,9 +984,9 @@ class TradingDashboard:
             st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
             
             if rr_ratio >= 2.0:
-                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
+                st.success("""" **Excellent Risk/Reward** (R/R ≥ 2.0)")
             elif rr_ratio >= 1.0:
-                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
+                st.warning("''' **Acceptable Risk/Reward** (R/R 1.0-2.0)")
             else:
                 st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
         
@@ -981,11 +1000,11 @@ class TradingDashboard:
             adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
             
             st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'""" Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'""" Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'""" Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'""" Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'""" Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '''' Neutral'})")
             
             # 4. Signal Confidence Analysis
             st.info("🎯 **Signal Confidence Analysis**")
@@ -995,11 +1014,11 @@ class TradingDashboard:
             st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
             
             if confidence >= 80:
-                st.success("🟢 **Very High Confidence** (80-100)")
+                st.success("""" **Very High Confidence** (80-100)")
             elif confidence >= 65:
                 st.info("🔵 **High Confidence** (65-79)")
             elif confidence >= 50:
-                st.warning("🟡 **Medium Confidence** (50-64)")
+                st.warning("''' **Medium Confidence** (50-64)")
             elif confidence >= 35:
                 st.warning("🟠 **Low Confidence** (35-49)")
             else:
@@ -1019,11 +1038,11 @@ class TradingDashboard:
             for i, factor in enumerate(factors, 1):
                 # Determine if factor is positive or negative
                 if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. 🟢 {factor}")
+                    st.write(f"{i}. """ {factor}")
                 elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
                     st.write(f"{i}. 🔴 {factor}")
                 else:
-                    st.write(f"{i}. 🟡 {factor}")
+                    st.write(f"{i}. ''' {factor}")
         
         st.markdown("---")
         
@@ -1115,7 +1134,7 @@ class TradingDashboard:
         col1, col2, col3 = st.columns([1, 2, 1])
         
         with col1:
-            grade_color = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
+            grade_color = {"A": """"", "B": "'''", "C": "🟠", "D": "🔴", "F": "⚫"}
             st.markdown(f"## {grade_color.get(signal['grade'], '⚫')} Grade {signal['grade']}")
         
         with col2:
@@ -1482,11 +1501,11 @@ class TradingDashboard:
             adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
             
             st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
+            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'""" Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'""" Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'""" Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'""" Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '''' Neutral'})")
+            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'""" Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '''' Neutral'})")
             return
             
         # Technical indicator signals
@@ -1549,9 +1568,9 @@ class TradingDashboard:
             st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
             
             if rr_ratio >= 2.0:
-                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
+                st.success("""" **Excellent Risk/Reward** (R/R ≥ 2.0)")
             elif rr_ratio >= 1.0:
-                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
+                st.warning("''' **Acceptable Risk/Reward** (R/R 1.0-2.0)")
             else:
                 st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
             return
@@ -1635,11 +1654,11 @@ class TradingDashboard:
             st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
             
             if confidence >= 80:
-                st.success("🟢 **Very High Confidence** (80-100)")
+                st.success("""" **Very High Confidence** (80-100)")
             elif confidence >= 65:
                 st.info("🔵 **High Confidence** (65-79)")
             elif confidence >= 50:
-                st.warning("🟡 **Medium Confidence** (50-64)")
+                st.warning("''' **Medium Confidence** (50-64)")
             elif confidence >= 35:
                 st.warning("🟠 **Low Confidence** (35-49)")
             else:
@@ -1811,11 +1830,11 @@ class TradingDashboard:
             for i, factor in enumerate(factors, 1):
                 # Determine if factor is positive or negative
                 if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. 🟢 {factor}")
+                    st.write(f"{i}. """ {factor}")
                 elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
                     st.write(f"{i}. 🔴 {factor}")
                 else:
-                    st.write(f"{i}. 🟡 {factor}")
+                    st.write(f"{i}. ''' {factor}")
             return
             
         st.subheader("🔍 Decision Factors")
@@ -1904,9 +1923,14 @@ def show_login_signup_page():
 
             if submitted:
                 if user_auth.authenticate_user(username, password):
-                    st.session_state['authenticated'] = True
-                    st.session_state['username'] = username
-                    st.rerun()
+                    ip_address = get_ip()
+                    if ip_address:
+                        user_auth.update_user_ip(username, ip_address)
+                        st.session_state['authenticated'] = True
+                        st.session_state['username'] = username
+                        st.rerun()
+                    else:
+                        st.error("Could not retrieve IP address. Please try again.")
                 else:
                     st.error("Invalid username or password")
 
@@ -1914,19 +1938,34 @@ def show_login_signup_page():
         st.subheader("Create a New Account")
         with st.form("signup_form"):
             new_username = st.text_input("New Username")
+            name = st.text_input("Name")
+            email = st.text_input("Email")
             new_password = st.text_input("New Password", type="password")
             confirm_password = st.text_input("Confirm Password", type="password")
             submitted = st.form_submit_button("Sign Up")
 
             if submitted:
-                if not new_username or not new_password:
-                    st.error("Username and password cannot be empty.")
+                if not all([new_username, name, email, new_password, confirm_password]):
+                    st.error("All fields are required.")
                 elif new_password != confirm_password:
                     st.error("Passwords do not match.")
-                elif user_auth.add_user(new_username, new_password):
+                elif user_auth.add_user(new_username, new_password, name, email):
                     st.success("Account created successfully! You can now log in.")
                 else:
                     st.error("Username already exists.")
+
+def check_ip():
+    """Check if the user's IP is consistent."""
+    if 'username' in st.session_state and st.session_state['username']:
+        user_data = user_auth.get_user_data(st.session_state['username'])
+        stored_ip = user_data.get("ip_address")
+        if stored_ip:
+            current_ip = get_ip()
+            if current_ip and current_ip != stored_ip:
+                st.error("IP address mismatch. For security, you have been logged out.")
+                st.session_state['authenticated'] = False
+                st.session_state['username'] = ""
+                st.rerun()
 
 # Main application
 def main():
@@ -1935,6 +1974,7 @@ def main():
     if not st.session_state.get('authenticated'):
         show_login_signup_page()
     else:
+        check_ip()
         # Initialize dashboard
         dashboard = TradingDashboard()
         

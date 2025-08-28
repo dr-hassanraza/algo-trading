@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 PSX Trading Bot - Streamlit Web Interface
@@ -23,6 +22,7 @@ import io
 # Import user authentication and usage tracking modules
 import user_auth
 import usage_tracker
+import ml_model
 
 # Configure Streamlit page
 st.set_page_config(
@@ -34,13 +34,14 @@ st.set_page_config(
 
 # Import our modules
 try:
-    from enhanced_signal_analyzer import enhanced_signal_analysis
+    from enhanced_signal_analyzer import enhanced_signal_analysis, enhanced_indicators
     from config_manager import get_config, set_config
     from portfolio_manager import PortfolioManager
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
     from pdf_generator import PDFReportGenerator, create_download_link
+    from psx_bbands_candle_scanner import EODHDFetcher, TODAY
     MODULES_AVAILABLE = True
     PDF_AVAILABLE = True
 except ImportError as e:

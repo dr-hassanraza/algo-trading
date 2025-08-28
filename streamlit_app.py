@@ -936,7 +936,7 @@ class TradingDashboard:
         
         # Main decision banner
         decision_color = {
-            "STRONG BUY": """"", "BUY": "'''", "WEAK BUY": "🟠", 
+            "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
             "HOLD": "🔵", "AVOID": "🔴"
         }.get(signal['recommendation'], "⚫")
         

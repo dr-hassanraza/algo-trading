@@ -1,4 +1,3 @@
-
 import json
 import hashlib
 import os
@@ -42,7 +41,7 @@ def save_users(users: dict):
     with open(USERS_FILE, "w") as f:
         json.dump(users, f, indent=4)
 
-def add_user(username: str, password: str) -> bool:
+def add_user(username: str, password: str, name: str, email: str) -> bool:
     """Adds a new user to the users.json file."""
     users = get_users()
     
@@ -50,7 +49,11 @@ def add_user(username: str, password: str) -> bool:
         return False  # User already exists
     
     users[username] = {
-        "password": hash_password(password)
+        "password": hash_password(password),
+        "name": name,
+        "email": email,
+        "usage_count": 0,
+        "ip_address": ""
     }
     
     save_users(users)
@@ -68,3 +71,22 @@ def authenticate_user(username: str, password: str) -> bool:
         return False
         
     return verify_password(stored_password, password)
+
+def update_user_ip(username: str, ip_address: str):
+    """Updates the user's IP address."""
+    users = get_users()
+    if username in users:
+        users[username]["ip_address"] = ip_address
+        save_users(users)
+
+def get_user_data(username: str) -> dict:
+    """Retrieves all data for a specific user."""
+    users = get_users()
+    return users.get(username, {})
+
+def increment_usage(username: str):
+    """Increments the usage count for a user."""
+    users = get_users()
+    if username in users:
+        users[username]["usage_count"] += 1
+        save_users(users)

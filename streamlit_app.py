@@ -429,32 +429,105 @@ class TradingDashboard:
                 selected_symbols = sector_options[selected_sector]
                 st.info(f"📈 Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
         
-        # Full-width analyze button
+        # Enhanced CSS for analyze button specifically
+        st.markdown("""
+        <style>
+        /* Enhanced styling for analyze button - better visibility and contrast */
+        div.stButton[data-testid="stButton"] > button[kind="primary"] {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+            color: white !important;
+            font-weight: bold !important;
+            font-size: 18px !important;
+            padding: 15px 25px !important;
+            border: 3px solid #155724 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3) !important;
+            transition: all 0.3s ease !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+            min-height: 65px !important;
+        }
+        
+        /* Hover state for better interactivity */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%) !important;
+            color: #ffffff !important;
+            transform: translateY(-3px) !important;
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4) !important;
+            border-color: #0d4417 !important;
+        }
+        
+        /* Disabled state for when no symbols selected */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:disabled {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
+            color: #ffffff !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            border-color: #343a40 !important;
+        }
+        
+        /* Focus state for accessibility */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:focus {
+            outline: 3px solid rgba(40, 167, 69, 0.5) !important;
+            outline-offset: 2px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Full-width analyze button with enhanced visibility
         if selected_symbols:
-            if st.button("🚀 **ANALYZE SELECTED STOCKS**", type="primary", use_container_width=True):
-                try:
-                    if not usage_tracker.check_usage(st.session_state['username']):
-                        st.error("You have reached your analysis limit of 10.")
-                        return
-                except Exception as e:
-                    st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
+            analyze_clicked = st.button("🚀 **ANALYZE SELECTED STOCKS**", type="primary", use_container_width=True, key="analyze_btn")
+        else:
+            # Show disabled button when no symbols selected
+            st.markdown("""
+            <div style="width: 100%; text-align: center; margin: 20px 0;">
+                <button disabled style="
+                    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+                    color: #ffffff;
+                    font-weight: bold;
+                    font-size: 18px;
+                    padding: 15px 25px;
+                    border: 3px solid #343a40;
+                    border-radius: 12px;
+                    width: 100%;
+                    min-height: 65px;
+                    cursor: not-allowed;
+                    opacity: 0.7;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                ">
+                    🚀 **SELECT STOCKS TO ANALYZE**
+                </button>
+            </div>
+            <p style="text-align: center; color: #6c757d; font-style: italic; margin-top: 10px;">
+                👆 Choose symbols above to enable analysis
+            </p>
+            """, unsafe_allow_html=True)
+            analyze_clicked = False
+        
+        # Process analysis when button is clicked
+        if selected_symbols and analyze_clicked:
+            try:
+                if not usage_tracker.check_usage(st.session_state['username']):
+                    st.error("You have reached your analysis limit of 10.")
+                    return
+            except Exception as e:
+                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
 
-                if len(selected_symbols) == 1:
-                    # Single stock - use the detailed quick_analysis
-                    with st.spinner(f"Analyzing {selected_symbols[0]}..."):
-                        self.quick_analysis(selected_symbols[0])
-                        try:
-                            usage_tracker.record_usage(st.session_state['username'])
-                        except Exception as e:
-                            st.warning(f"Usage tracking failed: {str(e)}")
-                else:
-                    # Multiple stocks - use multi_stock_analysis
-                    with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
-                        self.multi_stock_analysis(selected_symbols)
-                        try:
-                            usage_tracker.record_usage(st.session_state['username'])
-                        except Exception as e:
-                            st.warning(f"Usage tracking failed: {str(e)}")
+            if len(selected_symbols) == 1:
+                # Single stock - use the detailed quick_analysis
+                with st.spinner(f"Analyzing {selected_symbols[0]}..."):
+                    self.quick_analysis(selected_symbols[0])
+                    try:
+                        usage_tracker.record_usage(st.session_state['username'])
+                    except Exception as e:
+                        st.warning(f"Usage tracking failed: {str(e)}")
+            else:
+                # Multiple stocks - use multi_stock_analysis
+                with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
+                    self.multi_stock_analysis(selected_symbols)
+                    try:
+                        usage_tracker.record_usage(st.session_state['username'])
+                    except Exception as e:
+                        st.warning(f"Usage tracking failed: {str(e)}")
         
         # Add Quick Insights Section
         st.markdown("---")

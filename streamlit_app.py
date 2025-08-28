@@ -1707,24 +1707,24 @@ class TradingDashboard:
             <meta charset="UTF-8">
             <title>PSX Trading Analysis Report - {symbol}</title>
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                h1 {{ color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }}
-                h2 {{ color: #A23B72; margin-top: 30px; }}
-                .header-info {{ background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-                .metrics {{ display: flex; justify-content: space-between; margin: 20px 0; }}
-                .metric {{ text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }}
-                .recommendation {{ text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
-                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }}
-                table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-                th {{ background-color: #2E86AB; color: white; }}
-                .footer {{ margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
-                          border-radius: 5px; font-style: italic; text-align: center; }}
-                @media print {{
-                    body {{ margin: 20px; }}
-                    .metrics {{ flex-wrap: wrap; }}
-                    .metric {{ margin: 10px 0; }}
-                }}
+                body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+                h1 { color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }
+                h2 { color: #A23B72; margin-top: 30px; }
+                .header-info { background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .metrics { display: flex; justify-content: space-between; margin: 20px 0; }
+                .metric { text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }
+                .recommendation { text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
+                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                th { background-color: #2E86AB; color: white; }
+                .footer { margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
+                          border-radius: 5px; font-style: italic; text-align: center; }
+                @media print {
+                    body { margin: 20px; }
+                    .metrics { flex-wrap: wrap; }
+                    .metric { margin: 10px 0; }
+                }
             </style>
         </head>
         <body>

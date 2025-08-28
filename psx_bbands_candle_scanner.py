@@ -22,7 +22,7 @@ Outputs
   Optional charts with --charts (PNG per ticker)
 
 Run it (EODHD only; no CSV, no Yahoo):
-  pip install pandas numpy requests matplotlib
+  pip install pandas numpy requests matplotlib pandas-ta
   export EODHD_API_KEY="YOUR_KEY"   # https://eodhd.com/
   python psx_bbands_candle_scanner.py --tickers UBL.KAR MCB.KAR OGDC.KAR --asof today --days 260 --charts
 
@@ -50,6 +50,7 @@ load_env()
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
+import pandas_ta as ta
 import requests
 import math
 
@@ -99,16 +100,6 @@ class EODHDFetcher:
 def sma(s: pd.Series, w: int) -> pd.Series:
     return s.rolling(w, min_periods=w).mean()
 
-
-def bollinger(close: pd.Series, w=20, n=2.0):
-    mid = sma(close, w)
-    std = close.rolling(w, min_periods=w).std()
-    up = mid + n*std
-    lo = mid - n*std
-    pctb = (close - lo) / (up - lo + 1e-12)
-    return mid, up, lo, pctb
-
-
 def slope(series: pd.Series, win: int = 10) -> pd.Series:
     return (series - series.shift(win)) / win
 
@@ -130,13 +121,10 @@ def near_ma44(df: pd.DataFrame, pct: float = 0.02, lookback: int = 3) -> bool:
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
+    out.ta.bbands(length=20, std=2, append=True)
     out['MA44'] = sma(out['Close'], 44)
-    mid, up, lo, pctb = bollinger(out['Close'], 20, 2.0)
-    out['BB_mid'] = mid
-    out['BB_up'] = up
-    out['BB_lo'] = lo
-    out['BB_pctB'] = pctb
     out['MA44_slope10'] = slope(out['MA44'], 10)
+    out.rename(columns={'BBM_20_2.0': 'BB_mid', 'BBU_20_2.0': 'BB_up', 'BBL_20_2.0': 'BB_lo', 'BBP_20_2.0': 'BB_pctB'}, inplace=True)
     out['BBmid_slope5'] = slope(out['BB_mid'], 5)
     out.dropna(inplace=True)
     return out

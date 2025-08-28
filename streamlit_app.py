@@ -59,19 +59,28 @@ def get_ip():
     # The JavaScript code to fetch the IP address from api.ipify.org
     script = """
         async function getIP() {
-            const response = await fetch('https://api.ipify.org?format=json');
-            const data = await response.json();
-            return data.ip;
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                return data.ip;
+            } catch (error) {
+                console.log('IP fetch error:', error);
+                return 'fallback-ip';
+            }
         }
         return getIP();
     """
     # Execute the JavaScript and return the result
     try:
         ip_address = st_javascript(script)
+        # If JavaScript returns None, null, undefined, or empty string, use fallback
+        if not ip_address or ip_address in ['null', 'undefined', '']:
+            return 'fallback-ip'
         return ip_address
     except Exception as e:
         # Handle cases where JavaScript execution might fail
-        return None
+        st.warning(f"IP detection failed: {str(e)}. Using fallback IP.")
+        return 'fallback-ip'
 
 class TradingDashboard:
     """Main trading dashboard class"""

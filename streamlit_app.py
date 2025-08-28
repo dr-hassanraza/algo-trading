@@ -452,22 +452,22 @@ class TradingDashboard:
             current_time_only = current_time.time()
             weekday = current_time.weekday()  # 0=Monday, 6=Sunday
             
-            # PSX Trading Hours (PKT)
-            pre_open_start = time(9, 0)      # 9:00 AM
-            pre_open_end = time(9, 15)       # 9:15 AM
-            market_open = time(9, 17)        # 9:17 AM
+            # PSX Trading Hours (PKT) - Correct Timings
+            pre_open_start = time(9, 15)     # 9:15 AM Pre-open
+            pre_open_end = time(9, 30)       # 9:30 AM
+            market_open = time(9, 30)        # 9:30 AM Market Open
             
-            # Regular market close times
+            # Regular market close times (Correct PSX Hours)
             if weekday == 4:  # Friday
-                regular_close = time(12, 30)  # 12:30 PM
-                post_close_start = time(12, 35)  # 12:35 PM
-                post_close_end = time(12, 50)   # 12:50 PM
-                modification_end = time(13, 20)  # 1:20 PM
-            else:  # Monday to Thursday
-                regular_close = time(13, 30)   # 1:30 PM
-                post_close_start = time(13, 35)  # 1:35 PM
-                post_close_end = time(13, 50)   # 1:50 PM
-                modification_end = time(14, 20)  # 2:20 PM
+                regular_close = time(14, 0)   # 2:00 PM (14:00)
+                post_close_start = time(14, 5)  # 2:05 PM
+                post_close_end = time(14, 20)   # 2:20 PM
+                modification_end = time(15, 0)  # 3:00 PM
+            else:  # Monday to Thursday  
+                regular_close = time(15, 30)   # 3:30 PM (15:30)
+                post_close_start = time(15, 35)  # 3:35 PM
+                post_close_end = time(15, 50)   # 3:50 PM
+                modification_end = time(16, 30)  # 4:30 PM
             
             # Format current time for display
             current_time_str = current_time.strftime("%I:%M %p PKT")
@@ -478,7 +478,7 @@ class TradingDashboard:
                     'status': 'weekend',
                     'message': 'Market Closed - Weekend',
                     'current_time': current_time_str,
-                    'next_session': 'Monday 9:00 AM (Pre-Open)'
+                    'next_session': 'Monday 9:15 AM (Pre-Open)'
                 }
             
             # Market status logic
@@ -494,15 +494,7 @@ class TradingDashboard:
                 # Pre-open session
                 return {
                     'status': 'pre_open',
-                    'message': 'Pre-Open Session (9:00-9:15 AM)',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {market_open.strftime("%I:%M %p")} (Market Open)'
-                }
-            elif time(9, 15) <= current_time_only < market_open:
-                # Between pre-open and market open
-                return {
-                    'status': 'closed',
-                    'message': 'Market Opening Soon',
+                    'message': 'Pre-Open Session (9:15-9:30 AM)',
                     'current_time': current_time_str,
                     'next_session': f'Today {market_open.strftime("%I:%M %p")} (Market Open)'
                 }
@@ -510,9 +502,10 @@ class TradingDashboard:
                 # Regular trading hours
                 close_time_str = regular_close.strftime("%I:%M %p")
                 day_name = "Friday" if weekday == 4 else "Mon-Thu"
+                open_time_str = market_open.strftime("%I:%M %p")
                 return {
                     'status': 'open',
-                    'message': f'Market Open ({day_name}: 9:17 AM - {close_time_str})',
+                    'message': f'Market Open ({day_name}: {open_time_str} - {close_time_str})',
                     'current_time': current_time_str,
                     'next_session': f'Today {close_time_str} (Market Close)'
                 }
@@ -530,7 +523,7 @@ class TradingDashboard:
                     'status': 'post_close',
                     'message': f'Post-Close Session ({post_close_start.strftime("%I:%M %p")}-{post_close_end.strftime("%I:%M %p")})',
                     'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:00 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:00 AM (Pre-Open)'
+                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
                 }
             elif post_close_end <= current_time_only < modification_end:
                 # Trade rectification/modification
@@ -538,7 +531,7 @@ class TradingDashboard:
                     'status': 'post_close',
                     'message': f'Trade Rectification ({post_close_end.strftime("%I:%M %p")}-{modification_end.strftime("%I:%M %p")})',
                     'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:00 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:00 AM (Pre-Open)'
+                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
                 }
             else:
                 # After all trading activities
@@ -547,7 +540,7 @@ class TradingDashboard:
                     'status': 'closed',
                     'message': 'Market Closed',
                     'current_time': current_time_str,
-                    'next_session': f'{next_day} 9:00 AM (Pre-Open)'
+                    'next_session': f'{next_day} 9:15 AM (Pre-Open)'
                 }
                 
         except Exception as e:

@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 PSX Trading Bot - Streamlit Web Interface
@@ -19,6 +20,10 @@ from pathlib import Path
 import base64
 import io
 
+# Import user authentication and usage tracking modules
+import user_auth
+import usage_tracker
+
 # Configure Streamlit page
 st.set_page_config(
     page_title="PSX Trading Bot",
@@ -35,7 +40,9 @@ try:
     from risk_manager import calculate_position_size, multi_timeframe_check
     from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
     from visualization_engine import data_exporter
+    from pdf_generator import PDFReportGenerator, create_download_link
     MODULES_AVAILABLE = True
+    PDF_AVAILABLE = True
 except ImportError as e:
     st.error(f"Required modules not available: {e}")
     MODULES_AVAILABLE = False
@@ -118,6 +125,16 @@ class TradingDashboard:
         # Sidebar navigation
         st.sidebar.title("🏛️ PSX Trading Bot")
         st.sidebar.markdown("---")
+
+        # Logout Button
+        if st.sidebar.button("Logout"):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = ""
+            st.rerun()
+
+        # Display remaining usage
+        remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
+        st.sidebar.metric("Remaining Analyses", remaining_usage)
         
         # Navigation
         page = st.sidebar.selectbox(
@@ -142,7 +159,7 @@ class TradingDashboard:
     def show_dashboard(self):
         """Main dashboard overview"""
         
-        st.title("🏠 PSX Trading Dashboard")
+        st.title(f"🏠 Welcome, {st.session_state['username']}!")
         st.markdown("Welcome to your professional PSX trading system!")
         
         # Quick stats
@@ -201,14 +218,20 @@ class TradingDashboard:
                 st.info(f"Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
             
             if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
+                if not usage_tracker.check_usage(st.session_state['username']):
+                    st.error("You have reached your daily analysis limit of 10.")
+                    return
+
                 if len(selected_symbols) == 1:
                     # Single stock - use the detailed quick_analysis
                     with st.spinner(f"Analyzing {selected_symbols[0]}..."):
                         self.quick_analysis(selected_symbols[0])
+                        usage_tracker.record_usage(st.session_state['username'])
                 else:
                     # Multiple stocks - use multi_stock_analysis
                     with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
                         self.multi_stock_analysis(selected_symbols)
+                        usage_tracker.record_usage(st.session_state['username'])
         
         with col2:
             st.subheader("📈 Market Status")
@@ -378,8 +401,12 @@ class TradingDashboard:
         
         # Analysis button
         if st.button("🚀 Run Analysis"):
+            if not usage_tracker.check_usage(st.session_state['username']):
+                st.error("You have reached your daily analysis limit of 10.")
+                return
             self.run_signal_analysis(symbols, analysis_type, days)
-    
+            usage_tracker.record_usage(st.session_state['username'])
+
     def show_portfolio(self):
         """Portfolio management page"""
         
@@ -1861,18 +1888,60 @@ def show_sidebar_footer():
     st.sidebar.markdown("Professional algorithmic trading system for PSX")
     st.sidebar.markdown("⚠️ *Educational use only*")
 
+def show_login_signup_page():
+    """Show the login/signup page."""
+    st.title("Welcome to the PSX Trading Bot")
+
+    tabs = st.tabs(["Login", "Sign Up"])
+
+    with tabs[0]:
+        st.subheader("Login")
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
+
+            if submitted:
+                if user_auth.authenticate_user(username, password):
+                    st.session_state['authenticated'] = True
+                    st.session_state['username'] = username
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+
+    with tabs[1]:
+        st.subheader("Create a New Account")
+        with st.form("signup_form"):
+            new_username = st.text_input("New Username")
+            new_password = st.text_input("New Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            submitted = st.form_submit_button("Sign Up")
+
+            if submitted:
+                if not new_username or not new_password:
+                    st.error("Username and password cannot be empty.")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match.")
+                elif user_auth.add_user(new_username, new_password):
+                    st.success("Account created successfully! You can now log in.")
+                else:
+                    st.error("Username already exists.")
+
 # Main application
 def main():
     """Main Streamlit application"""
     
-    # Initialize dashboard
-    dashboard = TradingDashboard()
-    
-    # Show sidebar footer
-    show_sidebar_footer()
-    
-    # Run dashboard
-    dashboard.run()
+    if not st.session_state.get('authenticated'):
+        show_login_signup_page()
+    else:
+        # Initialize dashboard
+        dashboard = TradingDashboard()
+        
+        # Show sidebar footer
+        show_sidebar_footer()
+        
+        # Run dashboard
+        dashboard.run()
 
 if __name__ == "__main__":
     main()

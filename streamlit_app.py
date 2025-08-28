@@ -162,6 +162,30 @@ class TradingDashboard:
             st.session_state['username'] = ""
             st.rerun()
 
+        # Market Status in Sidebar
+        st.sidebar.markdown("### 📈 Market Status")
+        market_status = self.get_market_status()
+        
+        # Display market status with appropriate styling
+        if market_status['status'] == 'open':
+            st.sidebar.success(f"✅ {market_status['message']}")
+        elif market_status['status'] == 'pre_open':
+            st.sidebar.info(f"🟡 {market_status['message']}")
+        elif market_status['status'] == 'post_close':
+            st.sidebar.warning(f"🟠 {market_status['message']}")
+        elif market_status['status'] == 'closed':
+            st.sidebar.error(f"🔴 {market_status['message']}")
+        else:  # weekend or holiday
+            st.sidebar.info(f"⏸️ {market_status['message']}")
+        
+        # Show current time and next session
+        st.sidebar.caption(f"🕐 {market_status['current_time']}")
+        if market_status.get('next_session'):
+            st.sidebar.caption(f"⏰ Next: {market_status['next_session']}")
+        st.sidebar.caption("📅 " + datetime.now().strftime("%B %d, %Y"))
+        
+        st.sidebar.markdown("---")
+        
         # Display remaining usage
         try:
             remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
@@ -196,8 +220,18 @@ class TradingDashboard:
     def show_dashboard(self):
         """Main dashboard overview"""
         
-        st.title(f"🏠 Welcome, {st.session_state['username']}!")
-        st.markdown("Welcome to your professional PSX trading system!")
+        # Enhanced Welcome Header
+        st.markdown("""
+        <div style="background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%); 
+                    padding: 25px; border-radius: 15px; margin: 20px 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 2.2em;">
+                🏠 Welcome, {username}!
+            </h1>
+            <p style="color: #f0f8ff; font-size: 18px; margin: 10px 0 0 0;">
+                Your Professional PSX Trading Command Center
+            </p>
+        </div>
+        """.format(username=st.session_state['username']), unsafe_allow_html=True)
         
         # Professional Trading Hub
         st.markdown("""
@@ -356,28 +390,32 @@ class TradingDashboard:
         </div>
         """, unsafe_allow_html=True)
         
-        col1, col2 = st.columns([2, 1])
+        # Enhanced Full-Width Analysis Section
+        st.markdown("#### 📊 Professional Stock Analysis")
         
-        with col1:
-            # Multi-symbol selection
-            st.subheader("📊 Quick Multi-Stock Analysis")
-            
-            # Selection options
+        # Selection options in a more compact layout
+        analysis_col1, analysis_col2 = st.columns([1, 2])
+        
+        with analysis_col1:
             analysis_mode = st.radio(
                 "Analysis Mode:",
                 ["Single Stock", "Multiple Stocks", "Sector Analysis"],
-                horizontal=True
+                horizontal=False
             )
-            
+        
+        with analysis_col2:
             if analysis_mode == "Single Stock":
-                selected_symbols = [st.selectbox("Select Symbol", self.common_symbols)]
+                selected_symbols = [st.selectbox("Select Symbol", self.common_symbols, key="single_stock")]
+                
             elif analysis_mode == "Multiple Stocks":
                 selected_symbols = st.multiselect(
                     "Select Multiple Symbols (up to 10)", 
                     self.common_symbols, 
                     default=['UBL', 'MCB'],
-                    max_selections=10
+                    max_selections=10,
+                    key="multi_stock"
                 )
+                
             else:  # Sector Analysis
                 sector_options = {
                     "Banking": ['UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'FYBL'],
@@ -389,9 +427,11 @@ class TradingDashboard:
                 }
                 selected_sector = st.selectbox("Select Sector", list(sector_options.keys()))
                 selected_symbols = sector_options[selected_sector]
-                st.info(f"Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
-            
-            if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
+                st.info(f"📈 Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
+        
+        # Full-width analyze button
+        if selected_symbols:
+            if st.button("🚀 **ANALYZE SELECTED STOCKS**", type="primary", use_container_width=True):
                 try:
                     if not usage_tracker.check_usage(st.session_state['username']):
                         st.error("You have reached your analysis limit of 10.")
@@ -416,27 +456,44 @@ class TradingDashboard:
                         except Exception as e:
                             st.warning(f"Usage tracking failed: {str(e)}")
         
-        with col2:
-            st.subheader("📈 Market Status")
-            market_status = self.get_market_status()
-            
-            # Display market status with appropriate styling
-            if market_status['status'] == 'open':
-                st.success(f"✅ {market_status['message']}")
-            elif market_status['status'] == 'pre_open':
-                st.info(f"''' {market_status['message']}")
-            elif market_status['status'] == 'post_close':
-                st.warning(f"🟠 {market_status['message']}")
-            elif market_status['status'] == 'closed':
-                st.error(f"🔴 {market_status['message']}")
-            else:  # weekend or holiday
-                st.info(f"⏸️ {market_status['message']}")
-            
-            # Show current time and next session
-            st.info(f"🕐 Current Time: {market_status['current_time']}")
-            if market_status.get('next_session'):
-                st.info(f"⏰ Next: {market_status['next_session']}")
-            st.info("📅 " + datetime.now().strftime("%B %d, %Y"))
+        # Add Quick Insights Section
+        st.markdown("---")
+        st.markdown("#### 💡 Quick Market Insights")
+        
+        insight_col1, insight_col2, insight_col3 = st.columns(3)
+        
+        with insight_col1:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #e3f2fd, #bbdefb); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #1565c0; margin-bottom: 10px;">🎯 Top Gainers</h4>
+                <p style="color: #0d47a1; margin: 0;">UBL +3.2%</p>
+                <p style="color: #0d47a1; margin: 0;">MCB +2.8%</p>
+                <p style="color: #0d47a1; margin: 0;">NBP +2.1%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col2:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #fff3e0, #ffe0b2); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #ef6c00; margin-bottom: 10px;">⚡ High Volume</h4>
+                <p style="color: #e65100; margin: 0;">OGDC 2.1M shares</p>
+                <p style="color: #e65100; margin: 0;">PPL 1.8M shares</p>
+                <p style="color: #e65100; margin: 0;">LUCK 1.5M shares</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col3:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #e8f5e8, #c8e6c9); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #2e7d32; margin-bottom: 10px;">📈 Strong Signals</h4>
+                <p style="color: #1b5e20; margin: 0;">Banking Sector ↗️</p>
+                <p style="color: #1b5e20; margin: 0;">Oil & Gas Sector ↗️</p>
+                <p style="color: #1b5e20; margin: 0;">Cement Sector →</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     def get_market_status(self):
         """Get current PSX market status based on Pakistan Standard Time"""

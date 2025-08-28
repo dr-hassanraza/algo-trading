@@ -163,8 +163,11 @@ class TradingDashboard:
             st.rerun()
 
         # Display remaining usage
-        remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
-        st.sidebar.metric("Remaining Analyses", remaining_usage)
+        try:
+            remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
+            st.sidebar.metric("Remaining Analyses", remaining_usage)
+        except Exception as e:
+            st.sidebar.warning("Usage tracking unavailable")
         
         # Navigation
         page = st.sidebar.selectbox(
@@ -305,20 +308,29 @@ class TradingDashboard:
                 st.info(f"Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
             
             if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
-                if not usage_tracker.check_usage(st.session_state['username']):
-                    st.error("You have reached your analysis limit of 10.")
-                    return
+                try:
+                    if not usage_tracker.check_usage(st.session_state['username']):
+                        st.error("You have reached your analysis limit of 10.")
+                        return
+                except Exception as e:
+                    st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
 
                 if len(selected_symbols) == 1:
                     # Single stock - use the detailed quick_analysis
                     with st.spinner(f"Analyzing {selected_symbols[0]}..."):
                         self.quick_analysis(selected_symbols[0])
-                        usage_tracker.record_usage(st.session_state['username'])
+                        try:
+                            usage_tracker.record_usage(st.session_state['username'])
+                        except Exception as e:
+                            st.warning(f"Usage tracking failed: {str(e)}")
                 else:
                     # Multiple stocks - use multi_stock_analysis
                     with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
                         self.multi_stock_analysis(selected_symbols)
-                        usage_tracker.record_usage(st.session_state['username'])
+                        try:
+                            usage_tracker.record_usage(st.session_state['username'])
+                        except Exception as e:
+                            st.warning(f"Usage tracking failed: {str(e)}")
         
         with col2:
             st.subheader("📈 Market Status")
@@ -488,11 +500,17 @@ class TradingDashboard:
         
         # Analysis button
         if st.button("🚀 Run Analysis"):
-            if not usage_tracker.check_usage(st.session_state['username']):
-                st.error("You have reached your analysis limit of 10.")
-                return
+            try:
+                if not usage_tracker.check_usage(st.session_state['username']):
+                    st.error("You have reached your analysis limit of 10.")
+                    return
+            except Exception as e:
+                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
             self.run_signal_analysis(symbols, analysis_type, days)
-            usage_tracker.record_usage(st.session_state['username'])
+            try:
+                usage_tracker.record_usage(st.session_state['username'])
+            except Exception as e:
+                st.warning(f"Usage tracking failed: {str(e)}")
 
     def show_portfolio(self):
         """Portfolio management page"""

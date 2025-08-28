@@ -22,7 +22,7 @@ Outputs
   Optional charts with --charts (PNG per ticker)
 
 Run it (EODHD only; no CSV, no Yahoo):
-  pip install pandas numpy requests matplotlib pandas-ta
+  pip install pandas numpy requests matplotlib
   export EODHD_API_KEY="YOUR_KEY"   # https://eodhd.com/
   python psx_bbands_candle_scanner.py --tickers UBL.KAR MCB.KAR OGDC.KAR --asof today --days 260 --charts
 
@@ -50,7 +50,7 @@ load_env()
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
+# import pandas_ta as ta  # Removed due to NumPy 2.0 compatibility issues
 import requests
 import math
 
@@ -119,12 +119,31 @@ def near_ma44(df: pd.DataFrame, pct: float = 0.02, lookback: int = 3) -> bool:
     return any(sub['Low'] <= sub['MA44'] * (1 + pct))
 
 
+def compute_bollinger_bands(close: pd.Series, length: int = 20, std: float = 2.0) -> pd.DataFrame:
+    """Custom Bollinger Bands implementation to replace pandas_ta"""
+    sma = close.rolling(window=length).mean()
+    std_dev = close.rolling(window=length).std()
+    
+    bb_upper = sma + (std_dev * std)
+    bb_lower = sma - (std_dev * std)
+    bb_pct_b = (close - bb_lower) / (bb_upper - bb_lower)
+    
+    return pd.DataFrame({
+        'BB_mid': sma,
+        'BB_up': bb_upper,
+        'BB_lo': bb_lower,
+        'BB_pctB': bb_pct_b
+    })
+
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out.ta.bbands(length=20, std=2, append=True)
+    
+    # Custom Bollinger Bands calculation
+    bb_data = compute_bollinger_bands(out['Close'], length=20, std=2.0)
+    out = pd.concat([out, bb_data], axis=1)
+    
     out['MA44'] = sma(out['Close'], 44)
     out['MA44_slope10'] = slope(out['MA44'], 10)
-    out.rename(columns={'BBM_20_2.0': 'BB_mid', 'BBU_20_2.0': 'BB_up', 'BBL_20_2.0': 'BB_lo', 'BBP_20_2.0': 'BB_pctB'}, inplace=True)
     out['BBmid_slope5'] = slope(out['BB_mid'], 5)
     out.dropna(inplace=True)
     return out

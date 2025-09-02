@@ -36,6 +36,7 @@ def load_env():
 load_env()
 
 from psx_bbands_candle_scanner import compute_indicators, EODHDFetcher, TODAY
+from enhanced_data_fetcher import EnhancedDataFetcher
 
 
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -931,7 +932,7 @@ def enhanced_signal_analysis(symbol: str, days: int = 260) -> Dict:
     try:
         # Fetch data with correct symbol format
         api_key = os.getenv('EODHD_API_KEY')
-        fetcher = EODHDFetcher(api_key)
+        fetcher = EnhancedDataFetcher(api_key)
         end = TODAY
         start = end - dt.timedelta(days=days+40)
 

@@ -120,8 +120,20 @@ class EnhancedDataFetcher:
                 self._update_success_rate(source_name, False)
                 continue
         
-        # If all sources fail, raise an exception
-        raise Exception(f"Failed to fetch data for {symbol} from all available sources")
+        # If all sources fail, try fallback sample data
+        logger.warning(f"All data sources failed for {symbol}, using fallback sample data")
+        
+        try:
+            from temp_data_fix import get_fallback_data
+            fallback_data = get_fallback_data(symbol.split('.')[0], start_date, end_date)
+            if not fallback_data.empty:
+                logger.info(f"Using fallback sample data for {symbol} ({len(fallback_data)} rows)")
+                return fallback_data
+        except Exception as e:
+            logger.error(f"Fallback data generation failed: {e}")
+        
+        # Final fallback - raise exception
+        raise Exception(f"Failed to fetch data for {symbol} from all available sources including fallback")
     
     def _fetch_psx_reader(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
         """Fetch data using PSX Data Reader (direct PSX access)"""

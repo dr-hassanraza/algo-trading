@@ -271,6 +271,13 @@ MANUAL_PSX_PRICES = {
     # Add more as needed
 }
 
+# Import PSX DPS official fetcher
+try:
+    from psx_dps_fetcher import get_official_psx_price
+    PSX_DPS_AVAILABLE = True
+except ImportError:
+    PSX_DPS_AVAILABLE = False
+
 def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
     """Get the most accurate price available"""
     
@@ -278,7 +285,17 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
     
     print(f"\n🎯 Getting most accurate price for {clean_symbol}...")
     
-    # 1. Check manual database first (most accurate)
+    # 1. Try PSX DPS official source first (highest priority)
+    if PSX_DPS_AVAILABLE:
+        try:
+            official_result = get_official_psx_price(clean_symbol)
+            if official_result and official_result.get('price'):
+                print(f"✅ Found via PSX DPS: {official_result['price']:.2f} PKR")
+                return official_result
+        except Exception as e:
+            print(f"⚠️ PSX DPS failed: {e}")
+    
+    # 2. Check manual database (fallback for verification)
     if clean_symbol in MANUAL_PSX_PRICES:
         manual_data = MANUAL_PSX_PRICES[clean_symbol]
         print(f"✅ Found in manual database: {manual_data['price']:.2f} PKR")
@@ -292,7 +309,7 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
             'data_freshness': 'Manual verification'
         }
     
-    # 2. Try web scraping
+    # 3. Try other web scraping sources (as additional fallback)
     scraper = PSXWebScraper()
     scraped_result = scraper.get_accurate_psx_price(clean_symbol)
     
@@ -303,9 +320,9 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
         scraped_result['data_freshness'] = 'Real-time scraping'
         return scraped_result
     
-    # 3. Fallback message
+    # 4. Final fallback message
     print(f"❌ Could not find accurate current price for {clean_symbol}")
-    print(f"💡 Consider adding to manual database or checking web sources")
+    print(f"💡 Consider checking PSX DPS website directly or adding to manual database")
     
     return {
         'price': None,

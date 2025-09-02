@@ -152,8 +152,22 @@ def get_enhanced_price_info(symbol: str, historical_data: pd.DataFrame) -> Dict[
     fetcher = RealTimePriceFetcher()
     market_status = fetcher.get_market_status()
     
-    # Try to get real-time price
-    real_time_data = fetcher.get_current_price(symbol)
+    # Try to get real-time price (prefer accurate PSX prices)
+    try:
+        from psx_web_scraper import get_most_accurate_price
+        accurate_price = get_most_accurate_price(symbol)
+        if accurate_price and accurate_price.get('price'):
+            # Use accurate price as "real-time" data
+            real_time_data = {
+                'price': accurate_price['price'],
+                'source': accurate_price['source'],
+                'timestamp': dt.datetime.now(),
+                'confidence': accurate_price.get('confidence', 10)
+            }
+        else:
+            real_time_data = fetcher.get_current_price(symbol)
+    except ImportError:
+        real_time_data = fetcher.get_current_price(symbol)
     
     if not historical_data.empty:
         latest_historical = historical_data.iloc[-1]
@@ -164,7 +178,20 @@ def get_enhanced_price_info(symbol: str, historical_data: pd.DataFrame) -> Dict[
         days_old = (dt.date.today() - latest_date).days
         is_recent = days_old <= 1
         
-        if real_time_data and market_status['status'] == 'open':
+        if real_time_data and real_time_data.get('confidence', 0) >= 8:
+            # Use real-time data if high confidence (includes manual database entries)
+            return {
+                'price': real_time_data['price'],
+                'source': real_time_data['source'],
+                'is_current': True,
+                'market_status': market_status,
+                'last_update': real_time_data['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
+                'historical_price': latest_price,
+                'historical_date': latest_date.strftime('%Y-%m-%d'),
+                'data_freshness': 'Verified current price',
+                'confidence': real_time_data.get('confidence', 10)
+            }
+        elif real_time_data and market_status['status'] == 'open':
             # Use real-time data if market is open and available
             return {
                 'price': real_time_data['price'],

@@ -33,6 +33,14 @@ except ImportError:
     PSX_READER_AVAILABLE = False
     print("PSX Data Reader not available")
 
+# Import accurate PSX price fetcher
+try:
+    from psx_web_scraper import get_most_accurate_price
+    ACCURATE_PRICE_AVAILABLE = True
+except ImportError:
+    ACCURATE_PRICE_AVAILABLE = False
+    print("Accurate price fetcher not available")
+
 logger = logging.getLogger(__name__)
 
 class EnhancedDataFetcher:
@@ -228,10 +236,38 @@ class EnhancedDataFetcher:
         return []
     
     def get_psx_current_data(self, symbol: str):
-        """Get current PSX data using PSX Data Reader"""
+        """Get current PSX data using most accurate source available"""
+        
+        # Try accurate price fetcher first (highest priority)
+        if ACCURATE_PRICE_AVAILABLE:
+            try:
+                accurate_price = get_most_accurate_price(symbol)
+                if accurate_price and accurate_price.get('price'):
+                    return accurate_price
+            except Exception as e:
+                logger.warning(f"Accurate price fetch failed: {e}")
+        
+        # Fallback to PSX reader
         if self.psx_fetcher:
             return self.psx_fetcher.fetch_current_data(symbol)
         return None
+    
+    def get_verified_current_price(self, symbol: str) -> dict:
+        """Get verified current price with accuracy indicators"""
+        
+        if ACCURATE_PRICE_AVAILABLE:
+            try:
+                return get_most_accurate_price(symbol)
+            except Exception as e:
+                logger.error(f"Price verification failed: {e}")
+        
+        return {
+            'price': None,
+            'source': 'Not available',
+            'confidence': 0,
+            'is_current': False,
+            'data_freshness': 'No accurate source available'
+        }
     
     def _is_cached(self, cache_key: str) -> bool:
         """Check if data is cached and still valid"""

@@ -25,6 +25,14 @@ from dataclasses import dataclass
 from psx_bbands_candle_scanner import EODHDFetcher, TODAY
 from multi_data_source_api import MultiSourceDataAPI, StockData
 
+# Import PSX data reader
+try:
+    from psx_data_reader_fetcher import PSXDataFetcher
+    PSX_READER_AVAILABLE = True
+except ImportError:
+    PSX_READER_AVAILABLE = False
+    print("PSX Data Reader not available")
+
 logger = logging.getLogger(__name__)
 
 class EnhancedDataFetcher:
@@ -35,12 +43,21 @@ class EnhancedDataFetcher:
         self.eodhd_fetcher = EODHDFetcher(self.api_key)
         self.multi_source_api = MultiSourceDataAPI()
         
+        # Initialize PSX data reader if available
+        self.psx_fetcher = None
+        if PSX_READER_AVAILABLE:
+            try:
+                self.psx_fetcher = PSXDataFetcher()
+            except Exception as e:
+                print(f"Failed to initialize PSX Data Reader: {e}")
+        
         # Cache for recent data to avoid repeated API calls
         self.cache = {}
         self.cache_expiry = 300  # 5 minutes
         
         # Success tracking for data source reliability
         self.source_success_rates = {
+            'psx_reader': {'success': 0, 'total': 0},
             'eodhd': {'success': 0, 'total': 0},
             'yfinance': {'success': 0, 'total': 0},
             'multi_source': {'success': 0, 'total': 0}
@@ -66,11 +83,19 @@ class EnhancedDataFetcher:
             return self.cache[cache_key]['data']
         
         # Try multiple data sources in order of preference
-        data_sources = [
+        # PSX data reader is now first priority for PSX stocks
+        data_sources = []
+        
+        # Add PSX reader as first choice if available
+        if self.psx_fetcher:
+            data_sources.append(('psx_reader', self._fetch_psx_reader))
+        
+        # Add other sources as fallbacks
+        data_sources.extend([
             ('eodhd', self._fetch_eodhd),
             ('yfinance', self._fetch_yfinance),
             ('multi_source', self._fetch_multi_source)
-        ]
+        ])
         
         for source_name, fetch_func in data_sources:
             try:
@@ -97,6 +122,13 @@ class EnhancedDataFetcher:
         
         # If all sources fail, raise an exception
         raise Exception(f"Failed to fetch data for {symbol} from all available sources")
+    
+    def _fetch_psx_reader(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
+        """Fetch data using PSX Data Reader (direct PSX access)"""
+        if not self.psx_fetcher:
+            return pd.DataFrame()
+        
+        return self.psx_fetcher.fetch_historical_data(symbol, start_date, end_date)
     
     def _fetch_eodhd(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
         """Fetch data using EODHD API (existing method)"""
@@ -170,6 +202,24 @@ class EnhancedDataFetcher:
         """Get real-time data for multiple symbols"""
         base_symbols = [s.split('.')[0] for s in symbols]
         return self.multi_source_api.get_multiple_stocks(base_symbols)
+    
+    def get_psx_tickers(self) -> List[str]:
+        """Get list of available PSX tickers using PSX Data Reader"""
+        if self.psx_fetcher:
+            return self.psx_fetcher.get_available_tickers()
+        return []
+    
+    def search_psx_symbols(self, search_term: str) -> List[str]:
+        """Search for PSX symbols matching a term"""
+        if self.psx_fetcher:
+            return self.psx_fetcher.search_symbol(search_term)
+        return []
+    
+    def get_psx_current_data(self, symbol: str):
+        """Get current PSX data using PSX Data Reader"""
+        if self.psx_fetcher:
+            return self.psx_fetcher.fetch_current_data(symbol)
+        return None
     
     def _is_cached(self, cache_key: str) -> bool:
         """Check if data is cached and still valid"""

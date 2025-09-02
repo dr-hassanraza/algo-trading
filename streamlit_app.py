@@ -25,6 +25,7 @@ from streamlit_javascript import st_javascript
 import user_auth
 import usage_tracker
 import ml_model
+from psx_ticker_manager import get_stock_symbols_only, get_tickers_by_sector, get_top_symbols, search_symbols
 
 # Configure Streamlit page
 st.set_page_config(
@@ -87,67 +88,30 @@ class TradingDashboard:
     
     def __init__(self):
         self.portfolio_manager = PortfolioManager() if MODULES_AVAILABLE else None
-        # Comprehensive PSX stocks list (100+ Pakistani firms)
-        self.common_symbols = [
-            # Banking & Financial Services (16 stocks)
-            'UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'BAFL', 'AKBL', 'BAHL', 'SNBL', 'KASB',
-            'MEBL', 'JSBL', 'SILK', 'SUMB', 'FCCL', 'FYBL',  # Note: FYBL data may not be available
+        # Load all PSX stock symbols (722+ stocks)
+        try:
+            self.all_symbols = get_stock_symbols_only()
+            self.sectors = get_tickers_by_sector()
+            self.top_symbols = get_top_symbols()
             
-            # Oil & Gas (20 stocks)
-            'OGDC', 'PPL', 'POL', 'MARI', 'PSO', 'SNGP', 'SSGC', 'APL', 'HASCOL', 'SHEL',
-            'BYCO', 'ATTOCK', 'NRL', 'PACE', 'SPWL', 'KEL', 'MGCL', 'GAIL', 'PIOC', 'GHGL',
+            # Use all stock symbols as common symbols (722 symbols)
+            self.common_symbols = sorted(self.all_symbols)
             
-            # Power Generation (12 stocks)
-            'HUBCO', 'KAPCO', 'LOTTE', 'NARC', 'REWM', 'KOSM', 'SAPT', 'TELE', 'GTYR',
-            'HUBC', 'PAKGEN', 'NIKL',
+            st.success(f"✅ Loaded {len(self.common_symbols)} PSX stock symbols with sector organization")
             
-            # Cement (15 stocks)
-            'LUCK', 'DGKC', 'MLCF', 'FCCL', 'CHCC', 'ACPL', 'KOHC', 'FCCM', 'PIOC',
-            'THCCL', 'GWLC', 'JSCL', 'UCAPM', 'POWERC', 'MAPLE',
-            
-            # Fertilizer & Chemicals (12 stocks)
-            'ENGRO', 'FFC', 'FFBL', 'FATIMA', 'EPCL', 'EFERT', 'DAWH', 'CRTM', 'LOTCHEM',
-            'AGRO', 'ICI', 'BERGER',
-            
-            # Steel & Engineering (10 stocks)
-            'ISL', 'ASL', 'AICL', 'ASTL', 'MUGHAL', 'ITTEFAQ', 'DSFL', 'AGIC', 'LOADS', 'MTML',
-            
-            # Textiles (18 stocks)
-            'APTM', 'GATM', 'FTML', 'KTML', 'ATRL', 'SITC', 'KOHE', 'CWSM', 'YUTM',
-            'GADT', 'BWCL', 'RMPL', 'NISHAT', 'GULFP', 'MASFL', 'GLAXO', 'IQRA', 'BIFO',
-            
-            # Food & Personal Care (15 stocks)
-            'NESTLE', 'UFL', 'WAVES', 'UNITY', 'ATLH', 'TOMCL', 'SHFA', 'MATM', 'BIFO',
-            'SHIELD', 'PAKD', 'RAFHAN', 'COLG', 'QUICE', 'NATF',
-            
-            # Technology & Communication (8 stocks)
-            'TRG', 'NETSOL', 'PTCL', 'SYSTEMS', 'AVANCEON', 'PACE', 'TELECARD', 'WTL',
-            
-            # Automobile & Auto Parts (8 stocks)
-            'INDU', 'HCAR', 'PAKT', 'AGTL', 'GHNI', 'MILLAT', 'LOADS', 'HINOON',
-            
-            # Paper & Board (6 stocks)
-            'PKGS', 'CPPC', 'EMCO', 'CHERAT', 'PACE', 'SKIN',
-            
-            # Pharmaceuticals (10 stocks)
-            'GLAXO', 'ICI', 'ABT', 'SRLE', 'HNOON', 'MARTIN', 'LOTTE', 'HIGHNOON', 'SEARLE', 'WILSON',
-            
-            # Sugar & Allied (8 stocks)
-            'PSMC', 'JDW', 'ASTL', 'ANSM', 'SHSML', 'UNITY', 'THAL', 'SITARA',
-            
-            # Real Estate & Construction (6 stocks)
-            'DHA', 'LWMC', 'PACE', 'SIEM', 'POWERC', 'MAPLE',
-            
-            # Investment Companies (8 stocks)
-            'PICIC', 'TRUST', 'PAKOXY', 'PABC', 'KASB', 'PAIR', 'UPFL', 'THCCL',
-            
-            # Miscellaneous (12 stocks)
-            'LOADS', 'PACE', 'SKIN', 'BERRY', 'RICL', 'MFLO', 'TRIPF', 'MERIT', 'PARC',
-            'DWSM', 'NEXT', 'TPL'
-        ]
-        
-        # Remove duplicates and sort
-        self.common_symbols = sorted(list(set(self.common_symbols)))
+        except Exception as e:
+            st.warning(f"⚠️ Could not load live PSX data: {str(e)}. Using fallback symbol list.")
+            # Fallback to original limited list if PSX data unavailable
+            self.common_symbols = [
+                'UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'BAFL', 'AKBL', 'BAHL', 'SNBL', 'KASB',
+                'OGDC', 'PPL', 'POL', 'MARI', 'PSO', 'SNGP', 'SSGC', 'LUCK', 'DGKC', 'MLCF',
+                'ENGRO', 'FFC', 'FATIMA', 'ISL', 'ASL', 'NESTLE', 'UFL', 'TRG', 'NETSOL'
+            ]
+            self.sectors = {
+                'Popular Stocks': ['UBL', 'MCB', 'ABL', 'HBL', 'OGDC', 'PPL', 'LUCK', 'ENGRO']
+            }
+            self.top_symbols = self.common_symbols[:20]
+            self.all_symbols = self.common_symbols
     
     def run(self):
         """Main dashboard application"""
@@ -399,28 +363,115 @@ class TradingDashboard:
         
         with analysis_col2:
             if analysis_mode == "Single Stock":
-                selected_symbols = [st.selectbox("Select Symbol", self.common_symbols, key="single_stock")]
-                
-            elif analysis_mode == "Multiple Stocks":
-                selected_symbols = st.multiselect(
-                    "Select Multiple Symbols (up to 10)", 
-                    self.common_symbols, 
-                    default=['UBL', 'MCB'],
-                    max_selections=10,
-                    key="multi_stock"
+                # Enhanced single stock selection with search and sectors
+                selection_method = st.radio(
+                    "Selection Method:", 
+                    ["🔍 Search", "⭐ Popular", "🏢 By Sector"],
+                    horizontal=True,
+                    key="selection_method"
                 )
                 
+                if selection_method == "🔍 Search":
+                    search_query = st.text_input("Search Symbol:", placeholder="e.g., UBL, BANK, CEMENT", key="search_input")
+                    if search_query:
+                        search_results = search_symbols(search_query, limit=20)
+                        if search_results:
+                            selected_symbols = [st.selectbox("Select from Search Results:", search_results, key="search_results")]
+                        else:
+                            st.warning("No symbols found. Try a different search term.")
+                            selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="search_fallback")]
+                    else:
+                        selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="search_default")]
+                        
+                elif selection_method == "⭐ Popular":
+                    selected_symbols = [st.selectbox("Select Popular Symbol:", self.top_symbols, key="popular_stock")]
+                    
+                else:  # By Sector
+                    if hasattr(self, 'sectors') and self.sectors:
+                        selected_sector = st.selectbox("Select Sector:", list(self.sectors.keys()), key="sector_select")
+                        sector_symbols = self.sectors.get(selected_sector, self.top_symbols)
+                        selected_symbols = [st.selectbox("Select from Sector:", sector_symbols, key="sector_stock")]
+                    else:
+                        selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="sector_fallback")]
+                
+            elif analysis_mode == "Multiple Stocks":
+                # Enhanced multiple stock selection
+                multi_method = st.radio(
+                    "Multi-Selection Method:",
+                    ["⭐ Popular", "🏢 By Sector", "🔍 Custom"],
+                    horizontal=True,
+                    key="multi_method"
+                )
+                
+                if multi_method == "⭐ Popular":
+                    selected_symbols = st.multiselect(
+                        "Select Popular Symbols (up to 10):", 
+                        self.top_symbols,
+                        default=['UBL', 'MCB'] if 'UBL' in self.top_symbols and 'MCB' in self.top_symbols else self.top_symbols[:2],
+                        max_selections=10,
+                        key="multi_popular"
+                    )
+                elif multi_method == "🏢 By Sector":
+                    if hasattr(self, 'sectors') and self.sectors:
+                        selected_sector = st.selectbox("Select Sector for Analysis:", list(self.sectors.keys()), key="multi_sector_select")
+                        sector_symbols = self.sectors.get(selected_sector, self.top_symbols)
+                        selected_symbols = st.multiselect(
+                            f"Select from {selected_sector} (up to 10):",
+                            sector_symbols,
+                            default=sector_symbols[:2] if len(sector_symbols) >= 2 else sector_symbols,
+                            max_selections=10,
+                            key="multi_sector_stocks"
+                        )
+                    else:
+                        selected_symbols = st.multiselect(
+                            "Select Symbols (up to 10):", 
+                            self.top_symbols,
+                            default=self.top_symbols[:2],
+                            max_selections=10,
+                            key="multi_sector_fallback"
+                        )
+                else:  # Custom selection
+                    selected_symbols = st.multiselect(
+                        "Select Any Symbols (up to 10):", 
+                        self.common_symbols,
+                        default=['UBL', 'MCB'] if 'UBL' in self.common_symbols and 'MCB' in self.common_symbols else self.common_symbols[:2],
+                        max_selections=10,
+                        key="multi_custom",
+                        help=f"Choose from {len(self.common_symbols)} available PSX stocks"
+                    )
+                
             else:  # Sector Analysis
-                sector_options = {
-                    "Banking": ['UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'FYBL'],
-                    "Oil & Gas": ['OGDC', 'PPL', 'POL', 'MARI', 'PSO'],
-                    "Cement": ['LUCK', 'DGKC', 'MLCF', 'FCCL', 'CHCC'],
-                    "Fertilizer": ['ENGRO', 'FFC', 'FFBL', 'FATIMA', 'EPCL'],
-                    "Power": ['HUBCO', 'KAPCO', 'LOTTE', 'NARC'],
-                    "Textiles": ['APTM', 'GATM', 'FTML', 'KTML', 'ATRL']
-                }
-                selected_sector = st.selectbox("Select Sector", list(sector_options.keys()))
-                selected_symbols = sector_options[selected_sector]
+                if hasattr(self, 'sectors') and self.sectors:
+                    # Use dynamic sectors from PSX data
+                    available_sectors = list(self.sectors.keys())
+                    selected_sector = st.selectbox("Select Sector for Complete Analysis:", available_sectors)
+                    selected_symbols = self.sectors[selected_sector]
+                    st.info(f"📈 Analyzing {selected_sector} sector: {len(selected_symbols)} stocks")
+                    
+                    # Show sector details
+                    with st.expander(f"📊 {selected_sector} Sector Details"):
+                        st.write(f"**Total Stocks:** {len(selected_symbols)}")
+                        st.write("**Symbols:**")
+                        # Display symbols in a nice grid
+                        if len(selected_symbols) > 0:
+                            cols = st.columns(min(6, len(selected_symbols)))
+                            for i, symbol in enumerate(selected_symbols[:30]):  # Show max 30 symbols
+                                with cols[i % len(cols)]:
+                                    st.code(symbol)
+                            if len(selected_symbols) > 30:
+                                st.caption(f"... and {len(selected_symbols) - 30} more symbols")
+                else:
+                    # Fallback sector options
+                    sector_options = {
+                        "Banking": ['UBL', 'MCB', 'NBP', 'ABL', 'HBL'],
+                        "Oil & Gas": ['OGDC', 'PPL', 'POL', 'MARI', 'PSO'],
+                        "Cement": ['LUCK', 'DGKC', 'MLCF', 'ACPL'],
+                        "Fertilizer": ['ENGRO', 'FFC', 'FATIMA'],
+                        "Steel": ['ISL', 'ASL'],
+                        "Food": ['NESTLE', 'UFL', 'UNITY']
+                    }
+                    selected_sector = st.selectbox("Select Sector", list(sector_options.keys()))
+                    selected_symbols = sector_options[selected_sector]
                 st.info(f"📈 Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
         
         # Enhanced CSS for analyze button specifically

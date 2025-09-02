@@ -156,21 +156,46 @@ class TradingDashboard:
         st.sidebar.title("🏛️ PSX Trading Bot")
         st.sidebar.markdown("---")
 
-        # Logout Button
-        if st.sidebar.button("Logout"):
-            st.session_state['authenticated'] = False
-            st.session_state['username'] = ""
-            st.rerun()
-
+        # Market Status in Sidebar
+        st.sidebar.markdown("### 📈 Market Status")
+        market_status = self.get_market_status()
+        
+        # Display market status with appropriate styling
+        if market_status['status'] == 'open':
+            st.sidebar.success(f"✅ {market_status['message']}")
+        elif market_status['status'] == 'pre_open':
+            st.sidebar.info(f"🟡 {market_status['message']}")
+        elif market_status['status'] == 'post_close':
+            st.sidebar.warning(f"🟠 {market_status['message']}")
+        elif market_status['status'] == 'closed':
+            st.sidebar.error(f"🔴 {market_status['message']}")
+        else:  # weekend or holiday
+            st.sidebar.info(f"⏸️ {market_status['message']}")
+        
+        # Show current time and next session
+        st.sidebar.caption(f"🕐 {market_status['current_time']}")
+        if market_status.get('next_session'):
+            st.sidebar.caption(f"⏰ Next: {market_status['next_session']}")
+        st.sidebar.caption("📅 " + datetime.now().strftime("%B %d, %Y"))
+        
+        st.sidebar.markdown("---")
+        
         # Display remaining usage
-        remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
-        st.sidebar.metric("Remaining Analyses", remaining_usage)
+        try:
+            remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
+            st.sidebar.metric("Remaining Analyses", remaining_usage)
+        except Exception as e:
+            st.sidebar.warning("Usage tracking unavailable")
         
         # Navigation
         page = st.sidebar.selectbox(
             "Navigation",
             ["🏠 Dashboard", "📊 Signal Analysis", "💼 Portfolio", "⚙️ Settings", "📈 Charts", "🎯 Risk Management"]
         )
+        
+        # Check if page was changed via button click
+        if 'page' in st.session_state and st.session_state['page'] != page:
+            page = st.session_state['page']
         
         # Main content area
         if page == "🏠 Dashboard":
@@ -189,51 +214,202 @@ class TradingDashboard:
     def show_dashboard(self):
         """Main dashboard overview"""
         
-        st.title(f"🏠 Welcome, {st.session_state['username']}!")
-        st.markdown("Welcome to your professional PSX trading system!")
+        # Enhanced Welcome Header
+        st.markdown("""
+        <div style="background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%); 
+                    padding: 25px; border-radius: 15px; margin: 20px 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 2.2em;">
+                🏠 Welcome, {username}!
+            </h1>
+            <p style="color: #f0f8ff; font-size: 18px; margin: 10px 0 0 0;">
+                Your Professional PSX Trading Command Center
+            </p>
+        </div>
+        """.format(username=st.session_state['username']), unsafe_allow_html=True)
         
-        # Quick stats
+        # Professional Trading Hub
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 30px; border-radius: 15px; margin: 20px 0; text-align: center;">
+            <h2 style="color: white; margin-bottom: 10px;">🚀 PSX Trading Command Center</h2>
+            <p style="color: #f0f8ff; font-size: 16px; margin: 0;">
+                Professional tools for intelligent trading decisions
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Enhanced CSS for professional navigation buttons
+        st.markdown("""
+        <style>
+        .trading-button {
+            background: linear-gradient(145deg, #ffffff, #f0f8ff);
+            border: 3px solid #2E86AB;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px;
+            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .trading-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.3);
+            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
+        }
+        .stButton > button {
+            height: 80px;
+            font-weight: bold;
+            border-radius: 15px;
+            border: 3px solid #2E86AB;
+            background: linear-gradient(145deg, #ffffff, #f0f8ff);
+            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
+            transition: all 0.3s ease;
+            font-size: 16px;
+        }
+        .stButton > button:hover {
+            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.4);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Main navigation buttons in a clean 2x2 grid
+        st.markdown("#### 📈 Core Trading Features")
+        nav_col1, nav_col2 = st.columns(2)
+        
+        with nav_col1:
+            if st.button("📊 **SIGNAL ANALYSIS**\n\n*Advanced Technical Analysis*", use_container_width=True, help="Analyze stock signals with professional indicators"):
+                st.session_state['page'] = "📊 Signal Analysis"
+                st.rerun()
+        
+        with nav_col2:
+            if st.button("💼 **PORTFOLIO MANAGER**\n\n*Track Your Investments*", use_container_width=True, help="Manage and monitor your trading portfolio"):
+                st.session_state['page'] = "💼 Portfolio"
+                st.rerun()
+        
+        nav_col3, nav_col4 = st.columns(2)
+        
+        with nav_col3:
+            if st.button("📈 **INTERACTIVE CHARTS**\n\n*Professional Visualization*", use_container_width=True, help="View detailed interactive trading charts"):
+                st.session_state['page'] = "📈 Charts"
+                st.rerun()
+        
+        with nav_col4:
+            if st.button("🎯 **RISK MANAGEMENT**\n\n*Smart Position Sizing*", use_container_width=True, help="Calculate optimal position sizes and manage risk"):
+                st.session_state['page'] = "🎯 Risk Management"
+                st.rerun()
+        
+        # Professional Statistics Dashboard
+        st.markdown("#### 📊 Your Trading Overview")
+        st.markdown("""
+        <style>
+        .metric-container {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-left: 4px solid #2E86AB;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 10px 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .metric-title {
+            color: #2E86AB;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+        }
+        .metric-change {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .positive { color: #28a745; }
+        .neutral { color: #6c757d; }
+        .warning { color: #ffc107; }
+        </style>
+        """, unsafe_allow_html=True)
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("🎯 Signals Today", "5", "+2")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">🎯 SIGNALS TODAY</div>
+                <div class="metric-value">5</div>
+                <div class="metric-change positive">+2 from yesterday</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.metric("💼 Portfolio Value", "250,000 PKR", "+5.2%")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">💼 PORTFOLIO VALUE</div>
+                <div class="metric-value">250,000 PKR</div>
+                <div class="metric-change positive">+5.2% this month</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col3:
-            st.metric("📈 Active Positions", "8", "+1")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">📈 ACTIVE POSITIONS</div>
+                <div class="metric-value">8</div>
+                <div class="metric-change positive">+1 new position</div>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col4:
-            st.metric("🛡️ Risk Level", "Medium", "")
+            st.markdown("""
+            <div class="metric-container">
+                <div class="metric-title">🛡️ RISK LEVEL</div>
+                <div class="metric-value">Medium</div>
+                <div class="metric-change warning">Well balanced</div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        st.markdown("---")
+        # Professional Quick Analysis Section  
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+                    padding: 25px; border-radius: 15px; margin: 30px 0; 
+                    border: 1px solid #dee2e6;">
+            <h3 style="color: #2E86AB; margin-bottom: 10px;">🚀 Professional Stock Analysis</h3>
+            <p style="color: #6c757d; font-size: 16px; margin: 0;">
+                Get instant insights with advanced technical analysis powered by real-time PSX data
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Quick analysis section
-        st.subheader("🚀 Quick Analysis")
+        # Enhanced Full-Width Analysis Section
+        st.markdown("#### 📊 Professional Stock Analysis")
         
-        col1, col2 = st.columns([2, 1])
+        # Selection options in a more compact layout
+        analysis_col1, analysis_col2 = st.columns([1, 2])
         
-        with col1:
-            # Multi-symbol selection
-            st.subheader("📊 Quick Multi-Stock Analysis")
-            
-            # Selection options
+        with analysis_col1:
             analysis_mode = st.radio(
                 "Analysis Mode:",
                 ["Single Stock", "Multiple Stocks", "Sector Analysis"],
-                horizontal=True
+                horizontal=False
             )
-            
+        
+        with analysis_col2:
             if analysis_mode == "Single Stock":
-                selected_symbols = [st.selectbox("Select Symbol", self.common_symbols)]
+                selected_symbols = [st.selectbox("Select Symbol", self.common_symbols, key="single_stock")]
+                
             elif analysis_mode == "Multiple Stocks":
                 selected_symbols = st.multiselect(
                     "Select Multiple Symbols (up to 10)", 
                     self.common_symbols, 
                     default=['UBL', 'MCB'],
-                    max_selections=10
+                    max_selections=10,
+                    key="multi_stock"
                 )
+                
             else:  # Sector Analysis
                 sector_options = {
                     "Banking": ['UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'FYBL'],
@@ -245,45 +421,146 @@ class TradingDashboard:
                 }
                 selected_sector = st.selectbox("Select Sector", list(sector_options.keys()))
                 selected_symbols = sector_options[selected_sector]
-                st.info(f"Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
-            
-            if selected_symbols and st.button("🚀 Analyze Selected Stocks"):
+                st.info(f"📈 Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
+        
+        # Enhanced CSS for analyze button specifically
+        st.markdown("""
+        <style>
+        /* Enhanced styling for analyze button - better visibility and contrast */
+        div.stButton[data-testid="stButton"] > button[kind="primary"] {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+            color: white !important;
+            font-weight: bold !important;
+            font-size: 18px !important;
+            padding: 15px 25px !important;
+            border: 3px solid #155724 !important;
+            border-radius: 12px !important;
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3) !important;
+            transition: all 0.3s ease !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
+            min-height: 65px !important;
+        }
+        
+        /* Hover state for better interactivity */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%) !important;
+            color: #ffffff !important;
+            transform: translateY(-3px) !important;
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4) !important;
+            border-color: #0d4417 !important;
+        }
+        
+        /* Disabled state for when no symbols selected */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:disabled {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
+            color: #ffffff !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            border-color: #343a40 !important;
+        }
+        
+        /* Focus state for accessibility */
+        div.stButton[data-testid="stButton"] > button[kind="primary"]:focus {
+            outline: 3px solid rgba(40, 167, 69, 0.5) !important;
+            outline-offset: 2px !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Full-width analyze button with enhanced visibility
+        if selected_symbols:
+            analyze_clicked = st.button("🚀 **ANALYZE SELECTED STOCKS**", type="primary", use_container_width=True, key="analyze_btn")
+        else:
+            # Show disabled button when no symbols selected
+            st.markdown("""
+            <div style="width: 100%; text-align: center; margin: 20px 0;">
+                <button disabled style="
+                    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+                    color: #ffffff;
+                    font-weight: bold;
+                    font-size: 18px;
+                    padding: 15px 25px;
+                    border: 3px solid #343a40;
+                    border-radius: 12px;
+                    width: 100%;
+                    min-height: 65px;
+                    cursor: not-allowed;
+                    opacity: 0.7;
+                    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+                ">
+                    🚀 **SELECT STOCKS TO ANALYZE**
+                </button>
+            </div>
+            <p style="text-align: center; color: #6c757d; font-style: italic; margin-top: 10px;">
+                👆 Choose symbols above to enable analysis
+            </p>
+            """, unsafe_allow_html=True)
+            analyze_clicked = False
+        
+        # Process analysis when button is clicked
+        if selected_symbols and analyze_clicked:
+            try:
                 if not usage_tracker.check_usage(st.session_state['username']):
                     st.error("You have reached your analysis limit of 10.")
                     return
+            except Exception as e:
+                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
 
-                if len(selected_symbols) == 1:
-                    # Single stock - use the detailed quick_analysis
-                    with st.spinner(f"Analyzing {selected_symbols[0]}..."):
-                        self.quick_analysis(selected_symbols[0])
+            if len(selected_symbols) == 1:
+                # Single stock - use the detailed quick_analysis
+                with st.spinner(f"Analyzing {selected_symbols[0]}..."):
+                    self.quick_analysis(selected_symbols[0])
+                    try:
                         usage_tracker.record_usage(st.session_state['username'])
-                else:
-                    # Multiple stocks - use multi_stock_analysis
-                    with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
-                        self.multi_stock_analysis(selected_symbols)
+                    except Exception as e:
+                        st.warning(f"Usage tracking failed: {str(e)}")
+            else:
+                # Multiple stocks - use multi_stock_analysis
+                with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
+                    self.multi_stock_analysis(selected_symbols)
+                    try:
                         usage_tracker.record_usage(st.session_state['username'])
+                    except Exception as e:
+                        st.warning(f"Usage tracking failed: {str(e)}")
         
-        with col2:
-            st.subheader("📈 Market Status")
-            market_status = self.get_market_status()
-            
-            # Display market status with appropriate styling
-            if market_status['status'] == 'open':
-                st.success(f"✅ {market_status['message']}")
-            elif market_status['status'] == 'pre_open':
-                st.info(f"''' {market_status['message']}")
-            elif market_status['status'] == 'post_close':
-                st.warning(f"🟠 {market_status['message']}")
-            elif market_status['status'] == 'closed':
-                st.error(f"🔴 {market_status['message']}")
-            else:  # weekend or holiday
-                st.info(f"⏸️ {market_status['message']}")
-            
-            # Show current time and next session
-            st.info(f"🕐 Current Time: {market_status['current_time']}")
-            if market_status.get('next_session'):
-                st.info(f"⏰ Next: {market_status['next_session']}")
-            st.info("📅 " + datetime.now().strftime("%B %d, %Y"))
+        # Add Quick Insights Section
+        st.markdown("---")
+        st.markdown("#### 💡 Quick Market Insights")
+        
+        insight_col1, insight_col2, insight_col3 = st.columns(3)
+        
+        with insight_col1:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #e3f2fd, #bbdefb); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #1565c0; margin-bottom: 10px;">🎯 Top Gainers</h4>
+                <p style="color: #0d47a1; margin: 0;">UBL +3.2%</p>
+                <p style="color: #0d47a1; margin: 0;">MCB +2.8%</p>
+                <p style="color: #0d47a1; margin: 0;">NBP +2.1%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col2:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #fff3e0, #ffe0b2); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #ef6c00; margin-bottom: 10px;">⚡ High Volume</h4>
+                <p style="color: #e65100; margin: 0;">OGDC 2.1M shares</p>
+                <p style="color: #e65100; margin: 0;">PPL 1.8M shares</p>
+                <p style="color: #e65100; margin: 0;">LUCK 1.5M shares</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with insight_col3:
+            st.markdown("""
+            <div style="background: linear-gradient(145deg, #e8f5e8, #c8e6c9); 
+                        padding: 20px; border-radius: 10px; text-align: center;">
+                <h4 style="color: #2e7d32; margin-bottom: 10px;">📈 Strong Signals</h4>
+                <p style="color: #1b5e20; margin: 0;">Banking Sector ↗️</p>
+                <p style="color: #1b5e20; margin: 0;">Oil & Gas Sector ↗️</p>
+                <p style="color: #1b5e20; margin: 0;">Cement Sector →</p>
+            </div>
+            """, unsafe_allow_html=True)
     
     def get_market_status(self):
         """Get current PSX market status based on Pakistan Standard Time"""
@@ -299,22 +576,22 @@ class TradingDashboard:
             current_time_only = current_time.time()
             weekday = current_time.weekday()  # 0=Monday, 6=Sunday
             
-            # PSX Trading Hours (PKT)
-            pre_open_start = time(9, 0)      # 9:00 AM
-            pre_open_end = time(9, 15)       # 9:15 AM
-            market_open = time(9, 17)        # 9:17 AM
+            # PSX Trading Hours (PKT) - Correct Timings
+            pre_open_start = time(9, 15)     # 9:15 AM Pre-open
+            pre_open_end = time(9, 30)       # 9:30 AM
+            market_open = time(9, 30)        # 9:30 AM Market Open
             
-            # Regular market close times
+            # Regular market close times (Correct PSX Hours)
             if weekday == 4:  # Friday
-                regular_close = time(12, 30)  # 12:30 PM
-                post_close_start = time(12, 35)  # 12:35 PM
-                post_close_end = time(12, 50)   # 12:50 PM
-                modification_end = time(13, 20)  # 1:20 PM
-            else:  # Monday to Thursday
-                regular_close = time(13, 30)   # 1:30 PM
-                post_close_start = time(13, 35)  # 1:35 PM
-                post_close_end = time(13, 50)   # 1:50 PM
-                modification_end = time(14, 20)  # 2:20 PM
+                regular_close = time(14, 0)   # 2:00 PM (14:00)
+                post_close_start = time(14, 5)  # 2:05 PM
+                post_close_end = time(14, 20)   # 2:20 PM
+                modification_end = time(15, 0)  # 3:00 PM
+            else:  # Monday to Thursday  
+                regular_close = time(15, 30)   # 3:30 PM (15:30)
+                post_close_start = time(15, 35)  # 3:35 PM
+                post_close_end = time(15, 50)   # 3:50 PM
+                modification_end = time(16, 30)  # 4:30 PM
             
             # Format current time for display
             current_time_str = current_time.strftime("%I:%M %p PKT")
@@ -325,7 +602,7 @@ class TradingDashboard:
                     'status': 'weekend',
                     'message': 'Market Closed - Weekend',
                     'current_time': current_time_str,
-                    'next_session': 'Monday 9:00 AM (Pre-Open)'
+                    'next_session': 'Monday 9:15 AM (Pre-Open)'
                 }
             
             # Market status logic
@@ -341,15 +618,7 @@ class TradingDashboard:
                 # Pre-open session
                 return {
                     'status': 'pre_open',
-                    'message': 'Pre-Open Session (9:00-9:15 AM)',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {market_open.strftime("%I:%M %p")} (Market Open)'
-                }
-            elif time(9, 15) <= current_time_only < market_open:
-                # Between pre-open and market open
-                return {
-                    'status': 'closed',
-                    'message': 'Market Opening Soon',
+                    'message': 'Pre-Open Session (9:15-9:30 AM)',
                     'current_time': current_time_str,
                     'next_session': f'Today {market_open.strftime("%I:%M %p")} (Market Open)'
                 }
@@ -357,9 +626,10 @@ class TradingDashboard:
                 # Regular trading hours
                 close_time_str = regular_close.strftime("%I:%M %p")
                 day_name = "Friday" if weekday == 4 else "Mon-Thu"
+                open_time_str = market_open.strftime("%I:%M %p")
                 return {
                     'status': 'open',
-                    'message': f'Market Open ({day_name}: 9:17 AM - {close_time_str})',
+                    'message': f'Market Open ({day_name}: {open_time_str} - {close_time_str})',
                     'current_time': current_time_str,
                     'next_session': f'Today {close_time_str} (Market Close)'
                 }
@@ -377,7 +647,7 @@ class TradingDashboard:
                     'status': 'post_close',
                     'message': f'Post-Close Session ({post_close_start.strftime("%I:%M %p")}-{post_close_end.strftime("%I:%M %p")})',
                     'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:00 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:00 AM (Pre-Open)'
+                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
                 }
             elif post_close_end <= current_time_only < modification_end:
                 # Trade rectification/modification
@@ -385,7 +655,7 @@ class TradingDashboard:
                     'status': 'post_close',
                     'message': f'Trade Rectification ({post_close_end.strftime("%I:%M %p")}-{modification_end.strftime("%I:%M %p")})',
                     'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:00 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:00 AM (Pre-Open)'
+                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
                 }
             else:
                 # After all trading activities
@@ -394,7 +664,7 @@ class TradingDashboard:
                     'status': 'closed',
                     'message': 'Market Closed',
                     'current_time': current_time_str,
-                    'next_session': f'{next_day} 9:00 AM (Pre-Open)'
+                    'next_session': f'{next_day} 9:15 AM (Pre-Open)'
                 }
                 
         except Exception as e:
@@ -431,11 +701,17 @@ class TradingDashboard:
         
         # Analysis button
         if st.button("🚀 Run Analysis"):
-            if not usage_tracker.check_usage(st.session_state['username']):
-                st.error("You have reached your analysis limit of 10.")
-                return
+            try:
+                if not usage_tracker.check_usage(st.session_state['username']):
+                    st.error("You have reached your analysis limit of 10.")
+                    return
+            except Exception as e:
+                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
             self.run_signal_analysis(symbols, analysis_type, days)
-            usage_tracker.record_usage(st.session_state['username'])
+            try:
+                usage_tracker.record_usage(st.session_state['username'])
+            except Exception as e:
+                st.warning(f"Usage tracking failed: {str(e)}")
 
     def show_portfolio(self):
         """Portfolio management page"""
@@ -1914,6 +2190,38 @@ def show_sidebar_footer():
     st.sidebar.markdown("### 📊 System Status")
     st.sidebar.success("✅ Online")
     st.sidebar.info("🔄 Last Update: " + datetime.now().strftime("%H:%M"))
+    
+    # Enhanced Logout Button with styling
+    st.sidebar.markdown("""
+    <style>
+    .logout-button {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        font-weight: bold;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        width: 100%;
+        cursor: pointer;
+        text-align: center;
+        margin: 15px 0;
+        font-size: 14px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    }
+    .logout-button:hover {
+        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(220, 53, 69, 0.4);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Logout Button
+    if st.sidebar.button("🚪 Logout", type="secondary", use_container_width=True, help="Sign out of your account"):
+        st.session_state['authenticated'] = False
+        st.session_state['username'] = ""
+        st.rerun()
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ℹ️ About")

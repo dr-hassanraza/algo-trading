@@ -50,6 +50,7 @@ load_env()
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
+# import pandas_ta as ta  # Removed due to NumPy 2.0 compatibility issues
 import requests
 import math
 
@@ -99,16 +100,6 @@ class EODHDFetcher:
 def sma(s: pd.Series, w: int) -> pd.Series:
     return s.rolling(w, min_periods=w).mean()
 
-
-def bollinger(close: pd.Series, w=20, n=2.0):
-    mid = sma(close, w)
-    std = close.rolling(w, min_periods=w).std()
-    up = mid + n*std
-    lo = mid - n*std
-    pctb = (close - lo) / (up - lo + 1e-12)
-    return mid, up, lo, pctb
-
-
 def slope(series: pd.Series, win: int = 10) -> pd.Series:
     return (series - series.shift(win)) / win
 
@@ -128,14 +119,30 @@ def near_ma44(df: pd.DataFrame, pct: float = 0.02, lookback: int = 3) -> bool:
     return any(sub['Low'] <= sub['MA44'] * (1 + pct))
 
 
+def compute_bollinger_bands(close: pd.Series, length: int = 20, std: float = 2.0) -> pd.DataFrame:
+    """Custom Bollinger Bands implementation to replace pandas_ta"""
+    sma = close.rolling(window=length).mean()
+    std_dev = close.rolling(window=length).std()
+    
+    bb_upper = sma + (std_dev * std)
+    bb_lower = sma - (std_dev * std)
+    bb_pct_b = (close - bb_lower) / (bb_upper - bb_lower)
+    
+    return pd.DataFrame({
+        'BB_mid': sma,
+        'BB_up': bb_upper,
+        'BB_lo': bb_lower,
+        'BB_pctB': bb_pct_b
+    })
+
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
+    
+    # Custom Bollinger Bands calculation
+    bb_data = compute_bollinger_bands(out['Close'], length=20, std=2.0)
+    out = pd.concat([out, bb_data], axis=1)
+    
     out['MA44'] = sma(out['Close'], 44)
-    mid, up, lo, pctb = bollinger(out['Close'], 20, 2.0)
-    out['BB_mid'] = mid
-    out['BB_up'] = up
-    out['BB_lo'] = lo
-    out['BB_pctB'] = pctb
     out['MA44_slope10'] = slope(out['MA44'], 10)
     out['BBmid_slope5'] = slope(out['BB_mid'], 5)
     out.dropna(inplace=True)

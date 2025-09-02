@@ -37,6 +37,7 @@ load_env()
 
 from psx_bbands_candle_scanner import compute_indicators, EODHDFetcher, TODAY
 from enhanced_data_fetcher import EnhancedDataFetcher
+from real_time_price_fetcher import get_enhanced_price_info
 
 
 def rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -995,11 +996,15 @@ def enhanced_signal_analysis(symbol: str, days: int = 260) -> Dict:
         # Calculate risk management
         risk_mgmt = calculate_risk_management(latest, support_resistance)
 
+        # Get enhanced price information with real-time verification
+        price_info = get_enhanced_price_info(base_symbol, enhanced_data)
+        
         # Enhanced signal evaluation
         enhanced_signal = {
             'symbol': formatted_symbol,
             'date': latest['Date'].strftime('%Y-%m-%d'),
             'price': float(latest['Close']),
+            'price_info': price_info,  # Enhanced price information with freshness indicator
             'signal_strength': signal_strength,
             'risk_management': risk_mgmt,
             'ml_prediction': ml_prediction,

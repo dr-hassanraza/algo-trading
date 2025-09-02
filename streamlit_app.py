@@ -83,6 +83,41 @@ def get_ip():
         st.warning(f"IP detection failed: {str(e)}. Using fallback IP.")
         return 'fallback-ip'
 
+def display_price_with_info(price: float, price_info: dict = None, label: str = "Current Price") -> None:
+    """Display price with data freshness information"""
+    
+    if price_info:
+        # Check data freshness
+        freshness = price_info.get('data_freshness', 'Unknown')
+        is_current = price_info.get('is_current', False)
+        market_status = price_info.get('market_status', {})
+        
+        # Determine the display style based on freshness
+        if freshness == 'Real-time' or (is_current and market_status.get('status') == 'open'):
+            # Real-time or current market data
+            st.metric(label, f"{price:.2f} PKR", help=f"✅ {freshness} data")
+        elif freshness == 'Current' or freshness.endswith('1 days old'):
+            # Recent data (within 1 day)
+            st.metric(label, f"{price:.2f} PKR", help=f"🟡 {freshness} data")
+        elif 'days old' in str(freshness):
+            # Older data
+            days_old = freshness.replace(' days old', '').replace('days old', '').strip()
+            st.metric(label, f"{price:.2f} PKR", help=f"⚠️ Data is {days_old} days old")
+        else:
+            # Unknown freshness
+            st.metric(label, f"{price:.2f} PKR", help="❓ Data freshness unknown")
+        
+        # Display market status if available
+        if market_status:
+            status_message = market_status.get('message', '')
+            if status_message and 'closed' not in status_message.lower():
+                st.caption(f"📈 {status_message}")
+            elif 'closed' in status_message.lower():
+                st.caption(f"🔴 {status_message}")
+    else:
+        # Fallback - no price info available
+        st.metric(label, f"{price:.2f} PKR", help="⚠️ Price data freshness unknown")
+
 class TradingDashboard:
     """Main trading dashboard class"""
     
@@ -923,7 +958,11 @@ class TradingDashboard:
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
-                    st.metric("Current Price", f"{result['price']:.2f} PKR", "")
+                    display_price_with_info(
+                        result['price'], 
+                        result.get('price_info', None), 
+                        "Current Price"
+                    )
                 
                 with col2:
                     st.metric("Stop Loss", f"{risk['stop_loss']:.2f} PKR", f"-{risk['stop_loss_pct']:.1f}%")
@@ -1232,7 +1271,11 @@ class TradingDashboard:
                 
                 st.markdown(f"**{grade_emoji} Grade {signal['grade']}**")
                 st.metric("Score", f"{signal['score']:.0f}/100")
-                st.metric("Price", f"{result['price']:.2f} PKR")
+                display_price_with_info(
+                    result['price'], 
+                    result.get('price_info', None), 
+                    "Price"
+                )
                 
                 # Recommendation with appropriate styling
                 recommendation = signal['recommendation']
@@ -1282,7 +1325,11 @@ class TradingDashboard:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Current Price", f"{result['price']:.2f} PKR", "")
+            display_price_with_info(
+                result['price'], 
+                result.get('price_info', None), 
+                "Current Price"
+            )
         
         with col2:
             st.metric("Stop Loss", f"{risk['stop_loss']:.2f} PKR", f"-{risk['stop_loss_pct']:.1f}%")
@@ -1479,7 +1526,11 @@ class TradingDashboard:
             st.markdown(f"**{signal['recommendation']}** | Score: {signal['score']:.0f}/100")
         
         with col3:
-            st.metric("Price", f"{result['price']:.2f} PKR", "")
+            display_price_with_info(
+                result['price'], 
+                result.get('price_info', None), 
+                "Price"
+            )
         
         # Technical metrics
         st.subheader("📊 Technical Analysis")

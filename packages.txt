@@ -1,2 +1,1 @@
-# System packages required for deployment
 libgomp1

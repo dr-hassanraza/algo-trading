@@ -1,2411 +1,749 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-PSX Trading Bot - Streamlit Web Interface
-=========================================
-
-Professional web interface for the PSX algorithmic trading system.
-Features real-time analysis, interactive charts, and portfolio management.
+Enhanced Professional PSX Quantitative Trading System Dashboard
+Now featuring PSX Terminal API with comprehensive market data and WebSocket streaming
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.subplots as sp
+import plotly.express as px
+from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
-import logging
 import json
-from pathlib import Path
-import base64
-import io
-from streamlit_javascript import st_javascript
+import asyncio
+import warnings
+warnings.filterwarnings('ignore')
 
-# Import user authentication and usage tracking modules
-import user_auth
-import usage_tracker
-import ml_model
-from psx_ticker_manager import get_stock_symbols_only, get_tickers_by_sector, get_top_symbols, search_symbols
+# Import our enhanced trading system components
+from psx_terminal_api import PSXTerminalAPI, MarketTick, KLineData
+from enhanced_data_fetcher import EnhancedDataFetcher
+from intraday_signal_analyzer import IntradaySignalAnalyzer
+from intraday_risk_manager import IntradayRiskManager
+from backtesting_engine import WalkForwardBacktester
+from intraday_backtesting_engine import IntradayWalkForwardBacktester
+from portfolio_optimizer import PortfolioOptimizer
+from ml_model_system import MLModelSystem
+from feature_engineering import FeatureEngineer
+from quant_system_config import SystemConfig
 
-# Configure Streamlit page
+# Page configuration
 st.set_page_config(
-    page_title="PSX Trading Bot",
-    page_icon="📈",
+    page_title="PSX Terminal - Quantitative Trading System",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Import our modules
-try:
-    from enhanced_signal_analyzer import enhanced_signal_analysis, enhanced_indicators
-    from config_manager import get_config, set_config
-    from portfolio_manager import PortfolioManager
-    from risk_manager import calculate_position_size, multi_timeframe_check
-    from advanced_indicators import macd, stochastic, adx, detect_candlestick_patterns
-    from visualization_engine import data_exporter
-    from pdf_generator import PDFReportGenerator, create_download_link
-    from psx_bbands_candle_scanner import EODHDFetcher, TODAY
-    MODULES_AVAILABLE = True
-    PDF_AVAILABLE = True
-except ImportError as e:
-    st.error(f"Required modules not available: {e}")
-    MODULES_AVAILABLE = False
-    PDF_AVAILABLE = False
-
-# Configure logging for Streamlit
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def get_ip():
-    # The JavaScript code to fetch the IP address from api.ipify.org
-    script = """
-        async function getIP() {
-            try {
-                const response = await fetch('https://api.ipify.org?format=json');
-                const data = await response.json();
-                return data.ip;
-            } catch (error) {
-                console.log('IP fetch error:', error);
-                return 'fallback-ip';
-            }
-        }
-        return getIP();
-    """
-    # Execute the JavaScript and return the result
-    try:
-        ip_address = st_javascript(script)
-        # If JavaScript returns None, null, undefined, or empty string, use fallback
-        if not ip_address or ip_address in ['null', 'undefined', '']:
-            return 'fallback-ip'
-        return ip_address
-    except Exception as e:
-        # Handle cases where JavaScript execution might fail
-        st.warning(f"IP detection failed: {str(e)}. Using fallback IP.")
-        return 'fallback-ip'
-
-def display_price_with_info(price: float, price_info: dict = None, label: str = "Current Price") -> None:
-    """Display price with data freshness information"""
+# Enhanced CSS for professional styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 3.5rem;
+        font-weight: bold;
+        text-align: center;
+        background: linear-gradient(90deg, #1e3c72, #2a5298, #0f4c75);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 2rem;
+    }
     
-    if price_info:
-        # Check data freshness
-        freshness = price_info.get('data_freshness', 'Unknown')
-        is_current = price_info.get('is_current', False)
-        market_status = price_info.get('market_status', {})
-        
-        # Determine the display style based on freshness
-        if freshness == 'Real-time' or (is_current and market_status.get('status') == 'open'):
-            # Real-time or current market data
-            st.metric(label, f"{price:.2f} PKR", help=f"✅ {freshness} data")
-        elif freshness == 'Current' or freshness.endswith('1 days old'):
-            # Recent data (within 1 day)
-            st.metric(label, f"{price:.2f} PKR", help=f"🟡 {freshness} data")
-        elif 'days old' in str(freshness):
-            # Older data
-            days_old = freshness.replace(' days old', '').replace('days old', '').strip()
-            st.metric(label, f"{price:.2f} PKR", help=f"⚠️ Data is {days_old} days old")
-        else:
-            # Unknown freshness
-            st.metric(label, f"{price:.2f} PKR", help="❓ Data freshness unknown")
-        
-        # Display market status if available
-        if market_status:
-            status_message = market_status.get('message', '')
-            if status_message and 'closed' not in status_message.lower():
-                st.caption(f"📈 {status_message}")
-            elif 'closed' in status_message.lower():
-                st.caption(f"🔴 {status_message}")
-    else:
-        # Fallback - no price info available
-        st.metric(label, f"{price:.2f} PKR", help="⚠️ Price data freshness unknown")
+    .metric-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .success-metric {
+        background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        padding: 1rem;
+        border-radius: 8px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .warning-metric {
+        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        padding: 1rem;
+        border-radius: 8px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    
+    .live-data-card {
+        background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        color: white;
+        margin: 1rem 0;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    
+    .market-overview-card {
+        background: linear-gradient(135deg, #2e8b57 0%, #3cb371 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        color: white;
+        margin: 1rem 0;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    
+    .feature-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+        border: 1px solid #e0e0e0;
+        transition: transform 0.2s ease;
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 25px rgba(0,0,0,0.15);
+    }
+    
+    .websocket-status {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: bold;
+        z-index: 1000;
+    }
+    
+    .connected {
+        background: linear-gradient(90deg, #4CAF50, #45a049);
+        color: white;
+    }
+    
+    .disconnected {
+        background: linear-gradient(90deg, #f44336, #d32f2f);
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-class TradingDashboard:
-    """Main trading dashboard class"""
-    
-    def __init__(self):
-        self.portfolio_manager = PortfolioManager() if MODULES_AVAILABLE else None
-        # Load all PSX stock symbols (722+ stocks)
-        try:
-            self.all_symbols = get_stock_symbols_only()
-            self.sectors = get_tickers_by_sector()
-            self.top_symbols = get_top_symbols()
-            
-            # Use all stock symbols as common symbols (722 symbols)
-            self.common_symbols = sorted(self.all_symbols)
-            
-            st.success(f"✅ Loaded {len(self.common_symbols)} PSX stock symbols with sector organization")
-            
-        except Exception as e:
-            st.warning(f"⚠️ Could not load live PSX data: {str(e)}. Using fallback symbol list.")
-            # Fallback to original limited list if PSX data unavailable
-            self.common_symbols = [
-                'UBL', 'MCB', 'NBP', 'ABL', 'HBL', 'BAFL', 'AKBL', 'BAHL', 'SNBL', 'KASB',
-                'OGDC', 'PPL', 'POL', 'MARI', 'PSO', 'SNGP', 'SSGC', 'LUCK', 'DGKC', 'MLCF',
-                'ENGRO', 'FFC', 'FATIMA', 'ISL', 'ASL', 'NESTLE', 'UFL', 'TRG', 'NETSOL'
-            ]
-            self.sectors = {
-                'Popular Stocks': ['UBL', 'MCB', 'ABL', 'HBL', 'OGDC', 'PPL', 'LUCK', 'ENGRO']
-            }
-            self.top_symbols = self.common_symbols[:20]
-            self.all_symbols = self.common_symbols
-    
-    def run(self):
-        """Main dashboard application"""
-        
-        # Sidebar navigation
-        st.sidebar.title("🏛️ PSX Trading Bot")
-        st.sidebar.markdown("---")
-
-        # Market Status in Sidebar
-        st.sidebar.markdown("### 📈 Market Status")
-        market_status = self.get_market_status()
-        
-        # Display market status with appropriate styling
-        if market_status['status'] == 'open':
-            st.sidebar.success(f"✅ {market_status['message']}")
-        elif market_status['status'] == 'pre_open':
-            st.sidebar.info(f"🟡 {market_status['message']}")
-        elif market_status['status'] == 'post_close':
-            st.sidebar.warning(f"🟠 {market_status['message']}")
-        elif market_status['status'] == 'closed':
-            st.sidebar.error(f"🔴 {market_status['message']}")
-        else:  # weekend or holiday
-            st.sidebar.info(f"⏸️ {market_status['message']}")
-        
-        # Show current time and next session
-        st.sidebar.caption(f"🕐 {market_status['current_time']}")
-        if market_status.get('next_session'):
-            st.sidebar.caption(f"⏰ Next: {market_status['next_session']}")
-        st.sidebar.caption("📅 " + datetime.now().strftime("%B %d, %Y"))
-        
-        st.sidebar.markdown("---")
-        
-        # Display remaining usage
-        try:
-            remaining_usage = usage_tracker.get_remaining_usage(st.session_state['username'])
-            st.sidebar.metric("Remaining Analyses", remaining_usage)
-        except Exception as e:
-            st.sidebar.warning("Usage tracking unavailable")
-        
-        # Navigation
-        page = st.sidebar.selectbox(
-            "Navigation",
-            ["🏠 Dashboard", "📊 Signal Analysis", "💼 Portfolio", "⚙️ Settings", "📈 Charts", "🎯 Risk Management"]
-        )
-        
-        # Check if page was changed via button click
-        if 'page' in st.session_state and st.session_state['page'] != page:
-            page = st.session_state['page']
-        
-        # Main content area
-        if page == "🏠 Dashboard":
-            self.show_dashboard()
-        elif page == "📊 Signal Analysis":
-            self.show_signal_analysis()
-        elif page == "💼 Portfolio":
-            self.show_portfolio()
-        elif page == "⚙️ Settings":
-            self.show_settings()
-        elif page == "📈 Charts":
-            self.show_charts()
-        elif page == "🎯 Risk Management":
-            self.show_risk_management()
-    
-    def show_dashboard(self):
-        """Main dashboard overview"""
-        
-        # Enhanced Welcome Header
-        st.markdown("""
-        <div style="background: linear-gradient(90deg, #1e3c72 0%, #2a5298 100%); 
-                    padding: 25px; border-radius: 15px; margin: 20px 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 2.2em;">
-                🏠 Welcome, {username}!
-            </h1>
-            <p style="color: #f0f8ff; font-size: 18px; margin: 10px 0 0 0;">
-                Your Professional PSX Trading Command Center
-            </p>
-        </div>
-        """.format(username=st.session_state['username']), unsafe_allow_html=True)
-        
-        # Professional Trading Hub
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 30px; border-radius: 15px; margin: 20px 0; text-align: center;">
-            <h2 style="color: white; margin-bottom: 10px;">🚀 PSX Trading Command Center</h2>
-            <p style="color: #f0f8ff; font-size: 16px; margin: 0;">
-                Professional tools for intelligent trading decisions
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Enhanced CSS for professional navigation buttons
-        st.markdown("""
-        <style>
-        .trading-button {
-            background: linear-gradient(145deg, #ffffff, #f0f8ff);
-            border: 3px solid #2E86AB;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 10px;
-            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .trading-button:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.3);
-            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
-        }
-        .stButton > button {
-            height: 80px;
-            font-weight: bold;
-            border-radius: 15px;
-            border: 3px solid #2E86AB;
-            background: linear-gradient(145deg, #ffffff, #f0f8ff);
-            box-shadow: 0 8px 16px rgba(46, 134, 171, 0.2);
-            transition: all 0.3s ease;
-            font-size: 16px;
-        }
-        .stButton > button:hover {
-            background: linear-gradient(145deg, #2E86AB, #1e5f7a);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 12px 24px rgba(46, 134, 171, 0.4);
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Main navigation buttons in a clean 2x2 grid
-        st.markdown("#### 📈 Core Trading Features")
-        nav_col1, nav_col2 = st.columns(2)
-        
-        with nav_col1:
-            if st.button("📊 **SIGNAL ANALYSIS**\n\n*Advanced Technical Analysis*", use_container_width=True, help="Analyze stock signals with professional indicators"):
-                st.session_state['page'] = "📊 Signal Analysis"
-                st.rerun()
-        
-        with nav_col2:
-            if st.button("💼 **PORTFOLIO MANAGER**\n\n*Track Your Investments*", use_container_width=True, help="Manage and monitor your trading portfolio"):
-                st.session_state['page'] = "💼 Portfolio"
-                st.rerun()
-        
-        nav_col3, nav_col4 = st.columns(2)
-        
-        with nav_col3:
-            if st.button("📈 **INTERACTIVE CHARTS**\n\n*Professional Visualization*", use_container_width=True, help="View detailed interactive trading charts"):
-                st.session_state['page'] = "📈 Charts"
-                st.rerun()
-        
-        with nav_col4:
-            if st.button("🎯 **RISK MANAGEMENT**\n\n*Smart Position Sizing*", use_container_width=True, help="Calculate optimal position sizes and manage risk"):
-                st.session_state['page'] = "🎯 Risk Management"
-                st.rerun()
-        
-        # Professional Statistics Dashboard
-        st.markdown("#### 📊 Your Trading Overview")
-        st.markdown("""
-        <style>
-        .metric-container {
-            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
-            border-left: 4px solid #2E86AB;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 10px 0;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .metric-title {
-            color: #2E86AB;
-            font-weight: bold;
-            font-size: 14px;
-            margin-bottom: 5px;
-        }
-        .metric-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #212529;
-        }
-        .metric-change {
-            font-size: 12px;
-            font-weight: bold;
-        }
-        .positive { color: #28a745; }
-        .neutral { color: #6c757d; }
-        .warning { color: #ffc107; }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-title">🎯 SIGNALS TODAY</div>
-                <div class="metric-value">5</div>
-                <div class="metric-change positive">+2 from yesterday</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-title">💼 PORTFOLIO VALUE</div>
-                <div class="metric-value">250,000 PKR</div>
-                <div class="metric-change positive">+5.2% this month</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-title">📈 ACTIVE POSITIONS</div>
-                <div class="metric-value">8</div>
-                <div class="metric-change positive">+1 new position</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown("""
-            <div class="metric-container">
-                <div class="metric-title">🛡️ RISK LEVEL</div>
-                <div class="metric-value">Medium</div>
-                <div class="metric-change warning">Well balanced</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Professional Quick Analysis Section  
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
-                    padding: 25px; border-radius: 15px; margin: 30px 0; 
-                    border: 1px solid #dee2e6;">
-            <h3 style="color: #2E86AB; margin-bottom: 10px;">🚀 Professional Stock Analysis</h3>
-            <p style="color: #6c757d; font-size: 16px; margin: 0;">
-                Get instant insights with advanced technical analysis powered by real-time PSX data
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Enhanced Full-Width Analysis Section
-        st.markdown("#### 📊 Professional Stock Analysis")
-        
-        # Selection options in a more compact layout
-        analysis_col1, analysis_col2 = st.columns([1, 2])
-        
-        with analysis_col1:
-            analysis_mode = st.radio(
-                "Analysis Mode:",
-                ["Single Stock", "Multiple Stocks", "Sector Analysis"],
-                horizontal=False
-            )
-        
-        with analysis_col2:
-            if analysis_mode == "Single Stock":
-                # Enhanced single stock selection with search and sectors
-                selection_method = st.radio(
-                    "Selection Method:", 
-                    ["🔍 Search", "⭐ Popular", "🏢 By Sector"],
-                    horizontal=True,
-                    key="selection_method"
-                )
+def initialize_enhanced_system():
+    """Initialize all enhanced system components"""
+    if 'system_initialized' not in st.session_state:
+        with st.spinner("🚀 Initializing Enhanced PSX Terminal Trading System..."):
+            try:
+                st.session_state.config = SystemConfig()
+                st.session_state.psx_terminal = PSXTerminalAPI()
+                st.session_state.enhanced_fetcher = EnhancedDataFetcher()
+                st.session_state.signal_analyzer = IntradaySignalAnalyzer()
+                st.session_state.risk_manager = IntradayRiskManager(st.session_state.config)
+                st.session_state.portfolio_optimizer = PortfolioOptimizer(st.session_state.config)
+                st.session_state.ml_system = MLModelSystem(st.session_state.config)
+                st.session_state.feature_engineer = FeatureEngineer(st.session_state.config)
+                st.session_state.backtester = WalkForwardBacktester(st.session_state.config)
+                st.session_state.intraday_backtester = IntradayWalkForwardBacktester(st.session_state.config)
                 
-                if selection_method == "🔍 Search":
-                    search_query = st.text_input("Search Symbol:", placeholder="e.g., UBL, BANK, CEMENT", key="search_input")
-                    if search_query:
-                        search_results = search_symbols(search_query, limit=20)
-                        if search_results:
-                            selected_symbols = [st.selectbox("Select from Search Results:", search_results, key="search_results")]
+                # Test PSX Terminal API connectivity
+                status = st.session_state.psx_terminal.test_connectivity()
+                if status:
+                    st.success("✅ PSX Terminal API connected successfully!")
+                    
+                    # Get symbols list
+                    symbols = st.session_state.psx_terminal.get_all_symbols()
+                    if symbols:
+                        st.session_state.available_symbols = symbols
+                        st.success(f"✅ Loaded {len(symbols)} symbols from PSX Terminal")
+                    else:
+                        st.session_state.available_symbols = ['HBL', 'UBL', 'MCB', 'ENGRO', 'LUCK']
+                        st.warning("⚠️ Using default symbols list")
+                else:
+                    st.error("❌ PSX Terminal API connection failed")
+                    st.session_state.available_symbols = ['HBL', 'UBL', 'MCB', 'ENGRO', 'LUCK']
+                
+                st.session_state.system_initialized = True
+                
+            except Exception as e:
+                st.error(f"❌ System initialization failed: {str(e)}")
+                st.session_state.system_initialized = False
+
+def render_enhanced_header():
+    """Render enhanced professional header"""
+    st.markdown('<h1 class="main-header">PSX Terminal - Quantitative Trading System</h1>', unsafe_allow_html=True)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div class="success-metric">
+            <h4>🎯 PSX Terminal API</h4>
+            <p>Real-time & Historical Data</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="success-metric">
+            <h4>📊 WebSocket Streaming</h4>
+            <p>Live Market Updates</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="success-metric">
+            <h4>🤖 Advanced Analytics</h4>
+            <p>ML Models & Optimization</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="success-metric">
+            <h4>🛡️ Risk Management</h4>
+            <p>Professional Controls</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_system_capabilities():
+    """Render enhanced system capabilities"""
+    st.markdown("## 🏗️ Enhanced System Architecture")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="feature-card">
+            <h4>📈 PSX Terminal Integration</h4>
+            <ul>
+                <li>✅ REST API for historical & real-time data</li>
+                <li>✅ WebSocket streaming for live updates</li>
+                <li>✅ Multiple market types (REG, FUT, IDX, ODL, BNB)</li>
+                <li>✅ K-line data (1m, 5m, 15m, 1h, 4h, 1d)</li>
+                <li>✅ Company fundamentals & financial ratios</li>
+                <li>✅ Dividend data & market statistics</li>
+                <li>✅ Market breadth & sector analysis</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4>🤖 Enhanced ML Pipeline</h4>
+            <ul>
+                <li>✅ Real-time feature engineering</li>
+                <li>✅ Multi-timeframe analysis</li>
+                <li>✅ Cross-sectional ranking</li>
+                <li>✅ Sentiment & fundamental integration</li>
+                <li>✅ Dynamic model retraining</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="feature-card">
+            <h4>💼 Advanced Portfolio Management</h4>
+            <ul>
+                <li>✅ Real-time position monitoring</li>
+                <li>✅ Dynamic rebalancing algorithms</li>
+                <li>✅ Sector & correlation limits</li>
+                <li>✅ Multi-asset optimization</li>
+                <li>✅ Performance attribution</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4>🛡️ Professional Risk Controls</h4>
+            <ul>
+                <li>✅ Real-time P&L monitoring</li>
+                <li>✅ Dynamic stop-loss management</li>
+                <li>✅ Volatility-based position sizing</li>
+                <li>✅ Drawdown circuit breakers</li>
+                <li>✅ Risk-adjusted performance metrics</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+def render_enhanced_live_data():
+    """Render enhanced live market data section"""
+    st.markdown("## 📊 Live Market Data & Analytics")
+    
+    # Market overview section
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("### 🎯 Real-Time Market Overview")
+        
+        # Get market overview
+        try:
+            api = st.session_state.psx_terminal
+            overview = api.get_market_overview()
+            
+            if overview:
+                # Display market statistics
+                if 'regular_market' in overview:
+                    reg_stats = overview['regular_market']
+                    
+                    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+                    
+                    with metric_col1:
+                        total_vol = reg_stats.get('totalVolume', 0)
+                        st.metric("Total Volume", f"{total_vol:,.0f}" if total_vol else "N/A")
+                    
+                    with metric_col2:
+                        total_val = reg_stats.get('totalValue', 0)
+                        st.metric("Total Value", f"{total_val/1e9:.1f}B PKR" if total_val else "N/A")
+                    
+                    with metric_col3:
+                        gainers = reg_stats.get('gainers', 0)
+                        losers = reg_stats.get('losers', 0)
+                        st.metric("Gainers/Losers", f"{gainers}/{losers}")
+                    
+                    with metric_col4:
+                        trades = reg_stats.get('totalTrades', 0)
+                        st.metric("Total Trades", f"{trades:,}" if trades else "N/A")
+                
+                # Market breadth
+                if 'breadth' in overview:
+                    breadth = overview['breadth']
+                    st.markdown("### 📈 Market Breadth")
+                    
+                    breadth_col1, breadth_col2, breadth_col3 = st.columns(3)
+                    
+                    with breadth_col1:
+                        ad_ratio = breadth.get('advanceDeclineRatio', 0)
+                        st.metric("A/D Ratio", f"{ad_ratio:.2f}" if ad_ratio else "N/A")
+                    
+                    with breadth_col2:
+                        up_vol = breadth.get('upVolume', 0)
+                        down_vol = breadth.get('downVolume', 0)
+                        if up_vol and down_vol:
+                            vol_ratio = up_vol / down_vol
+                            st.metric("Up/Down Volume", f"{vol_ratio:.2f}")
                         else:
-                            st.warning("No symbols found. Try a different search term.")
-                            selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="search_fallback")]
-                    else:
-                        selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="search_default")]
-                        
-                elif selection_method == "⭐ Popular":
-                    selected_symbols = [st.selectbox("Select Popular Symbol:", self.top_symbols, key="popular_stock")]
+                            st.metric("Up/Down Volume", "N/A")
                     
-                else:  # By Sector
-                    if hasattr(self, 'sectors') and self.sectors:
-                        selected_sector = st.selectbox("Select Sector:", list(self.sectors.keys()), key="sector_select")
-                        sector_symbols = self.sectors.get(selected_sector, self.top_symbols)
-                        selected_symbols = [st.selectbox("Select from Sector:", sector_symbols, key="sector_stock")]
-                    else:
-                        selected_symbols = [st.selectbox("Select Symbol:", self.top_symbols, key="sector_fallback")]
+                    with breadth_col3:
+                        advances = breadth.get('advances', 0)
+                        declines = breadth.get('declines', 0)
+                        st.metric("Advances", f"{advances}")
+                        st.metric("Declines", f"{declines}")
+            
+            else:
+                st.info("📊 Market overview data loading...")
                 
-            elif analysis_mode == "Multiple Stocks":
-                # Enhanced multiple stock selection
-                multi_method = st.radio(
-                    "Multi-Selection Method:",
-                    ["⭐ Popular", "🏢 By Sector", "🔍 Custom"],
-                    horizontal=True,
-                    key="multi_method"
-                )
-                
-                if multi_method == "⭐ Popular":
-                    selected_symbols = st.multiselect(
-                        "Select Popular Symbols (up to 10):", 
-                        self.top_symbols,
-                        default=['UBL', 'MCB'] if 'UBL' in self.top_symbols and 'MCB' in self.top_symbols else self.top_symbols[:2],
-                        max_selections=10,
-                        key="multi_popular"
-                    )
-                elif multi_method == "🏢 By Sector":
-                    if hasattr(self, 'sectors') and self.sectors:
-                        selected_sector = st.selectbox("Select Sector for Analysis:", list(self.sectors.keys()), key="multi_sector_select")
-                        sector_symbols = self.sectors.get(selected_sector, self.top_symbols)
-                        selected_symbols = st.multiselect(
-                            f"Select from {selected_sector} (up to 10):",
-                            sector_symbols,
-                            default=sector_symbols[:2] if len(sector_symbols) >= 2 else sector_symbols,
-                            max_selections=10,
-                            key="multi_sector_stocks"
-                        )
-                    else:
-                        selected_symbols = st.multiselect(
-                            "Select Symbols (up to 10):", 
-                            self.top_symbols,
-                            default=self.top_symbols[:2],
-                            max_selections=10,
-                            key="multi_sector_fallback"
-                        )
-                else:  # Custom selection
-                    selected_symbols = st.multiselect(
-                        "Select Any Symbols (up to 10):", 
-                        self.common_symbols,
-                        default=['UBL', 'MCB'] if 'UBL' in self.common_symbols and 'MCB' in self.common_symbols else self.common_symbols[:2],
-                        max_selections=10,
-                        key="multi_custom",
-                        help=f"Choose from {len(self.common_symbols)} available PSX stocks"
-                    )
-                
-            else:  # Sector Analysis
-                if hasattr(self, 'sectors') and self.sectors:
-                    # Use dynamic sectors from PSX data
-                    available_sectors = list(self.sectors.keys())
-                    selected_sector = st.selectbox("Select Sector for Complete Analysis:", available_sectors)
-                    selected_symbols = self.sectors[selected_sector]
-                    st.info(f"📈 Analyzing {selected_sector} sector: {len(selected_symbols)} stocks")
-                    
-                    # Show sector details
-                    with st.expander(f"📊 {selected_sector} Sector Details"):
-                        st.write(f"**Total Stocks:** {len(selected_symbols)}")
-                        st.write("**Symbols:**")
-                        # Display symbols in a nice grid
-                        if len(selected_symbols) > 0:
-                            cols = st.columns(min(6, len(selected_symbols)))
-                            for i, symbol in enumerate(selected_symbols[:30]):  # Show max 30 symbols
-                                with cols[i % len(cols)]:
-                                    st.code(symbol)
-                            if len(selected_symbols) > 30:
-                                st.caption(f"... and {len(selected_symbols) - 30} more symbols")
-                else:
-                    # Fallback sector options
-                    sector_options = {
-                        "Banking": ['UBL', 'MCB', 'NBP', 'ABL', 'HBL'],
-                        "Oil & Gas": ['OGDC', 'PPL', 'POL', 'MARI', 'PSO'],
-                        "Cement": ['LUCK', 'DGKC', 'MLCF', 'ACPL'],
-                        "Fertilizer": ['ENGRO', 'FFC', 'FATIMA'],
-                        "Steel": ['ISL', 'ASL'],
-                        "Food": ['NESTLE', 'UFL', 'UNITY']
-                    }
-                    selected_sector = st.selectbox("Select Sector", list(sector_options.keys()))
-                    selected_symbols = sector_options[selected_sector]
-                st.info(f"📈 Analyzing {selected_sector} sector: {', '.join(selected_symbols)}")
+        except Exception as e:
+            st.error(f"❌ Error loading market overview: {str(e)}")
+    
+    with col2:
+        st.markdown("### 🔄 Data Sources Status")
         
-        # Enhanced CSS for analyze button specifically
+        # Test connectivity status
+        try:
+            api = st.session_state.psx_terminal
+            status = api.test_connectivity()
+            
+            if status:
+                st.markdown("""
+                <div class="live-data-card">
+                    <h5>✅ PSX Terminal API</h5>
+                    <p>Status: Connected</p>
+                    <p>Uptime: {:.1f}s</p>
+                    <p>Last Update: {}</p>
+                </div>
+                """.format(
+                    status.get('uptime', 0),
+                    datetime.now().strftime('%H:%M:%S')
+                ), unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div class="warning-metric">
+                    <h5>⚠️ PSX Terminal API</h5>
+                    <p>Connection Issues</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+        except Exception as e:
+            st.error(f"❌ API connectivity test failed: {str(e)}")
+
+def render_symbol_analysis():
+    """Render detailed symbol analysis"""
+    st.markdown("## 🔍 Individual Symbol Analysis")
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        symbols = st.session_state.get('available_symbols', ['HBL', 'UBL', 'MCB', 'ENGRO'])
+        selected_symbol = st.selectbox(
+            "Select Symbol for Analysis",
+            options=symbols[:50],  # Limit to first 50 for performance
+            index=0,
+            help="Choose a symbol for detailed analysis"
+        )
+    
+    with col2:
+        timeframe = st.selectbox(
+            "Timeframe",
+            options=['1m', '5m', '15m', '1h', '4h', '1d'],
+            index=3,  # Default to 1h
+            help="Select chart timeframe"
+        )
+    
+    with col3:
+        if st.button("🔄 Refresh Analysis", type="primary"):
+            st.rerun()
+    
+    if selected_symbol:
+        try:
+            api = st.session_state.psx_terminal
+            
+            # Get comprehensive symbol data
+            with st.spinner(f"📊 Loading data for {selected_symbol}..."):
+                symbol_data = api.get_enhanced_symbol_data(selected_symbol)
+            
+            if symbol_data:
+                tab1, tab2, tab3, tab4 = st.tabs(["📈 Market Data", "📊 Charts", "🏢 Company Info", "💰 Fundamentals"])
+                
+                with tab1:
+                    # Current market data
+                    if 'market_data' in symbol_data:
+                        market_data = symbol_data['market_data']
+                        
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            price = market_data.get('price', 0)
+                            change = market_data.get('change', 0)
+                            st.metric("Current Price", f"{price:.2f} PKR", f"{change:+.2f}")
+                        
+                        with col2:
+                            change_pct = market_data.get('change_percent', 0)
+                            volume = market_data.get('volume', 0)
+                            st.metric("Change %", f"{change_pct:+.2%}")
+                            st.metric("Volume", f"{volume:,}")
+                        
+                        with col3:
+                            high = market_data.get('high', 0)
+                            low = market_data.get('low', 0)
+                            st.metric("High", f"{high:.2f} PKR")
+                            st.metric("Low", f"{low:.2f} PKR")
+                        
+                        with col4:
+                            trades = market_data.get('trades', 0)
+                            value = market_data.get('value', 0)
+                            st.metric("Trades", f"{trades:,}")
+                            st.metric("Value", f"{value/1e6:.1f}M PKR")
+                
+                with tab2:
+                    # K-line chart
+                    st.markdown(f"### 📈 {selected_symbol} - {timeframe} Chart")
+                    
+                    # Get k-line data
+                    klines = api.get_klines(selected_symbol, timeframe, limit=100)
+                    
+                    if klines:
+                        # Convert to DataFrame
+                        df = api.convert_to_dataframe(klines)
+                        
+                        if not df.empty:
+                            # Create candlestick chart
+                            fig = go.Figure(data=go.Candlestick(
+                                x=df.index,
+                                open=df['open'],
+                                high=df['high'],
+                                low=df['low'],
+                                close=df['close'],
+                                name=selected_symbol
+                            ))
+                            
+                            fig.update_layout(
+                                title=f"{selected_symbol} - {timeframe} Candlestick Chart",
+                                xaxis_title="Time",
+                                yaxis_title="Price (PKR)",
+                                height=500,
+                                showlegend=False
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Volume chart
+                            fig_vol = go.Figure()
+                            fig_vol.add_trace(go.Bar(
+                                x=df.index,
+                                y=df['volume'],
+                                name="Volume",
+                                marker_color='rgba(0, 150, 255, 0.6)'
+                            ))
+                            
+                            fig_vol.update_layout(
+                                title=f"{selected_symbol} - Volume",
+                                xaxis_title="Time",
+                                yaxis_title="Volume",
+                                height=300
+                            )
+                            
+                            st.plotly_chart(fig_vol, use_container_width=True)
+                        else:
+                            st.warning("⚠️ No chart data available")
+                    else:
+                        st.warning("⚠️ Unable to load chart data")
+                
+                with tab3:
+                    # Company information
+                    if 'company_info' in symbol_data:
+                        company_info = symbol_data['company_info']
+                        
+                        st.markdown(f"### 🏢 Company Information - {selected_symbol}")
+                        
+                        # Financial stats
+                        if 'financialStats' in company_info:
+                            fin_stats = company_info['financialStats']
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                market_cap = fin_stats.get('marketCap', {})
+                                if market_cap:
+                                    st.metric("Market Cap", market_cap.get('raw', 'N/A'))
+                                
+                                shares = fin_stats.get('shares', {})
+                                if shares:
+                                    st.metric("Total Shares", shares.get('raw', 'N/A'))
+                            
+                            with col2:
+                                free_float = fin_stats.get('freeFloat', {})
+                                if free_float:
+                                    st.metric("Free Float", free_float.get('raw', 'N/A'))
+                                
+                                ff_percent = fin_stats.get('freeFloatPercent', {})
+                                if ff_percent:
+                                    st.metric("Free Float %", ff_percent.get('raw', 'N/A'))
+                        
+                        # Business description
+                        if 'businessDescription' in company_info:
+                            st.markdown("### 📋 Business Description")
+                            st.write(company_info['businessDescription'])
+                        
+                        # Key people
+                        if 'keyPeople' in company_info:
+                            st.markdown("### 👥 Key Personnel")
+                            for person in company_info['keyPeople']:
+                                st.write(f"**{person.get('name', 'N/A')}** - {person.get('position', 'N/A')}")
+                    else:
+                        st.info("📊 Company information not available")
+                
+                with tab4:
+                    # Fundamentals
+                    if 'fundamentals' in symbol_data:
+                        fundamentals = symbol_data['fundamentals']
+                        
+                        st.markdown(f"### 💰 Financial Metrics - {selected_symbol}")
+                        
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            pe_ratio = fundamentals.get('peRatio')
+                            if pe_ratio:
+                                st.metric("P/E Ratio", f"{pe_ratio:.2f}")
+                            
+                            div_yield = fundamentals.get('dividendYield')
+                            if div_yield:
+                                st.metric("Dividend Yield", f"{div_yield:.2f}%")
+                        
+                        with col2:
+                            year_change = fundamentals.get('yearChange')
+                            if year_change:
+                                st.metric("YTD Change", f"{year_change:+.2f}%")
+                            
+                            sector = fundamentals.get('sector')
+                            if sector:
+                                st.metric("Sector Code", sector)
+                        
+                        with col3:
+                            vol_30_avg = fundamentals.get('volume30Avg')
+                            if vol_30_avg:
+                                st.metric("30D Avg Volume", f"{vol_30_avg:,.0f}")
+                            
+                            is_compliant = fundamentals.get('isNonCompliant', True)
+                            st.metric("Compliance", "✅ Compliant" if not is_compliant else "⚠️ Non-Compliant")
+                    
+                    # Dividend history
+                    if 'dividends' in symbol_data:
+                        st.markdown("### 💵 Dividend History")
+                        
+                        dividends = symbol_data['dividends']
+                        if dividends:
+                            div_df = pd.DataFrame(dividends)
+                            st.dataframe(div_df, use_container_width=True)
+                        else:
+                            st.info("No recent dividend data available")
+                    else:
+                        st.info("📊 Fundamental data not available")
+            
+            else:
+                st.warning(f"⚠️ Unable to load data for {selected_symbol}")
+                
+        except Exception as e:
+            st.error(f"❌ Error analyzing {selected_symbol}: {str(e)}")
+
+def render_websocket_demo():
+    """Render WebSocket streaming demonstration"""
+    st.markdown("## 🌐 Live WebSocket Streaming")
+    
+    st.info("🚧 WebSocket streaming interface coming soon! This will provide real-time updates for:")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
         st.markdown("""
-        <style>
-        /* Enhanced styling for analyze button - better visibility and contrast */
-        div.stButton[data-testid="stButton"] > button[kind="primary"] {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
-            color: white !important;
-            font-weight: bold !important;
-            font-size: 18px !important;
-            padding: 15px 25px !important;
-            border: 3px solid #155724 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3) !important;
-            transition: all 0.3s ease !important;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;
-            min-height: 65px !important;
-        }
-        
-        /* Hover state for better interactivity */
-        div.stButton[data-testid="stButton"] > button[kind="primary"]:hover {
-            background: linear-gradient(135deg, #218838 0%, #1e7e34 100%) !important;
-            color: #ffffff !important;
-            transform: translateY(-3px) !important;
-            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4) !important;
-            border-color: #0d4417 !important;
-        }
-        
-        /* Disabled state for when no symbols selected */
-        div.stButton[data-testid="stButton"] > button[kind="primary"]:disabled {
-            background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
-            color: #ffffff !important;
-            opacity: 0.6 !important;
-            cursor: not-allowed !important;
-            border-color: #343a40 !important;
-        }
-        
-        /* Focus state for accessibility */
-        div.stButton[data-testid="stButton"] > button[kind="primary"]:focus {
-            outline: 3px solid rgba(40, 167, 69, 0.5) !important;
-            outline-offset: 2px !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Full-width analyze button with enhanced visibility
-        if selected_symbols:
-            analyze_clicked = st.button("🚀 **ANALYZE SELECTED STOCKS**", type="primary", use_container_width=True, key="analyze_btn")
-        else:
-            # Show disabled button when no symbols selected
-            st.markdown("""
-            <div style="width: 100%; text-align: center; margin: 20px 0;">
-                <button disabled style="
-                    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-                    color: #ffffff;
-                    font-weight: bold;
-                    font-size: 18px;
-                    padding: 15px 25px;
-                    border: 3px solid #343a40;
-                    border-radius: 12px;
-                    width: 100%;
-                    min-height: 65px;
-                    cursor: not-allowed;
-                    opacity: 0.7;
-                    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
-                ">
-                    🚀 **SELECT STOCKS TO ANALYZE**
-                </button>
-            </div>
-            <p style="text-align: center; color: #6c757d; font-style: italic; margin-top: 10px;">
-                👆 Choose symbols above to enable analysis
-            </p>
-            """, unsafe_allow_html=True)
-            analyze_clicked = False
-        
-        # Process analysis when button is clicked
-        if selected_symbols and analyze_clicked:
-            try:
-                if not usage_tracker.check_usage(st.session_state['username']):
-                    st.error("You have reached your analysis limit of 10.")
-                    return
-            except Exception as e:
-                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
+        ### 📈 Real-time Features:
+        - Live price updates
+        - Order book data  
+        - Trade by trade updates
+        - Market breadth changes
+        - Volume analysis
+        """)
+    
+    with col2:
+        st.markdown("""
+        ### 🔔 Alert System:
+        - Price breakouts
+        - Volume spikes
+        - Technical signals
+        - News events
+        - Risk alerts
+        """)
 
-            if len(selected_symbols) == 1:
-                # Single stock - use the detailed quick_analysis
-                with st.spinner(f"Analyzing {selected_symbols[0]}..."):
-                    self.quick_analysis(selected_symbols[0])
-                    try:
-                        usage_tracker.record_usage(st.session_state['username'])
-                    except Exception as e:
-                        st.warning(f"Usage tracking failed: {str(e)}")
-            else:
-                # Multiple stocks - use multi_stock_analysis
-                with st.spinner(f"Analyzing {len(selected_symbols)} stocks..."):
-                    self.multi_stock_analysis(selected_symbols)
-                    try:
-                        usage_tracker.record_usage(st.session_state['username'])
-                    except Exception as e:
-                        st.warning(f"Usage tracking failed: {str(e)}")
-        
-        # Add Quick Insights Section
-        st.markdown("---")
-        st.markdown("#### 💡 Quick Market Insights")
-        
-        insight_col1, insight_col2, insight_col3 = st.columns(3)
-        
-        with insight_col1:
-            st.markdown("""
-            <div style="background: linear-gradient(145deg, #e3f2fd, #bbdefb); 
-                        padding: 20px; border-radius: 10px; text-align: center;">
-                <h4 style="color: #1565c0; margin-bottom: 10px;">🎯 Top Gainers</h4>
-                <p style="color: #0d47a1; margin: 0;">UBL +3.2%</p>
-                <p style="color: #0d47a1; margin: 0;">MCB +2.8%</p>
-                <p style="color: #0d47a1; margin: 0;">NBP +2.1%</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with insight_col2:
-            st.markdown("""
-            <div style="background: linear-gradient(145deg, #fff3e0, #ffe0b2); 
-                        padding: 20px; border-radius: 10px; text-align: center;">
-                <h4 style="color: #ef6c00; margin-bottom: 10px;">⚡ High Volume</h4>
-                <p style="color: #e65100; margin: 0;">OGDC 2.1M shares</p>
-                <p style="color: #e65100; margin: 0;">PPL 1.8M shares</p>
-                <p style="color: #e65100; margin: 0;">LUCK 1.5M shares</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with insight_col3:
-            st.markdown("""
-            <div style="background: linear-gradient(145deg, #e8f5e8, #c8e6c9); 
-                        padding: 20px; border-radius: 10px; text-align: center;">
-                <h4 style="color: #2e7d32; margin-bottom: 10px;">📈 Strong Signals</h4>
-                <p style="color: #1b5e20; margin: 0;">Banking Sector ↗️</p>
-                <p style="color: #1b5e20; margin: 0;">Oil & Gas Sector ↗️</p>
-                <p style="color: #1b5e20; margin: 0;">Cement Sector →</p>
-            </div>
-            """, unsafe_allow_html=True)
+def main():
+    """Enhanced main dashboard application"""
     
-    def get_market_status(self):
-        """Get current PSX market status based on Pakistan Standard Time"""
+    # Initialize enhanced system
+    initialize_enhanced_system()
+    
+    if not st.session_state.get('system_initialized', False):
+        st.error("❌ System not initialized. Please check configuration and API connectivity.")
+        return
+    
+    # Render enhanced header
+    render_enhanced_header()
+    
+    # Sidebar navigation
+    st.sidebar.title("🧭 Navigation")
+    
+    page = st.sidebar.selectbox(
+        "Select Module",
+        options=[
+            "🏠 System Overview",
+            "📊 Live Market Data", 
+            "🔍 Symbol Analysis",
+            "🌐 WebSocket Streaming",
+            "🔬 Backtesting",
+            "🎯 Performance",
+            "🔧 System Status",
+            "📚 Documentation"
+        ]
+    )
+    
+    # Page routing
+    if page == "🏠 System Overview":
+        render_system_capabilities()
         
-        from datetime import datetime, time
-        import pytz
+    elif page == "📊 Live Market Data":
+        render_enhanced_live_data()
         
+    elif page == "🔍 Symbol Analysis":
+        render_symbol_analysis()
+        
+    elif page == "🌐 WebSocket Streaming":
+        render_websocket_demo()
+        
+    elif page == "🔬 Backtesting":
+        st.markdown("## 🔬 Enhanced Backtesting")
+        st.info("🚧 Enhanced backtesting interface with PSX Terminal data coming soon!")
+        
+    elif page == "🎯 Performance":
+        st.markdown("## 🎯 Performance Analytics")
+        st.info("📈 Enhanced portfolio performance analytics coming soon...")
+        
+    elif page == "🔧 System Status":
+        st.markdown("## 🔧 Enhanced System Status")
+        
+        # API connectivity tests
         try:
-            # Pakistan Standard Time (PKT)
-            pkt_tz = pytz.timezone('Asia/Karachi')
-            current_time = datetime.now(pkt_tz)
-            current_date = current_time.date()
-            current_time_only = current_time.time()
-            weekday = current_time.weekday()  # 0=Monday, 6=Sunday
+            api = st.session_state.psx_terminal
+            status = api.test_connectivity()
             
-            # PSX Trading Hours (PKT) - Correct Timings
-            pre_open_start = time(9, 15)     # 9:15 AM Pre-open
-            pre_open_end = time(9, 30)       # 9:30 AM
-            market_open = time(9, 30)        # 9:30 AM Market Open
-            
-            # Regular market close times (Correct PSX Hours)
-            if weekday == 4:  # Friday
-                regular_close = time(14, 0)   # 2:00 PM (14:00)
-                post_close_start = time(14, 5)  # 2:05 PM
-                post_close_end = time(14, 20)   # 2:20 PM
-                modification_end = time(15, 0)  # 3:00 PM
-            else:  # Monday to Thursday  
-                regular_close = time(15, 30)   # 3:30 PM (15:30)
-                post_close_start = time(15, 35)  # 3:35 PM
-                post_close_end = time(15, 50)   # 3:50 PM
-                modification_end = time(16, 30)  # 4:30 PM
-            
-            # Format current time for display
-            current_time_str = current_time.strftime("%I:%M %p PKT")
-            
-            # Weekend check
-            if weekday >= 5:  # Saturday=5, Sunday=6
-                return {
-                    'status': 'weekend',
-                    'message': 'Market Closed - Weekend',
-                    'current_time': current_time_str,
-                    'next_session': 'Monday 9:15 AM (Pre-Open)'
-                }
-            
-            # Market status logic
-            if current_time_only < pre_open_start:
-                # Before pre-open
-                return {
-                    'status': 'closed',
-                    'message': 'Market Closed',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {pre_open_start.strftime("%I:%M %p")} (Pre-Open)'
-                }
-            elif pre_open_start <= current_time_only < pre_open_end:
-                # Pre-open session
-                return {
-                    'status': 'pre_open',
-                    'message': 'Pre-Open Session (9:15-9:30 AM)',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {market_open.strftime("%I:%M %p")} (Market Open)'
-                }
-            elif market_open <= current_time_only < regular_close:
-                # Regular trading hours
-                close_time_str = regular_close.strftime("%I:%M %p")
-                day_name = "Friday" if weekday == 4 else "Mon-Thu"
-                open_time_str = market_open.strftime("%I:%M %p")
-                return {
-                    'status': 'open',
-                    'message': f'Market Open ({day_name}: {open_time_str} - {close_time_str})',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {close_time_str} (Market Close)'
-                }
-            elif regular_close <= current_time_only < post_close_start:
-                # Brief gap between regular close and post-close
-                return {
-                    'status': 'closed',
-                    'message': 'Market Closed - Post Session Starting Soon',
-                    'current_time': current_time_str,
-                    'next_session': f'Today {post_close_start.strftime("%I:%M %p")} (Post-Close Session)'
-                }
-            elif post_close_start <= current_time_only < post_close_end:
-                # Post-close session
-                return {
-                    'status': 'post_close',
-                    'message': f'Post-Close Session ({post_close_start.strftime("%I:%M %p")}-{post_close_end.strftime("%I:%M %p")})',
-                    'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
-                }
-            elif post_close_end <= current_time_only < modification_end:
-                # Trade rectification/modification
-                return {
-                    'status': 'post_close',
-                    'message': f'Trade Rectification ({post_close_end.strftime("%I:%M %p")}-{modification_end.strftime("%I:%M %p")})',
-                    'current_time': current_time_str,
-                    'next_session': 'Tomorrow 9:15 AM (Pre-Open)' if weekday == 4 else 'Tomorrow 9:15 AM (Pre-Open)'
-                }
+            if status:
+                st.success(f"✅ PSX Terminal API - Connected (Uptime: {status.get('uptime', 0):.1f}s)")
             else:
-                # After all trading activities
-                next_day = "Monday" if weekday == 4 else "Tomorrow"
-                return {
-                    'status': 'closed',
-                    'message': 'Market Closed',
-                    'current_time': current_time_str,
-                    'next_session': f'{next_day} 9:15 AM (Pre-Open)'
-                }
-                
+                st.error("❌ PSX Terminal API - Connection Failed")
         except Exception as e:
-            # Fallback if timezone or other issues
-            return {
-                'status': 'unknown',
-                'message': 'Market Status Unknown',
-                'current_time': datetime.now().strftime("%I:%M %p"),
-                'next_session': 'Check PSX official timings'
-            }
-    
-    def show_signal_analysis(self):
-        """Enhanced signal analysis page"""
-        
-        st.title("📊 Enhanced Signal Analysis")
-        
-        # Input section
-        col1, col2, col3 = st.columns([2, 1, 1])
-        
-        with col1:
-            symbol_input = st.text_input("Enter Symbol (e.g., UBL, MCB)", value="UBL")
-        
-        with col2:
-            analysis_type = st.selectbox("Analysis Type", ["Enhanced", "Basic", "Compare"])
-        
-        with col3:
-            days = st.number_input("Lookback Days", min_value=50, max_value=500, value=260)
-        
-        # Multi-symbol analysis
-        if analysis_type == "Compare":
-            symbols = st.multiselect("Select Symbols to Compare", self.common_symbols, default=["UBL", "MCB"])
-        else:
-            symbols = [symbol_input.upper()]
-        
-        # Analysis button
-        if st.button("🚀 Run Analysis"):
-            try:
-                if not usage_tracker.check_usage(st.session_state['username']):
-                    st.error("You have reached your analysis limit of 10.")
-                    return
-            except Exception as e:
-                st.warning(f"Usage limit check failed: {str(e)}. Proceeding with analysis.")
-            self.run_signal_analysis(symbols, analysis_type, days)
-            try:
-                usage_tracker.record_usage(st.session_state['username'])
-            except Exception as e:
-                st.warning(f"Usage tracking failed: {str(e)}")
-
-    def show_portfolio(self):
-        """Portfolio management page"""
-        
-        st.title("💼 Portfolio Management")
-        
-        if not MODULES_AVAILABLE:
-            st.error("Portfolio features not available")
-            return
-        
-        # Portfolio overview
-        self.show_portfolio_overview()
-        
-        st.markdown("---")
-        
-        # Add/Remove positions
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("➕ Add Position")
-            self.add_position_form()
-        
-        with col2:
-            st.subheader("➖ Sell Position")
-            self.sell_position_form()
-    
-    def show_settings(self):
-        """Settings and configuration page"""
-        
-        st.title("⚙️ System Settings")
-        
-        # Trading parameters
-        st.subheader("📈 Trading Parameters")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            ma_period = st.number_input("MA Period", min_value=10, max_value=100, 
-                                      value=get_config('trading_parameters.ma_period', 44))
-            rsi_period = st.number_input("RSI Period", min_value=5, max_value=30,
-                                       value=get_config('trading_parameters.rsi_period', 14))
-            bb_period = st.number_input("Bollinger Band Period", min_value=10, max_value=50,
-                                      value=get_config('trading_parameters.bb_period', 20))
-        
-        with col2:
-            risk_pct = st.number_input("Default Risk %", min_value=1.0, max_value=10.0,
-                                     value=get_config('risk_management.default_account_risk_pct', 2.0))
-            
-            account_size = st.number_input("Account Size (PKR)", min_value=10000, max_value=10000000,
-                                         value=100000, step=10000)
-        
-        # API Settings
-        st.subheader("🔑 API Configuration")
-        api_key = st.text_input("EODHD API Key", type="password", 
-                               value=get_config('api.eodhd_key', ''))
-        
-        # Save settings
-        if st.button("💾 Save Settings"):
-            set_config('trading_parameters.ma_period', ma_period)
-            set_config('trading_parameters.rsi_period', rsi_period)
-            set_config('trading_parameters.bb_period', bb_period)
-            set_config('risk_management.default_account_risk_pct', risk_pct)
-            set_config('api.eodhd_key', api_key)
-            
-            st.success("✅ Settings saved successfully!")
-    
-    def show_charts(self):
-        """Interactive charts page"""
-        
-        st.title("📈 Interactive Charts")
-        
-        # Chart configuration
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            symbol = st.selectbox("Symbol", self.common_symbols)
-        
-        with col2:
-            period = st.selectbox("Period", ["1M", "3M", "6M", "1Y", "2Y"])
-        
-        with col3:
-            chart_type = st.selectbox("Chart Type", ["Candlestick", "Line", "OHLC"])
-        
-        # Generate chart
-        if st.button("📊 Generate Chart"):
-            self.create_interactive_chart(symbol, period, chart_type)
-    
-    def show_risk_management(self):
-        """Risk management tools"""
-        
-        st.title("🎯 Risk Management")
-        
-        # Position sizing calculator
-        st.subheader("📏 Position Size Calculator")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            current_price = st.number_input("Current Price", min_value=1.0, value=100.0)
-        
-        with col2:
-            stop_loss = st.number_input("Stop Loss", min_value=1.0, value=95.0)
-        
-        with col3:
-            risk_pct = st.number_input("Risk %", min_value=0.5, max_value=10.0, value=2.0)
-        
-        if st.button("🧮 Calculate Position Size"):
-            self.calculate_position_sizing(current_price, stop_loss, risk_pct)
-        
-        st.markdown("---")
-        
-        # Portfolio risk analysis
-        st.subheader("📊 Portfolio Risk Analysis")
-        self.show_portfolio_risk()
-    
-    def quick_analysis(self, symbol: str):
-        """Perform quick analysis on a symbol with decision graphs"""
-        
-        if not MODULES_AVAILABLE:
-            st.error("Analysis modules not available")
-            return
-        
-        try:
-            with st.container():
-                result = enhanced_signal_analysis(symbol)
-                
-                if 'error' in result:
-                    st.error(f"❌ Analysis failed for {symbol}")
-                    st.warning(f"Error details: {result['error']}")
-                    
-                    if symbol == 'FYBL':
-                        st.info("💡 **Note:** FYBL (Faisal Bank) data is not currently available in the EODHD API. This may be due to limited coverage of smaller PSX stocks.")
-                    else:
-                        st.info("💡 **Suggestion:** Try selecting a different symbol from the verified list. Some symbols may not be available in the EODHD API.")
-                    
-                    # Show alternative symbols
-                    st.markdown("**Available verified banking symbols you can try:**")
-                    verified_alternatives = ['UBL', 'MCB', 'ABL', 'HBL', 'NBP', 'BAFL', 'AKBL', 'BAHL']
-                    st.write(", ".join(verified_alternatives))
-                    return
-                
-                # Display results
-                signal = result['signal_strength']
-                tech = result['technical_data']
-                risk = result['risk_management']
-                
-                # Header with main decision
-                st.markdown("### 🎯 Trading Decision Analysis")
-                
-                # Main decision banner
-                decision_color = {
-                    "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
-                    "HOLD": "🔵", "AVOID": "🔴"
-                }.get(signal['recommendation'], "⚫")
-                
-                st.markdown(f"## {decision_color} **{signal['recommendation']}** | Grade {signal['grade']} ({signal['score']:.0f}/100)")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    display_price_with_info(
-                        result['price'], 
-                        result.get('price_info', None), 
-                        "Current Price"
-                    )
-                
-                with col2:
-                    st.metric("Stop Loss", f"{risk['stop_loss']:.2f} PKR", f"-{risk['stop_loss_pct']:.1f}%")
-                
-                with col3:
-                    st.metric("Target", f"{risk['target1']:.2f} PKR", f"+{risk['target1_pct']:.1f}%")
-                
-                st.markdown("---")
-                
-                # Decision Graphs Section
-                st.subheader("📊 Decision Analysis Graphs")
-                
-                # Create three columns for decision graphs
-                graph_col1, graph_col2 = st.columns(2)
-                
-                with graph_col1:
-                    # 1. Signal Strength Radar Chart
-                    self.create_signal_strength_radar(signal, tech, result)
-                    
-                    # 3. Risk-Reward Decision Matrix
-                    self.create_risk_reward_matrix(risk, signal)
-                
-                with graph_col2:
-                    # 2. Technical Indicators Decision Chart
-                    self.create_technical_indicators_chart(tech, signal)
-                    
-                    # 4. Buy/Sell Signal Confidence Gauge
-                    self.create_confidence_gauge(signal, tech)
-                
-                # 5. Factor Contribution Bar Chart (full width)
-                st.markdown("---")
-                self.create_factor_contribution_chart(signal)
-                
-                st.markdown("---")
-                
-                # Enhanced Technical Summary
-                st.subheader("📊 Detailed Technical Metrics")
-                
-                # Main indicators row
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    rsi_status = "Oversold" if tech['rsi'] < 30 else "Overbought" if tech['rsi'] > 70 else "Normal"
-                    st.metric("RSI", f"{tech['rsi']:.1f}", rsi_status)
-                
-                with col2:
-                    st.metric("MA44", f"{tech['ma44']:.2f}", f"{tech.get('ma44_trend', 'Unknown')} trend")
-                
-                with col3:
-                    bb_status = "Lower band" if tech['bb_pctb'] < 0.2 else "Upper band" if tech['bb_pctb'] > 0.8 else "Middle range"
-                    st.metric("BB %B", f"{tech['bb_pctb']:.2f}", bb_status)
-                
-                with col4:
-                    vol_status = "High" if tech['volume_ratio'] > 1.5 else "Low" if tech['volume_ratio'] < 0.8 else "Normal"
-                    st.metric("Volume", f"{tech['volume_ratio']:.1f}x", vol_status)
-                
-                # Additional detailed metrics
-                st.markdown("---")
-                st.subheader("🔍 Additional Analysis")
-                
-                detail_col1, detail_col2, detail_col3 = st.columns(3)
-                
-                with detail_col1:
-                    st.write("**📈 Price Levels:**")
-                    st.write(f"• Current: {result['price']:.2f} PKR")
-                    st.write(f"• MA44: {tech['ma44']:.2f} PKR")
-                    st.write(f"• Distance from MA44: {((result['price'] - tech['ma44']) / tech['ma44'] * 100):+.1f}%")
-                    
-                with detail_col2:
-                    st.write("**⚖️ Risk Management:**")
-                    st.write(f"• Stop Loss: {risk['stop_loss']:.2f} PKR ({risk['stop_loss_pct']:+.1f}%)")
-                    st.write(f"• Target 1: {risk['target1']:.2f} PKR ({risk['target1_pct']:+.1f}%)")
-                    st.write(f"• Risk/Reward: {risk['risk_reward_ratio']:.2f}")
-                    
-                with detail_col3:
-                    st.write("**📊 Signal Quality:**")
-                    st.write(f"• Overall Grade: {signal['grade']}")
-                    st.write(f"• Confidence: {signal['score']:.1f}/100")
-                    st.write(f"• Recommendation: {signal['recommendation']}")
-                
-                # Key factors summary
-                if signal.get('factors'):
-                    st.markdown("---")
-                    st.subheader("🎯 Key Decision Factors")
-                    factors_text = " | ".join(signal['factors'][:3])  # Top 3 factors
-                    st.info(f"**Primary factors:** {factors_text}")
-                
-                # PDF Export functionality
-                st.markdown("---")
-                st.subheader("📄 Export Report")
-                
-                col1, col2 = st.columns([1, 2])
-                
-                with col1:
-                    if st.button("📄 Generate Report", type="primary"):
-                        try:
-                            # Prepare analysis data
-                            analysis_data = {
-                                'recommendation': signal['recommendation'],
-                                'signal_strength': signal['grade'],
-                                'current_price': f"{result['price']:.2f} PKR",
-                                'target_price': f"{risk['target1']:.2f} PKR",
-                                'stop_loss': f"{risk['stop_loss']:.2f} PKR",
-                                'risk_score': f"{signal['score']:.0f}/100",
-                                'volatility': 'Medium',  # You can enhance this
-                                'technical_indicators': {
-                                    'RSI': {'value': f"{tech['rsi']:.1f}", 'signal': rsi_status},
-                                    'MA44': {'value': f"{tech['ma44']:.2f}", 'signal': tech.get('ma44_trend', 'Unknown')},
-                                    'Bollinger Bands %B': {'value': f"{tech['bb_pctb']:.2f}", 'signal': bb_status},
-                                    'Volume Ratio': {'value': f"{tech['volume_ratio']:.1f}x", 'signal': vol_status}
-                                }
-                            }
-                            
-                            # Generate HTML report
-                            html_report = self.generate_simple_pdf_report(symbol, analysis_data)
-                            
-                            # Store in session state to prevent reset
-                            if 'html_report' not in st.session_state:
-                                st.session_state.html_report = {}
-                            st.session_state.html_report[symbol] = html_report
-                            
-                            st.success("✅ Report Generated Successfully!")
-                            
-                        except Exception as e:
-                            st.error(f"❌ Report generation failed: {str(e)}")
-                
-                with col2:
-                    # Show download button if report exists in session state
-                    if hasattr(st.session_state, 'html_report') and symbol in st.session_state.html_report:
-                        filename = f"PSX_Analysis_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-                        b64 = base64.b64encode(st.session_state.html_report[symbol].encode()).decode()
-                        href = f'''
-                        <a href="data:text/html;base64,{b64}" download="{filename}" 
-                           style="display: inline-block; padding: 12px 20px; background-color: #ff4b4b; 
-                                  color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                           📥 Download Analysis Report
-                        </a>
-                        '''
-                        st.markdown(href, unsafe_allow_html=True)
-                        st.info("💡 **Tip:** Download creates an HTML report that you can print as PDF from your browser (Ctrl+P → Save as PDF).")
-        
-        except Exception as e:
-            st.error(f"Analysis error: {str(e)}")
-    
-    def multi_stock_analysis(self, symbols: list):
-        """Perform analysis on multiple stocks efficiently"""
-        
-        if not MODULES_AVAILABLE:
-            st.error("Analysis modules not available")
-            return
-        
-        if not symbols:
-            st.warning("Please select at least one symbol")
-            return
-        
-        # Results container
-        results = {}
-        successful_analyses = 0
-        failed_analyses = 0
-        
-        # Progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Analyze each symbol
-        for i, symbol in enumerate(symbols):
-            try:
-                status_text.text(f"🔍 Analyzing {symbol}... ({i+1}/{len(symbols)})")
-                progress_bar.progress((i + 1) / len(symbols))
-                
-                result = enhanced_signal_analysis(symbol)
-                if 'error' not in result:
-                    results[symbol] = result
-                    successful_analyses += 1
-                else:
-                    results[symbol] = {'error': result['error']}
-                    failed_analyses += 1
-                    
-            except Exception as e:
-                results[symbol] = {'error': str(e)}
-                failed_analyses += 1
-        
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        
-        # Display summary
-        st.success(f"✅ Analysis Complete: {successful_analyses} successful, {failed_analyses} failed")
-        
-        if successful_analyses == 0:
-            st.error("❌ No successful analyses. Please try different symbols.")
-            return
-        
-        # Create comparison table
-        self.create_comparison_table(results)
-        
-        # Create detailed analysis for top performers
-        self.show_top_performers(results)
-        
-        # Show individual detailed analysis (expandable)
-        self.show_individual_analyses(results)
-    
-    def create_comparison_table(self, results: dict):
-        """Create a comparison table of all analyzed stocks"""
-        
-        st.subheader("📊 Stock Comparison Summary")
-        
-        # Prepare data for comparison table
-        comparison_data = []
-        
-        for symbol, result in results.items():
-            if 'error' not in result:
-                signal = result['signal_strength']
-                tech = result['technical_data']
-                risk = result['risk_management']
-                
-                comparison_data.append({
-                    'Symbol': symbol,
-                    'Grade': signal['grade'],
-                    'Score': f"{signal['score']:.0f}/100",
-                    'Recommendation': signal['recommendation'],
-                    'Price': f"{result['price']:.2f} PKR",
-                    'RSI': f"{tech['rsi']:.1f}",
-                    'Volume': f"{tech['volume_ratio']:.1f}x",
-                    'R/R Ratio': f"{risk['risk_reward_ratio']:.2f}",
-                    'Stop Loss': f"{risk['stop_loss_pct']:+.1f}%",
-                    'Target': f"{risk['target1_pct']:+.1f}%"
-                })
-            else:
-                comparison_data.append({
-                    'Symbol': symbol,
-                    'Grade': 'Error',
-                    'Score': 'N/A',
-                    'Recommendation': 'Failed',
-                    'Price': 'N/A',
-                    'RSI': 'N/A',
-                    'Volume': 'N/A',
-                    'R/R Ratio': 'N/A',
-                    'Stop Loss': 'N/A',
-                    'Target': 'N/A'
-                })
-        
-        # Convert to DataFrame and display
-        if comparison_data:
-            import pandas as pd
-            df = pd.DataFrame(comparison_data)
-            
-            # Style the dataframe
-            def style_row(row):
-                if row['Grade'] == 'A':
-                    return ['background-color: lightgreen'] * len(row)
-                elif row['Grade'] == 'B':
-                    return ['background-color: lightblue'] * len(row)
-                elif row['Grade'] == 'C':
-                    return ['background-color: lightyellow'] * len(row)
-                elif row['Grade'] == 'D':
-                    return ['background-color: orange'] * len(row)
-                elif row['Grade'] == 'F':
-                    return ['background-color: lightcoral'] * len(row)
-                else:
-                    return ['background-color: lightgray'] * len(row)
-            
-            # Display styled table
-            st.dataframe(
-                df.style.apply(style_row, axis=1),
-                use_container_width=True,
-                hide_index=True
-            )
-    
-    def show_top_performers(self, results: dict):
-        """Show detailed analysis of top performing stocks"""
-        
-        st.subheader("🏆 Top Performers")
-        
-        # Filter successful results and sort by score
-        successful_results = {k: v for k, v in results.items() if 'error' not in v}
-        
-        if not successful_results:
-            st.info("No successful analyses to show top performers")
-            return
-        
-        # Sort by signal score
-        sorted_results = sorted(
-            successful_results.items(), 
-            key=lambda x: x[1]['signal_strength']['score'], 
-            reverse=True
-        )
-        
-        # Show top 3 performers
-        top_count = min(3, len(sorted_results))
-        
-        cols = st.columns(top_count)
-        
-        for i in range(top_count):
-            symbol, result = sorted_results[i]
-            signal = result['signal_strength']
-            
-            with cols[i]:
-                # Medal emojis
-                medals = ["🥇", "🥈", "🥉"]
-                st.markdown(f"### {medals[i]} {symbol}")
-                
-                # Grade with color
-                grade_colors = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
-                grade_emoji = grade_colors.get(signal['grade'], "⚫")
-                
-                st.markdown(f"**{grade_emoji} Grade {signal['grade']}**")
-                st.metric("Score", f"{signal['score']:.0f}/100")
-                display_price_with_info(
-                    result['price'], 
-                    result.get('price_info', None), 
-                    "Price"
-                )
-                
-                # Recommendation with appropriate styling
-                recommendation = signal['recommendation']
-                if recommendation in ['STRONG BUY', 'BUY']:
-                    st.success(f"📈 {recommendation}")
-                elif recommendation == 'HOLD':
-                    st.info(f"⏸️ {recommendation}")
-                else:
-                    st.warning(f"⚠️ {recommendation}")
-    
-    def show_individual_analyses(self, results: dict):
-        """Show individual detailed analyses in expandable sections"""
-        
-        st.subheader("🔍 Individual Stock Analysis")
-        
-        for symbol, result in results.items():
-            if 'error' not in result:
-                # Expandable section for each stock (expanded=True for testing)
-                with st.expander(f"📊 {symbol} - Grade {result['signal_strength']['grade']} ({result['signal_strength']['score']:.0f}/100)", expanded=True):
-                    # Show the detailed analysis using existing method
-                    st.write("**🔍 DETAILED ANALYSIS LOADING...**")  # Debug message
-                    self.show_detailed_stock_analysis(symbol, result)
-                    st.write("**✅ DETAILED ANALYSIS COMPLETE**")  # Debug message
-            else:
-                with st.expander(f"❌ {symbol} - Analysis Failed", expanded=False):
-                    st.error(f"Error: {result['error']}")
-                    st.info("Try selecting this symbol individually or check if it's available in the API.")
-    
-    def show_detailed_stock_analysis(self, symbol: str, result: dict):
-        """Show FULL detailed analysis for a single stock (complete previous version)"""
-        
-        signal = result['signal_strength']
-        tech = result['technical_data']
-        risk = result['risk_management']
-        
-        # Header with main decision (same as previous version)
-        st.markdown("### 🎯 Trading Decision Analysis")
-        
-        # Main decision banner
-        decision_color = {
-            "STRONG BUY": "🟢", "BUY": "🟡", "WEAK BUY": "🟠", 
-            "HOLD": "🔵", "AVOID": "🔴"
-        }.get(signal['recommendation'], "⚫")
-        
-        st.markdown(f"## {decision_color} **{signal['recommendation']}** | Grade {signal['grade']} ({signal['score']:.0f}/100)")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            display_price_with_info(
-                result['price'], 
-                result.get('price_info', None), 
-                "Current Price"
-            )
-        
-        with col2:
-            st.metric("Stop Loss", f"{risk['stop_loss']:.2f} PKR", f"-{risk['stop_loss_pct']:.1f}%")
-        
-        with col3:
-            st.metric("Target", f"{risk['target1']:.2f} PKR", f"+{risk['target1_pct']:.1f}%")
-        
-        st.markdown("---")
-        
-        # Decision Graphs Section (Numerical Analysis)
-        st.subheader("📊 Decision Analysis")
-        
-        # Create two columns for decision analysis
-        graph_col1, graph_col2 = st.columns(2)
-        
-        with graph_col1:
-            # 1. Signal Strength Analysis (Numerical)
-            st.info("📊 **Signal Strength Analysis**")
-            st.write("**Signal Breakdown:**")
-            st.write(f"• **Trend Score:** {min(100, max(0, tech.get('ma44_slope', 0) * 50 + 50)):.1f}/100")
-            st.write(f"• **Momentum (RSI):** {min(100, max(0, (tech['rsi'] - 30) * 2.5)):.1f}/100")
-            st.write(f"• **Volume Strength:** {min(100, max(0, tech['volume_ratio'] * 30)):.1f}/100")
-            st.write(f"• **Support/Resistance:** {signal['score'] * 0.6:.1f}/100")
-            st.write(f"• **Risk/Reward:** {min(100, max(0, result['risk_management']['risk_reward_ratio'] * 30)):.1f}/100")
-            st.write(f"• **Overall Score:** {signal['score']:.1f}/100")
-            
-            # 3. Risk-Reward Analysis
-            st.info("⚖️ **Risk-Reward Analysis**")
-            risk_pct = abs(risk['stop_loss_pct'])
-            reward_pct = risk['target1_pct']
-            rr_ratio = risk['risk_reward_ratio']
-            
-            st.write("**Risk-Reward Metrics:**")
-            st.write(f"• **Risk Percentage:** {risk_pct:.1f}%")
-            st.write(f"• **Reward Percentage:** {reward_pct:.1f}%")
-            st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
-            
-            if rr_ratio >= 2.0:
-                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
-            elif rr_ratio >= 1.0:
-                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
-            else:
-                st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
-        
-        with graph_col2:
-            # 2. Technical Indicators Decision
-            st.info("📊 **Technical Indicators Decision**")
-            rsi_signal = 0.5 if 40 <= tech['rsi'] <= 70 else (-0.8 if tech['rsi'] > 70 else 0.8)
-            ma_signal = 0.6 if tech.get('ma44_trend', 'up') == 'up' else -0.6
-            bb_signal = 0.4 if 0.2 <= tech['bb_pctb'] <= 0.8 else (-0.7 if tech['bb_pctb'] > 0.8 else 0.7)
-            vol_signal = min(0.8, tech['volume_ratio'] * 0.3 - 0.2)
-            adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
-            
-            st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
-            
-            # 4. Signal Confidence Analysis
-            st.info("🎯 **Signal Confidence Analysis**")
-            confidence = signal['score']
-            
-            st.write("**Confidence Metrics:**")
-            st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
-            
-            if confidence >= 80:
-                st.success("🟢 **Very High Confidence** (80-100)")
-            elif confidence >= 65:
-                st.info("🔵 **High Confidence** (65-79)")
-            elif confidence >= 50:
-                st.warning("🟡 **Medium Confidence** (50-64)")
-            elif confidence >= 35:
-                st.warning("🟠 **Low Confidence** (35-49)")
-            else:
-                st.error("🔴 **Very Low Confidence** (0-34)")
-            
-            st.write(f"• **Delta from Neutral:** {confidence - 50:+.1f} points")
-        
-        # 5. Factor Contribution Analysis (Full width)
-        st.markdown("---")
-        st.info("🔍 **Factor Contribution Analysis**")
-        factors = signal.get('factors', [])[:8]  # Top 8 factors
-        
-        if not factors:
-            st.info("No detailed factors available")
-        else:
-            st.write("**Top Contributing Factors:**")
-            for i, factor in enumerate(factors, 1):
-                # Determine if factor is positive or negative
-                if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. 🟢 {factor}")
-                elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
-                    st.write(f"{i}. 🔴 {factor}")
-                else:
-                    st.write(f"{i}. 🟡 {factor}")
-        
-        st.markdown("---")
-        
-        # Enhanced Technical Summary (Same as previous detailed version)
-        st.subheader("📊 Detailed Technical Metrics")
-        
-        # Main indicators row
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            rsi_status = "Oversold" if tech['rsi'] < 30 else "Overbought" if tech['rsi'] > 70 else "Normal"
-            st.metric("RSI", f"{tech['rsi']:.1f}", rsi_status)
-        
-        with col2:
-            st.metric("MA44", f"{tech['ma44']:.2f}", f"{tech.get('ma44_trend', 'Unknown')} trend")
-        
-        with col3:
-            bb_status = "Lower band" if tech['bb_pctb'] < 0.2 else "Upper band" if tech['bb_pctb'] > 0.8 else "Middle range"
-            st.metric("BB %B", f"{tech['bb_pctb']:.2f}", bb_status)
-        
-        with col4:
-            vol_status = "High" if tech['volume_ratio'] > 1.5 else "Low" if tech['volume_ratio'] < 0.8 else "Normal"
-            st.metric("Volume", f"{tech['volume_ratio']:.1f}x", vol_status)
-        
-        # Additional detailed metrics
-        st.markdown("---")
-        st.subheader("🔍 Additional Analysis")
-        
-        detail_col1, detail_col2, detail_col3 = st.columns(3)
-        
-        with detail_col1:
-            st.write("**📈 Price Levels:**")
-            st.write(f"• Current: {result['price']:.2f} PKR")
-            st.write(f"• MA44: {tech['ma44']:.2f} PKR")
-            st.write(f"• Distance from MA44: {((result['price'] - tech['ma44']) / tech['ma44'] * 100):+.1f}%")
-            
-        with detail_col2:
-            st.write("**⚖️ Risk Management:**")
-            st.write(f"• Stop Loss: {risk['stop_loss']:.2f} PKR ({risk['stop_loss_pct']:+.1f}%)")
-            st.write(f"• Target 1: {risk['target1']:.2f} PKR ({risk['target1_pct']:+.1f}%)")
-            st.write(f"• Risk/Reward: {risk['risk_reward_ratio']:.2f}")
-            
-        with detail_col3:
-            st.write("**📊 Signal Quality:**")
-            st.write(f"• Overall Grade: {signal['grade']}")
-            st.write(f"• Confidence: {signal['score']:.1f}/100")
-            st.write(f"• Recommendation: {signal['recommendation']}")
-        
-        # Key factors summary
-        if signal.get('factors'):
-            st.markdown("---")
-            st.subheader("🎯 Key Decision Factors")
-            factors_text = " | ".join(signal['factors'][:3])  # Top 3 factors
-            st.info(f"**Primary factors:** {factors_text}")
-    
-    def run_signal_analysis(self, symbols: list, analysis_type: str, days: int):
-        """Run comprehensive signal analysis"""
-        
-        if not MODULES_AVAILABLE:
-            st.error("Analysis modules not available")
-            return
-        
-        results_container = st.container()
-        
-        with results_container:
-            for symbol in symbols:
-                with st.expander(f"📊 {symbol} Analysis", expanded=True):
-                    try:
-                        result = enhanced_signal_analysis(symbol, days)
-                        
-                        if 'error' in result:
-                            st.error(f"{symbol}: {result['error']}")
-                            continue
-                        
-                        # Create comprehensive display
-                        self.display_detailed_analysis(result)
-                    
-                    except Exception as e:
-                        st.error(f"Error analyzing {symbol}: {str(e)}")
-    
-    def display_detailed_analysis(self, result: dict):
-        """Display detailed analysis results"""
-        
-        signal = result['signal_strength']
-        tech = result['technical_data']
-        risk = result['risk_management']
-        
-        # Header with grade
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col1:
-            grade_color = {"A": "🟢", "B": "🟡", "C": "🟠", "D": "🔴", "F": "⚫"}
-            st.markdown(f"## {grade_color.get(signal['grade'], '⚫')} Grade {signal['grade']}")
-        
-        with col2:
-            st.markdown(f"### {result['symbol']}")
-            st.markdown(f"**{signal['recommendation']}** | Score: {signal['score']:.0f}/100")
-        
-        with col3:
-            display_price_with_info(
-                result['price'], 
-                result.get('price_info', None), 
-                "Price"
-            )
-        
-        # Technical metrics
-        st.subheader("📊 Technical Analysis")
-        
-        tech_col1, tech_col2, tech_col3, tech_col4 = st.columns(4)
-        
-        with tech_col1:
-            st.metric("RSI", f"{tech['rsi']:.1f}", "Momentum")
-        
-        with tech_col2:
-            st.metric("MA44", f"{tech['ma44']:.2f}", "Trend")
-        
-        with tech_col3:
-            st.metric("BB %B", f"{tech['bb_pctb']:.2f}", "Position")
-        
-        with tech_col4:
-            st.metric("Volume", f"{tech['volume_ratio']:.1f}x", "Confirmation")
-        
-        # Key factors
-        st.subheader("🔍 Key Factors")
-        for factor in signal['factors'][:5]:
-            st.write(f"• {factor}")
-        
-        # Risk management
-        st.subheader("🎯 Risk Management")
-        
-        risk_col1, risk_col2, risk_col3 = st.columns(3)
-        
-        with risk_col1:
-            st.metric("Stop Loss", f"{risk['stop_loss']:.2f}", f"-{risk['stop_loss_pct']:.1f}%")
-        
-        with risk_col2:
-            st.metric("Target 1", f"{risk['target1']:.2f}", f"+{risk['target1_pct']:.1f}%")
-        
-        with risk_col3:
-            st.metric("Target 2", f"{risk['target2']:.2f}", f"+{risk['target2_pct']:.1f}%")
-        
-        # Support/Resistance
-        sr = result.get('support_resistance', {})
-        if sr.get('nearest_support') or sr.get('nearest_resistance'):
-            st.subheader("📈 Key Levels")
-            level_col1, level_col2 = st.columns(2)
-            
-            with level_col1:
-                if sr.get('nearest_support'):
-                    st.metric("Support", f"{sr['nearest_support']:.2f}", "")
-            
-            with level_col2:
-                if sr.get('nearest_resistance'):
-                    st.metric("Resistance", f"{sr['nearest_resistance']:.2f}", "")
-    
-    def show_portfolio_overview(self):
-        """Display portfolio overview"""
-        
-        if not self.portfolio_manager.positions:
-            st.info("📝 No positions in portfolio. Add some positions to get started!")
-            return
-        
-        # Get current prices (simplified)
-        current_prices = {}
-        for symbol in self.portfolio_manager.positions.keys():
-            current_prices[symbol] = self.portfolio_manager.positions[symbol].avg_price  # Simplified
-        
-        summary = self.portfolio_manager.get_portfolio_summary(current_prices)
-        
-        # Portfolio metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Value", f"{summary['total_portfolio_value']:,.0f} PKR", "")
-        
-        with col2:
-            st.metric("Unrealized P&L", f"{summary['total_unrealized_pnl']:+,.0f} PKR", 
-                     f"{summary['total_unrealized_pnl_pct']:+.1f}%")
-        
-        with col3:
-            st.metric("Cash Balance", f"{summary['cash_balance']:,.0f} PKR", "")
-        
-        with col4:
-            st.metric("Positions", len(summary['positions']), "")
-        
-        # Positions table
-        if summary['positions']:
-            st.subheader("📊 Current Positions")
-            
-            positions_df = pd.DataFrame(summary['positions'])
-            st.dataframe(positions_df, use_container_width=True)
-    
-    def add_position_form(self):
-        """Form to add new position"""
-        
-        with st.form("add_position"):
-            symbol = st.selectbox("Symbol", self.common_symbols)
-            quantity = st.number_input("Quantity", min_value=1, value=100)
-            price = st.number_input("Price", min_value=1.0, value=100.0, step=0.1)
-            notes = st.text_input("Notes (optional)")
-            
-            if st.form_submit_button("➕ Add Position"):
-                if MODULES_AVAILABLE:
-                    result = self.portfolio_manager.add_position(symbol, quantity, price, notes=notes)
-                    st.success(result)
-                else:
-                    st.error("Portfolio manager not available")
-    
-    def sell_position_form(self):
-        """Form to sell position"""
-        
-        if not MODULES_AVAILABLE or not self.portfolio_manager.positions:
-            st.info("No positions to sell")
-            return
-        
-        symbols = list(self.portfolio_manager.positions.keys())
-        
-        with st.form("sell_position"):
-            symbol = st.selectbox("Symbol", symbols)
-            
-            # Show current holding
-            if symbol:
-                current_qty = self.portfolio_manager.positions[symbol].quantity
-                st.info(f"Current holding: {current_qty} shares")
-                
-                quantity = st.number_input("Quantity to Sell", min_value=1, max_value=current_qty, value=min(50, current_qty))
-            else:
-                quantity = st.number_input("Quantity to Sell", min_value=1, value=50)
-            
-            price = st.number_input("Sell Price", min_value=1.0, value=100.0, step=0.1)
-            notes = st.text_input("Notes (optional)")
-            
-            if st.form_submit_button("💰 Sell Position"):
-                result = self.portfolio_manager.sell_position(symbol, quantity, price, notes=notes)
-                st.success(result)
-    
-    def calculate_position_sizing(self, current_price: float, stop_loss: float, risk_pct: float):
-        """Calculate and display position sizing"""
-        
-        if not MODULES_AVAILABLE:
-            st.error("Risk management not available")
-            return
-        
-        try:
-            position = calculate_position_size(current_price, stop_loss, risk_pct)
-            
-            st.subheader("📏 Position Size Calculation")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Shares to Buy", position.shares, "")
-            
-            with col2:
-                st.metric("Investment Amount", f"{position.investment_amount:,.0f} PKR", "")
-            
-            with col3:
-                st.metric("Risk Amount", f"{position.risk_amount:,.0f} PKR", f"{position.risk_percentage:.1f}%")
-            
-            if position.warnings:
-                st.warning("⚠️ " + " | ".join(position.warnings))
-        
-        except Exception as e:
-            st.error(f"Calculation error: {str(e)}")
-    
-    def show_portfolio_risk(self):
-        """Display portfolio risk analysis"""
-        
-        if not MODULES_AVAILABLE:
-            st.info("Risk analysis not available")
-            return
-        
-        # Simplified portfolio risk display
-        st.info("Portfolio risk analysis will be displayed here when positions are available.")
-    
-    def create_interactive_chart(self, symbol: str, period: str, chart_type: str):
-        """Create interactive Plotly chart"""
-        
-        # Create sample data for demonstration
-        periods = {"1M": 30, "3M": 90, "6M": 180, "1Y": 365, "2Y": 730}
-        days = periods.get(period, 90)
-        
-        # Generate sample OHLCV data
-        dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-        np.random.seed(42)
-        
-        price = 100
-        data = []
-        
-        for date in dates:
-            price += np.random.normal(0, 1)
-            high = price + abs(np.random.normal(0, 1))
-            low = price - abs(np.random.normal(0, 1))
-            open_price = price + np.random.normal(0, 0.5)
-            volume = np.random.randint(10000, 100000)
-            
-            data.append({
-                'Date': date,
-                'Open': open_price,
-                'High': high,
-                'Low': low,
-                'Close': price,
-                'Volume': volume
-            })
-        
-        df = pd.DataFrame(data)
-        
-        # Create plotly chart
-        fig = sp.make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            subplot_titles=(f'{symbol} Price', 'Volume'),
-            row_width=[0.7, 0.3]
-        )
-        
-        # Price chart
-        if chart_type == "Candlestick":
-            fig.add_trace(
-                go.Candlestick(
-                    x=df['Date'],
-                    open=df['Open'],
-                    high=df['High'],
-                    low=df['Low'],
-                    close=df['Close'],
-                    name='Price'
-                ),
-                row=1, col=1
-            )
-        elif chart_type == "Line":
-            fig.add_trace(
-                go.Scatter(
-                    x=df['Date'],
-                    y=df['Close'],
-                    mode='lines',
-                    name='Close Price'
-                ),
-                row=1, col=1
-            )
-        
-        # Volume chart
-        fig.add_trace(
-            go.Bar(
-                x=df['Date'],
-                y=df['Volume'],
-                name='Volume',
-                marker_color='rgba(158,202,225,0.8)'
-            ),
-            row=2, col=1
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title=f'{symbol} - {period} Chart',
-            xaxis_rangeslider_visible=False,
-            height=600
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    def create_signal_strength_radar(self, signal: dict, tech: dict, result: dict):
-        """Create signal strength radar chart"""
-        
-        try:
-            import plotly.graph_objects as go
-            PLOTLY_AVAILABLE = True
-        except ImportError:
-            PLOTLY_AVAILABLE = False
-        
-        if not PLOTLY_AVAILABLE:
-            st.info("📊 **Signal Strength Analysis**")
-            # Show numerical breakdown instead
-            st.write("**Signal Breakdown:**")
-            st.write(f"• **Trend Score:** {min(100, max(0, tech.get('ma44_slope', 0) * 50 + 50)):.1f}/100")
-            st.write(f"• **Momentum (RSI):** {min(100, max(0, (tech['rsi'] - 30) * 2.5)):.1f}/100")
-            st.write(f"• **Volume Strength:** {min(100, max(0, tech['volume_ratio'] * 30)):.1f}/100")
-            st.write(f"• **Support/Resistance:** {signal['score'] * 0.6:.1f}/100")
-            st.write(f"• **Risk/Reward:** {min(100, max(0, result['risk_management']['risk_reward_ratio'] * 30)):.1f}/100")
-            st.write(f"• **Overall Score:** {signal['score']:.1f}/100")
-            return
-            
-        # Extract signal factors for radar chart
-        categories = ['Trend', 'Momentum', 'Volume', 'Support/Resistance', 'Risk/Reward', 'Overall']
-        
-        # Calculate normalized scores (0-100 scale)
-        values = [
-            min(100, max(0, tech.get('ma44_slope', 0) * 50 + 50)),  # Trend
-            min(100, max(0, (tech['rsi'] - 30) * 2.5)),  # Momentum (RSI normalized)
-            min(100, max(0, tech['volume_ratio'] * 30)),  # Volume
-            signal['score'] * 0.6,  # Support/Resistance (60% of signal score)
-            min(100, max(0, result['risk_management']['risk_reward_ratio'] * 30)),  # Risk/Reward
-            signal['score']  # Overall
+            st.error(f"❌ PSX Terminal API - Error: {str(e)}")
+        
+        # System components status
+        components = [
+            ("Enhanced Data Fetcher", "enhanced_fetcher"),
+            ("Signal Analyzer", "signal_analyzer"), 
+            ("Risk Manager", "risk_manager"),
+            ("Portfolio Optimizer", "portfolio_optimizer"),
+            ("ML System", "ml_system"),
+            ("Backtesting Engine", "backtester")
         ]
         
-        # Create radar chart
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatterpolar(
-            r=values,
-            theta=categories,
-            fill='toself',
-            name='Signal Strength',
-            line_color='rgb(50, 171, 96)',
-            fillcolor='rgba(50, 171, 96, 0.25)'
-        ))
-        
-        # Add decision zones
-        fig.add_trace(go.Scatterpolar(
-            r=[80, 80, 80, 80, 80, 80],
-            theta=categories,
-            mode='lines',
-            name='Strong Buy Zone',
-            line=dict(color='green', dash='dash'),
-            showlegend=False
-        ))
-        
-        fig.add_trace(go.Scatterpolar(
-            r=[50, 50, 50, 50, 50, 50],
-            theta=categories,
-            mode='lines',
-            name='Neutral Zone',
-            line=dict(color='orange', dash='dash'),
-            showlegend=False
-        ))
-        
-        fig.update_layout(
-            polar=dict(
-                radialaxis=dict(
-                    visible=True,
-                    range=[0, 100],
-                    tickmode='linear',
-                    tick0=0,
-                    dtick=20,
-                    gridcolor='lightgray'
-                )
-            ),
-            title="🎯 Signal Strength Radar",
-            showlegend=True,
-            height=400
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    def create_technical_indicators_chart(self, tech: dict, signal: dict):
-        """Create technical indicators decision chart"""
-        
-        try:
-            import plotly.graph_objects as go
-            PLOTLY_AVAILABLE = True
-        except ImportError:
-            PLOTLY_AVAILABLE = False
-        
-        if not PLOTLY_AVAILABLE:
-            st.info("📊 **Technical Indicators Decision**")
-            # Show numerical analysis instead
-            rsi_signal = 0.5 if 40 <= tech['rsi'] <= 70 else (-0.8 if tech['rsi'] > 70 else 0.8)
-            ma_signal = 0.6 if tech.get('ma44_trend', 'up') == 'up' else -0.6
-            bb_signal = 0.4 if 0.2 <= tech['bb_pctb'] <= 0.8 else (-0.7 if tech['bb_pctb'] > 0.8 else 0.7)
-            vol_signal = min(0.8, tech['volume_ratio'] * 0.3 - 0.2)
-            adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
-            
-            st.write("**Individual Indicator Signals:**")
-            st.write(f"• **RSI Signal:** {rsi_signal:+.2f} ({'🟢 Buy' if rsi_signal > 0.3 else '🔴 Sell' if rsi_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **MA44 Signal:** {ma_signal:+.2f} ({'🟢 Buy' if ma_signal > 0.3 else '🔴 Sell' if ma_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **BB %B Signal:** {bb_signal:+.2f} ({'🟢 Buy' if bb_signal > 0.3 else '🔴 Sell' if bb_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **Volume Signal:** {vol_signal:+.2f} ({'🟢 Buy' if vol_signal > 0.3 else '🔴 Sell' if vol_signal < -0.3 else '🟡 Neutral'})")
-            st.write(f"• **ADX Signal:** {adx_signal:+.2f} ({'🟢 Buy' if adx_signal > 0.3 else '🔴 Sell' if adx_signal < -0.3 else '🟡 Neutral'})")
-            return
-            
-        # Technical indicator signals
-        indicators = ['RSI', 'MA44', 'BB %B', 'Volume', 'ADX']
-        
-        # Convert to buy/sell signals (-1 to 1 scale)
-        rsi_signal = 0.5 if 40 <= tech['rsi'] <= 70 else (-0.8 if tech['rsi'] > 70 else 0.8)
-        ma_signal = 0.6 if tech.get('ma44_trend', 'up') == 'up' else -0.6
-        bb_signal = 0.4 if 0.2 <= tech['bb_pctb'] <= 0.8 else (-0.7 if tech['bb_pctb'] > 0.8 else 0.7)
-        vol_signal = min(0.8, tech['volume_ratio'] * 0.3 - 0.2)
-        adx_signal = 0.3 if tech.get('adx', 20) > 25 else 0.1
-        
-        signals = [rsi_signal, ma_signal, bb_signal, vol_signal, adx_signal]
-        colors = ['green' if s > 0.3 else 'red' if s < -0.3 else 'orange' for s in signals]
-        
-        fig = go.Figure(data=[
-            go.Bar(
-                x=indicators,
-                y=signals,
-                marker_color=colors,
-                text=[f"{s:+.2f}" for s in signals],
-                textposition='auto',
-            )
-        ])
-        
-        # Add decision zones
-        fig.add_hline(y=0.5, line_dash="dash", line_color="green", annotation_text="Strong Buy")
-        fig.add_hline(y=-0.5, line_dash="dash", line_color="red", annotation_text="Strong Sell")
-        fig.add_hline(y=0, line_dash="solid", line_color="gray", annotation_text="Neutral")
-        
-        fig.update_layout(
-            title="📊 Technical Indicators Decision",
-            xaxis_title="Indicators",
-            yaxis_title="Signal Strength",
-            yaxis=dict(range=[-1, 1]),
-            height=400
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    def create_risk_reward_matrix(self, risk: dict, signal: dict):
-        """Create risk-reward decision matrix"""
-        
-        try:
-            import plotly.graph_objects as go
-            PLOTLY_AVAILABLE = True
-        except ImportError:
-            PLOTLY_AVAILABLE = False
-        
-        if not PLOTLY_AVAILABLE:
-            st.info("⚖️ **Risk-Reward Analysis**")
-            # Show numerical analysis instead
-            risk_pct = abs(risk['stop_loss_pct'])
-            reward_pct = risk['target1_pct']
-            rr_ratio = risk['risk_reward_ratio']
-            
-            st.write("**Risk-Reward Metrics:**")
-            st.write(f"• **Risk Percentage:** {risk_pct:.1f}%")
-            st.write(f"• **Reward Percentage:** {reward_pct:.1f}%")
-            st.write(f"• **Risk/Reward Ratio:** {rr_ratio:.2f}")
-            
-            if rr_ratio >= 2.0:
-                st.success("🟢 **Excellent Risk/Reward** (R/R ≥ 2.0)")
-            elif rr_ratio >= 1.0:
-                st.warning("🟡 **Acceptable Risk/Reward** (R/R 1.0-2.0)")
+        for name, attr in components:
+            if hasattr(st.session_state, attr):
+                st.success(f"✅ {name} - Ready")
             else:
-                st.error("🔴 **Poor Risk/Reward** (R/R < 1.0)")
-            return
-            
-        # Calculate risk and reward percentages
-        risk_pct = abs(risk['stop_loss_pct'])
-        reward_pct = risk['target1_pct']
-        rr_ratio = risk['risk_reward_ratio']
+                st.error(f"❌ {name} - Not initialized")
         
-        # Create scatter plot
-        fig = go.Figure()
+    elif page == "📚 Documentation":
+        st.markdown("## 📚 PSX Terminal API Documentation")
         
-        # Add current position
-        fig.add_trace(go.Scatter(
-            x=[risk_pct],
-            y=[reward_pct],
-            mode='markers+text',
-            marker=dict(size=15, color=signal['score'], colorscale='RdYlGn', 
-                       cmin=0, cmax=100, showscale=True),
-            text=[f"R/R: {rr_ratio:.2f}"],
-            textposition="top center",
-            name="Current Setup"
-        ))
+        st.markdown("""
+        ### 🎯 API Capabilities
         
-        # Add decision zones
-        x_range = [0, max(10, risk_pct * 1.5)]
+        **REST Endpoints:**
+        - `/api/status` - Test connectivity
+        - `/api/ticks/{type}/{symbol}` - Real-time market data
+        - `/api/symbols` - All available symbols
+        - `/api/stats/{type}` - Market statistics
+        - `/api/companies/{symbol}` - Company information
+        - `/api/fundamentals/{symbol}` - Financial ratios
+        - `/api/klines/{symbol}/{timeframe}` - Historical data
+        - `/api/dividends/{symbol}` - Dividend history
         
-        # Good zone (R/R > 2)
-        fig.add_shape(
-            type="rect",
-            x0=0, y0=0, x1=x_range[1], y1=x_range[1] * 2,
-            fillcolor="lightgreen", opacity=0.2,
-            line=dict(width=0)
-        )
+        **WebSocket Streams:**
+        - Market data updates
+        - K-line/candlestick data
+        - Statistics updates
+        - Symbol list updates
         
-        # Acceptable zone (R/R 1-2)
-        fig.add_shape(
-            type="rect", 
-            x0=0, y0=0, x1=x_range[1], y1=x_range[1],
-            fillcolor="lightyellow", opacity=0.2,
-            line=dict(width=0)
-        )
+        **Market Types:**
+        - REG (Regular Market)
+        - FUT (Futures)
+        - IDX (Indices)
+        - ODL (Odd Lot)
+        - BNB (Bills and Bonds)
         
-        # Poor zone (R/R < 1)
-        fig.add_shape(
-            type="rect",
-            x0=0, y0=0, x1=x_range[1], y1=x_range[1] * 0.5,
-            fillcolor="lightcoral", opacity=0.2,
-            line=dict(width=0)
-        )
-        
-        fig.update_layout(
-            title="⚖️ Risk-Reward Analysis",
-            xaxis_title="Risk %",
-            yaxis_title="Reward %",
-            height=400,
-            annotations=[
-                dict(x=x_range[1]*0.7, y=x_range[1]*1.5, text="Good R/R", showarrow=False),
-                dict(x=x_range[1]*0.7, y=x_range[1]*0.7, text="Fair R/R", showarrow=False),
-                dict(x=x_range[1]*0.7, y=x_range[1]*0.3, text="Poor R/R", showarrow=False)
-            ]
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
+        **Timeframes:**
+        - 1m, 5m, 15m, 1h, 4h, 1d
+        """)
     
-    def create_confidence_gauge(self, signal: dict, tech: dict):
-        """Create buy/sell confidence gauge"""
-        
-        try:
-            import plotly.graph_objects as go
-            PLOTLY_AVAILABLE = True
-        except ImportError:
-            PLOTLY_AVAILABLE = False
-        
-        if not PLOTLY_AVAILABLE:
-            st.info("🎯 **Signal Confidence Analysis**")
-            # Show numerical confidence instead
-            confidence = signal['score']
-            
-            st.write("**Confidence Metrics:**")
-            st.write(f"• **Overall Confidence:** {confidence:.1f}/100")
-            
-            if confidence >= 80:
-                st.success("🟢 **Very High Confidence** (80-100)")
-            elif confidence >= 65:
-                st.info("🔵 **High Confidence** (65-79)")
-            elif confidence >= 50:
-                st.warning("🟡 **Medium Confidence** (50-64)")
-            elif confidence >= 35:
-                st.warning("🟠 **Low Confidence** (35-49)")
-            else:
-                st.error("🔴 **Very Low Confidence** (0-34)")
-            
-            st.write(f"• **Delta from Neutral:** {confidence - 50:+.1f} points")
-            return
-            
-        # Calculate confidence based on signal score
-        confidence = signal['score']
-        
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = confidence,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "Signal Confidence"},
-            delta = {'reference': 50},
-            gauge = {
-                'axis': {'range': [None, 100]},
-                'bar': {'color': "darkblue"},
-                'steps': [
-                    {'range': [0, 35], 'color': "lightgray"},
-                    {'range': [35, 50], 'color': "yellow"},
-                    {'range': [50, 65], 'color': "orange"},
-                    {'range': [65, 80], 'color': "lightgreen"},
-                    {'range': [80, 100], 'color': "green"}
-                ],
-                'threshold': {
-                    'line': {'color': "red", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 75
-                }
-            }
-        ))
-        
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    
-    def generate_simple_pdf_report(self, symbol: str, analysis_data: dict):
-        """Generate a simple HTML report for PDF conversion"""
-        
-        # CSS styles as a separate string to avoid f-string issues with decimals
-        css_styles = '''
-                body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-                h1 { color: #2E86AB; text-align: center; border-bottom: 3px solid #2E86AB; padding-bottom: 10px; }
-                h2 { color: #A23B72; margin-top: 30px; }
-                .header-info { background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0; }
-                .metrics { display: flex; justify-content: space-between; margin: 20px 0; }
-                .metric { text-align: center; padding: 15px; background-color: #e8f4f8; border-radius: 5px; margin: 0 10px; flex: 1; }
-                .recommendation { text-align: center; padding: 20px; font-size: 24px; font-weight: bold; 
-                                 background-color: #f0f8e8; border-radius: 10px; margin: 20px 0; }
-                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-                th { background-color: #2E86AB; color: white; }
-                .footer { margin-top: 50px; padding: 20px; background-color: #f9f9f9; 
-                          border-radius: 5px; font-style: italic; text-align: center; }
-                @media print {
-                    body { margin: 20px; }
-                    .metrics { flex-wrap: wrap; }
-                    .metric { margin: 10px 0; }
-                }
-        '''
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>PSX Trading Analysis Report - {symbol}</title>
-            <style>{css_styles}</style>
-        </head>
-        <body>
-            <h1>PSX Trading Analysis Report</h1>
-            
-            <div class="header-info">
-                <strong>Symbol:</strong> {symbol}<br>
-                <strong>Generated:</strong> {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}<br>
-                <strong>Market:</strong> Pakistan Stock Exchange (PSX)
-            </div>
-            
-            <div class="recommendation">
-                &#x1F3AF; RECOMMENDATION: {analysis_data.get('recommendation', 'N/A')}
-            </div>
-            
-            <h2>&#x1F4CA; Executive Summary</h2>
-            <div class="metrics">
-                <div class="metric">
-                    <strong>Signal Grade</strong><br>
-                    {analysis_data.get('signal_strength', 'N/A')}
-                </div>
-                <div class="metric">
-                    <strong>Current Price</strong><br>
-                    {analysis_data.get('current_price', 'N/A')}
-                </div>
-                <div class="metric">
-                    <strong>Target Price</strong><br>
-                    {analysis_data.get('target_price', 'N/A')}
-                </div>
-                <div class="metric">
-                    <strong>Stop Loss</strong><br>
-                    {analysis_data.get('stop_loss', 'N/A')}
-                </div>
-            </div>
-            
-            <h2>&#x1F50D; Technical Analysis</h2>
-            <table>
-                <tr><th>Indicator</th><th>Value</th><th>Signal</th></tr>"""
-        
-        # Add technical indicators if available
-        if 'technical_indicators' in analysis_data:
-            for indicator, data in analysis_data['technical_indicators'].items():
-                if isinstance(data, dict):
-                    value = data.get('value', 'N/A')
-                    signal = data.get('signal', 'N/A')
-                else:
-                    value = str(data)
-                    signal = 'N/A'
-                html_content += f"<tr><td>{indicator}</td><td>{value}</td><td>{signal}</td></tr>"
-        
-        html_content += f"""
-            </table>
-            
-            <h2>&#x2696; Risk Analysis</h2>
-            <table>
-                <tr><th>Risk Factor</th><th>Value</th></tr>
-                <tr><td>Risk Score</td><td>{analysis_data.get('risk_score', 'N/A')}</td></tr>
-                <tr><td>Volatility</td><td>{analysis_data.get('volatility', 'N/A')}</td></tr>
-                <tr><td>Stop Loss Level</td><td>{analysis_data.get('stop_loss', 'N/A')}</td></tr>
-                <tr><td>Target Price</td><td>{analysis_data.get('target_price', 'N/A')}</td></tr>
-            </table>
-            
-            <h2>&#x1F4C8; Key Metrics Summary</h2>
-            <table>
-                <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
-                <tr><td>Overall Recommendation</td><td>{analysis_data.get('recommendation', 'N/A')}</td><td>Primary trading decision</td></tr>
-                <tr><td>Signal Strength</td><td>{analysis_data.get('signal_strength', 'N/A')}</td><td>Quality grade of analysis</td></tr>
-                <tr><td>Risk Score</td><td>{analysis_data.get('risk_score', 'N/A')}</td><td>Overall confidence level</td></tr>
-                <tr><td>Current Price</td><td>{analysis_data.get('current_price', 'N/A')}</td><td>Latest market price</td></tr>
-            </table>
-            
-            <div class="footer">
-                <strong>Disclaimer:</strong> This report is generated by PSX Trading Bot for informational purposes only. 
-                Please consult with a financial advisor before making investment decisions.<br><br>
-                <strong>Generated by:</strong> PSX Trading Bot | <strong>Website:</strong> Pakistan Stock Exchange Analysis System<br>
-                <strong>Note:</strong> To save as PDF, use your browser\\'s print function (Ctrl+P) and select \"Save as PDF\"
-            </div>
-        </body>
-        </html>
-        """
-        
-        return html_content
-    
-    def create_factor_contribution_chart(self, signal: dict):
-        """Create factor contribution bar chart"""
-        
-        try:
-            import plotly.graph_objects as go
-            PLOTLY_AVAILABLE = True
-        except ImportError:
-            PLOTLY_AVAILABLE = False
-        
-        if not PLOTLY_AVAILABLE:
-            st.info("🔍 **Factor Contribution Analysis**")
-            # Show numerical factor breakdown instead
-            factors = signal.get('factors', [])[:8]  # Top 8 factors
-            
-            if not factors:
-                st.info("No detailed factors available")
-                return
-            
-            st.write("**Top Contributing Factors:**")
-            for i, factor in enumerate(factors, 1):
-                # Determine if factor is positive or negative
-                if any(word in factor.lower() for word in ['up', 'above', 'surge', 'optimal', 'support']):
-                    st.write(f"{i}. 🟢 {factor}")
-                elif any(word in factor.lower() for word in ['down', 'below', 'weak', 'poor', 'avoid']):
-                    st.write(f"{i}. 🔴 {factor}")
-                else:
-                    st.write(f"{i}. 🟡 {factor}")
-            return
-            
-        st.subheader("🔍 Decision Factors")
-        
-        # Extract factors from signal (this is a simplified version)
-        factors = signal.get('factors', [])[:8]  # Top 8 factors
-        
-        if not factors:
-            st.info("No detailed factors available")
-            return
-        
-        # Simulate factor scores (in real implementation, these would come from analysis)
-        factor_scores = []
-        factor_names = []
-        
-        for factor in factors:
-            # Parse factor text to extract score
-            if 'Trend' in factor:
-                score = 15 if 'Up' in factor else -10
-            elif 'RSI' in factor:
-                score = 10 if 'optimal' in factor else -5
-            elif 'Volume' in factor:
-                score = 12 if 'surge' in factor else 5
-            elif 'MA44' in factor:
-                score = 10 if 'above' in factor else -15
-            elif 'Support' in factor:
-                score = 8
-            elif 'Bollinger' in factor:
-                score = 5 if 'middle' in factor else -8
-            else:
-                score = np.random.randint(-10, 15)
-            
-            factor_scores.append(score)
-            factor_names.append(factor[:30] + "..." if len(factor) > 30 else factor)
-        
-        # Create horizontal bar chart
-        colors = ['green' if score > 0 else 'red' for score in factor_scores]
-        
-        fig = go.Figure(go.Bar(
-            x=factor_scores,
-            y=factor_names,
-            orientation='h',
-            marker_color=colors,
-            text=[f"+{s}" if s > 0 else str(s) for s in factor_scores],
-            textposition='auto'
-        ))
-        
-        fig.add_vline(x=0, line_dash="solid", line_color="black")
-        
-        fig.update_layout(
-            title="🔍 Factor Contribution to Decision",
-            xaxis_title="Points Contribution",
-            height=max(300, len(factors) * 40),
-            yaxis={'categoryorder': 'total ascending'}
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-
-# Sidebar footer
-def show_sidebar_footer():
-    """Show sidebar footer with app info"""
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📊 System Status")
-    st.sidebar.success("✅ Online")
-    st.sidebar.info("🔄 Last Update: " + datetime.now().strftime("%H:%M"))
-    
-    # Enhanced Logout Button with styling
-    st.sidebar.markdown("""
-    <style>
-    .logout-button {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        color: white;
-        font-weight: bold;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        width: 100%;
-        cursor: pointer;
-        text-align: center;
-        margin: 15px 0;
-        font-size: 14px;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-    }
-    .logout-button:hover {
-        background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(220, 53, 69, 0.4);
-    }
-    </style>
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #666;'>
+        <p>PSX Terminal - Enhanced Quantitative Trading System | Powered by PSX Terminal API</p>
+        <p>🔗 Real-time data • 🚀 WebSocket streaming • 📊 Professional analytics • 🛡️ Risk management</p>
+    </div>
     """, unsafe_allow_html=True)
-    
-    # Logout Button
-    if st.sidebar.button("🚪 Logout", type="secondary", use_container_width=True, help="Sign out of your account"):
-        st.session_state['authenticated'] = False
-        st.session_state['username'] = ""
-        st.rerun()
-    
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### ℹ️ About")
-    st.sidebar.markdown("**PSX Trading Bot v2.0**")
-    st.sidebar.markdown("Professional algorithmic trading system for PSX")
-    st.sidebar.markdown("⚠️ *Educational use only*")
-
-def show_login_signup_page():
-    """Show the login/signup page."""
-    st.title("Welcome to the PSX Trading Bot")
-
-    tabs = st.tabs(["Login", "Sign Up"])
-
-    with tabs[0]:
-        st.subheader("Login")
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login")
-
-            if submitted:
-                if user_auth.authenticate_user(username, password):
-                    ip_address = get_ip()
-                    if ip_address:
-                        user_auth.update_user_ip(username, ip_address)
-                        st.session_state['authenticated'] = True
-                        st.session_state['username'] = username
-                        st.rerun()
-                    else:
-                        st.error("Could not retrieve IP address. Please try again.")
-                else:
-                    st.error("Invalid username or password")
-
-    with tabs[1]:
-        st.subheader("Create a New Account")
-        with st.form("signup_form"):
-            new_username = st.text_input("New Username")
-            name = st.text_input("Name")
-            email = st.text_input("Email")
-            new_password = st.text_input("New Password", type="password")
-            confirm_password = st.text_input("Confirm Password", type="password")
-            submitted = st.form_submit_button("Sign Up")
-
-            if submitted:
-                if not all([new_username, name, email, new_password, confirm_password]):
-                    st.error("All fields are required.")
-                elif new_password != confirm_password:
-                    st.error("Passwords do not match.")
-                elif user_auth.add_user(new_username, new_password, name, email):
-                    st.success("Account created successfully! You can now log in.")
-                else:
-                    st.error("Username already exists.")
-
-def check_ip():
-    """Check if the user's IP is consistent."""
-    if 'username' in st.session_state and st.session_state['username']:
-        user_data = user_auth.get_user_data(st.session_state['username'])
-        stored_ip = user_data.get("ip_address")
-        if stored_ip:
-            current_ip = get_ip()
-            if current_ip and current_ip != stored_ip:
-                st.error("IP address mismatch. For security, you have been logged out.")
-                st.session_state['authenticated'] = False
-                st.session_state['username'] = ""
-                st.rerun()
-
-# Main application
-def main():
-    """Main Streamlit application"""
-    
-    if not st.session_state.get('authenticated'):
-        show_login_signup_page()
-    else:
-        check_ip()
-        # Initialize dashboard
-        dashboard = TradingDashboard()
-        
-        # Show sidebar footer
-        show_sidebar_footer()
-        
-        # Run dashboard
-        dashboard.run()
 
 if __name__ == "__main__":
     main()

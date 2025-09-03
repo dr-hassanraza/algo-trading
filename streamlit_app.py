@@ -480,12 +480,14 @@ def render_live_trading_signals():
         st.error("Unable to load symbols")
         return
     
-    # Top performing symbols for demo
-    demo_symbols = ['HBL', 'UBL', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'TRG', 'SYSTEMS']
-    available_symbols = [s for s in demo_symbols if s in symbols[:100]]
+    # Major PSX tickers for live signals
+    major_tickers = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 'TRG', 'SYSTEMS']
+    available_symbols = [s for s in major_tickers if s in symbols]
     
-    if not available_symbols:
-        available_symbols = symbols[:8]
+    # If major tickers not found, use first available symbols
+    if len(available_symbols) < 6:
+        available_symbols.extend([s for s in symbols[:20] if s not in available_symbols])
+        available_symbols = available_symbols[:8]
     
     st.subheader(f"📈 Active Signals for Top {len(available_symbols)} Symbols")
     
@@ -549,14 +551,52 @@ def render_symbol_analysis():
         st.error("Unable to load symbols")
         return
     
+    # Prioritize major tickers for better user experience
+    major_tickers = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 
+                    'TRG', 'SYSTEMS', 'POL', 'PPL', 'NESTLE', 'UNILEVER', 'COLG', 'ICI', 
+                    'BAHL', 'BAFL', 'MEBL', 'JSBL', 'AKBL', 'FABL', 'EFERT', 'FATIMA']
+    
+    # Create prioritized symbol list (major tickers first, then all others)
+    prioritized_symbols = []
+    remaining_symbols = []
+    
+    for ticker in major_tickers:
+        if ticker in symbols:
+            prioritized_symbols.append(ticker)
+    
+    for symbol in symbols:
+        if symbol not in major_tickers:
+            remaining_symbols.append(symbol)
+    
+    all_symbols = prioritized_symbols + remaining_symbols
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        selected_symbol = st.selectbox(
-            "Select Symbol for Analysis",
-            options=symbols[:100],
-            index=0
-        )
+        # Add search functionality
+        search_term = st.text_input("🔍 Search Symbol", placeholder="Type symbol name (e.g., FFC, HBL)")
+        
+        if search_term:
+            filtered_symbols = [s for s in all_symbols if search_term.upper() in s.upper()]
+            if filtered_symbols:
+                selected_symbol = st.selectbox(
+                    f"Select from {len(filtered_symbols)} matching symbols",
+                    options=filtered_symbols,
+                    index=0
+                )
+            else:
+                st.warning(f"No symbols found matching '{search_term}'")
+                selected_symbol = st.selectbox(
+                    "Select Symbol for Analysis",
+                    options=all_symbols[:50],  # Show first 50 if no search
+                    index=0
+                )
+        else:
+            selected_symbol = st.selectbox(
+                f"Select from {len(all_symbols)} symbols (Major tickers shown first)",
+                options=all_symbols[:50],  # Show first 50 which includes major tickers
+                index=0
+            )
     
     with col2:
         if st.button("🔄 Refresh Analysis", type="primary"):
@@ -888,11 +928,15 @@ def render_system_status():
         symbols = get_cached_symbols()
         if symbols:
             st.success(f"✅ {len(symbols)} Symbols Loaded")
-            st.info(f"Sample: {', '.join(symbols[:5])}")
             
-            # Test data loading for first few symbols
+            # Check major tickers availability
+            major_tickers = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL']
+            available_major = [s for s in major_tickers if s in symbols]
+            st.info(f"Major tickers: {', '.join(available_major)}")
+            
+            # Test data loading for major tickers
             st.subheader("🧪 Data Loading Test")
-            test_symbols = symbols[:3]
+            test_symbols = available_major[:3] if available_major else symbols[:3]
             for symbol in test_symbols:
                 try:
                     market_data = get_cached_real_time_data(symbol)
@@ -902,6 +946,9 @@ def render_system_status():
                         st.error(f"❌ {symbol}: No data")
                 except Exception as e:
                     st.error(f"❌ {symbol}: {str(e)}")
+                    
+            # Show symbol search hint
+            st.info("💡 Use Symbol Analysis page with search to access all 514 symbols including FFC!")
         else:
             st.error("❌ Symbol Loading Failed")
 

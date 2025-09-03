@@ -1,6 +1,6 @@
 """
-Enhanced Professional PSX Quantitative Trading System Dashboard
-Now featuring PSX Terminal API with comprehensive market data and WebSocket streaming
+PSX Terminal Trading System - Streamlit Cloud Compatible Version
+Focused on PSX Terminal API integration with minimal dependencies
 """
 
 import streamlit as st
@@ -8,53 +8,31 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import requests
 import json
-import asyncio
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import our enhanced trading system components
-from psx_terminal_api import PSXTerminalAPI, MarketTick, KLineData
-from enhanced_data_fetcher import EnhancedDataFetcher
-from intraday_signal_analyzer import IntradaySignalAnalyzer
-from intraday_risk_manager import IntradayRiskManager
-from backtesting_engine import WalkForwardBacktester
-from intraday_backtesting_engine import IntradayWalkForwardBacktester
-from portfolio_optimizer import PortfolioOptimizer
-from ml_model_system import MLModelSystem
-from feature_engineering import FeatureEngineer
-from quant_system_config import SystemConfig
-
 # Page configuration
 st.set_page_config(
-    page_title="PSX Terminal - Quantitative Trading System",
+    page_title="PSX Terminal - Trading System",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS for professional styling
+# Professional CSS styling
 st.markdown("""
 <style>
     .main-header {
         font-size: 3.5rem;
         font-weight: bold;
         text-align: center;
-        background: linear-gradient(90deg, #1e3c72, #2a5298, #0f4c75);
+        background: linear-gradient(90deg, #1e3c72, #2a5298);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
-    }
-    
-    .metric-container {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        color: white;
-        margin: 1rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
     .success-metric {
@@ -67,26 +45,8 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
     
-    .warning-metric {
-        background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
-        padding: 1rem;
-        border-radius: 8px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    
     .live-data-card {
         background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        color: white;
-        margin: 1rem 0;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-    }
-    
-    .market-overview-card {
-        background: linear-gradient(135deg, #2e8b57 0%, #3cb371 100%);
         padding: 1.5rem;
         border-radius: 12px;
         color: white;
@@ -101,647 +61,398 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         margin: 1rem 0;
         border: 1px solid #e0e0e0;
-        transition: transform 0.2s ease;
-    }
-    
-    .feature-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 25px rgba(0,0,0,0.15);
-    }
-    
-    .websocket-status {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: bold;
-        z-index: 1000;
-    }
-    
-    .connected {
-        background: linear-gradient(90deg, #4CAF50, #45a049);
-        color: white;
-    }
-    
-    .disconnected {
-        background: linear-gradient(90deg, #f44336, #d32f2f);
-        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
 
-def initialize_enhanced_system():
-    """Initialize all enhanced system components"""
-    if 'system_initialized' not in st.session_state:
-        with st.spinner("🚀 Initializing Enhanced PSX Terminal Trading System..."):
-            try:
-                st.session_state.config = SystemConfig()
-                st.session_state.psx_terminal = PSXTerminalAPI()
-                st.session_state.enhanced_fetcher = EnhancedDataFetcher()
-                st.session_state.signal_analyzer = IntradaySignalAnalyzer()
-                st.session_state.risk_manager = IntradayRiskManager(st.session_state.config)
-                st.session_state.portfolio_optimizer = PortfolioOptimizer(st.session_state.config)
-                st.session_state.ml_system = MLModelSystem(st.session_state.config)
-                st.session_state.feature_engineer = FeatureEngineer(st.session_state.config)
-                st.session_state.backtester = WalkForwardBacktester(st.session_state.config)
-                st.session_state.intraday_backtester = IntradayWalkForwardBacktester(st.session_state.config)
-                
-                # Test PSX Terminal API connectivity
-                status = st.session_state.psx_terminal.test_connectivity()
-                if status:
-                    st.success("✅ PSX Terminal API connected successfully!")
-                    
-                    # Get symbols list
-                    symbols = st.session_state.psx_terminal.get_all_symbols()
-                    if symbols:
-                        st.session_state.available_symbols = symbols
-                        st.success(f"✅ Loaded {len(symbols)} symbols from PSX Terminal")
-                    else:
-                        st.session_state.available_symbols = ['HBL', 'UBL', 'MCB', 'ENGRO', 'LUCK']
-                        st.warning("⚠️ Using default symbols list")
-                else:
-                    st.error("❌ PSX Terminal API connection failed")
-                    st.session_state.available_symbols = ['HBL', 'UBL', 'MCB', 'ENGRO', 'LUCK']
-                
-                st.session_state.system_initialized = True
-                
-            except Exception as e:
-                st.error(f"❌ System initialization failed: {str(e)}")
-                st.session_state.system_initialized = False
+class SimplePSXAPI:
+    """Simplified PSX Terminal API client for Streamlit Cloud"""
+    
+    def __init__(self):
+        self.base_url = "https://psxterminal.com"
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'PSX-Trading-System/1.0',
+            'Accept': 'application/json'
+        })
 
-def render_enhanced_header():
-    """Render enhanced professional header"""
-    st.markdown('<h1 class="main-header">PSX Terminal - Quantitative Trading System</h1>', unsafe_allow_html=True)
+    def test_connectivity(self):
+        """Test API connectivity"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/status", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            st.error(f"API Error: {str(e)}")
+            return None
+
+    def get_symbols(self):
+        """Get all symbols"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/symbols", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', []) if data.get('success') else []
+        except Exception as e:
+            st.error(f"Symbols Error: {str(e)}")
+            return []
+
+    def get_market_data(self, symbol):
+        """Get market data for symbol"""
+        try:
+            url = f"{self.base_url}/api/ticks/REG/{symbol}"
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data') if data.get('success') else None
+        except Exception as e:
+            st.error(f"Market Data Error for {symbol}: {str(e)}")
+            return None
+
+    def get_klines(self, symbol, timeframe='1h', limit=50):
+        """Get k-line data"""
+        try:
+            url = f"{self.base_url}/api/klines/{symbol}/{timeframe}"
+            response = self.session.get(url, params={'limit': limit}, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', []) if data.get('success') else []
+        except Exception as e:
+            st.error(f"K-line Error for {symbol}: {str(e)}")
+            return []
+
+    def get_market_stats(self):
+        """Get market statistics"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/stats/REG", timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data') if data.get('success') else None
+        except Exception as e:
+            st.error(f"Market Stats Error: {str(e)}")
+            return None
+
+@st.cache_data(ttl=60)
+def get_cached_symbols():
+    """Cache symbols for 1 minute"""
+    api = SimplePSXAPI()
+    return api.get_symbols()
+
+@st.cache_data(ttl=30)
+def get_cached_market_data(symbol):
+    """Cache market data for 30 seconds"""
+    api = SimplePSXAPI()
+    return api.get_market_data(symbol)
+
+def render_header():
+    """Render header"""
+    st.markdown('<h1 class="main-header">PSX Terminal Trading System</h1>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown("""
         <div class="success-metric">
-            <h4>🎯 PSX Terminal API</h4>
-            <p>Real-time & Historical Data</p>
+            <h4>📊 PSX Terminal API</h4>
+            <p>Real-time Market Data</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col2:
         st.markdown("""
         <div class="success-metric">
-            <h4>📊 WebSocket Streaming</h4>
-            <p>Live Market Updates</p>
+            <h4>🎯 Live Updates</h4>
+            <p>500+ PSX Securities</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
         st.markdown("""
         <div class="success-metric">
-            <h4>🤖 Advanced Analytics</h4>
-            <p>ML Models & Optimization</p>
+            <h4>📈 Interactive Charts</h4>
+            <p>Multiple Timeframes</p>
         </div>
         """, unsafe_allow_html=True)
     
     with col4:
         st.markdown("""
         <div class="success-metric">
-            <h4>🛡️ Risk Management</h4>
-            <p>Professional Controls</p>
+            <h4>🏢 Company Data</h4>
+            <p>Financial Intelligence</p>
         </div>
         """, unsafe_allow_html=True)
 
-def render_system_capabilities():
-    """Render enhanced system capabilities"""
-    st.markdown("## 🏗️ Enhanced System Architecture")
+def render_system_status():
+    """Render system status"""
+    st.markdown("## 🔧 System Status")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("""
-        <div class="feature-card">
-            <h4>📈 PSX Terminal Integration</h4>
-            <ul>
-                <li>✅ REST API for historical & real-time data</li>
-                <li>✅ WebSocket streaming for live updates</li>
-                <li>✅ Multiple market types (REG, FUT, IDX, ODL, BNB)</li>
-                <li>✅ K-line data (1m, 5m, 15m, 1h, 4h, 1d)</li>
-                <li>✅ Company fundamentals & financial ratios</li>
-                <li>✅ Dividend data & market statistics</li>
-                <li>✅ Market breadth & sector analysis</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="feature-card">
-            <h4>🤖 Enhanced ML Pipeline</h4>
-            <ul>
-                <li>✅ Real-time feature engineering</li>
-                <li>✅ Multi-timeframe analysis</li>
-                <li>✅ Cross-sectional ranking</li>
-                <li>✅ Sentiment & fundamental integration</li>
-                <li>✅ Dynamic model retraining</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("""
-        <div class="feature-card">
-            <h4>💼 Advanced Portfolio Management</h4>
-            <ul>
-                <li>✅ Real-time position monitoring</li>
-                <li>✅ Dynamic rebalancing algorithms</li>
-                <li>✅ Sector & correlation limits</li>
-                <li>✅ Multi-asset optimization</li>
-                <li>✅ Performance attribution</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div class="feature-card">
-            <h4>🛡️ Professional Risk Controls</h4>
-            <ul>
-                <li>✅ Real-time P&L monitoring</li>
-                <li>✅ Dynamic stop-loss management</li>
-                <li>✅ Volatility-based position sizing</li>
-                <li>✅ Drawdown circuit breakers</li>
-                <li>✅ Risk-adjusted performance metrics</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-def render_enhanced_live_data():
-    """Render enhanced live market data section"""
-    st.markdown("## 📊 Live Market Data & Analytics")
-    
-    # Market overview section
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("### 🎯 Real-Time Market Overview")
-        
-        # Get market overview
         try:
-            api = st.session_state.psx_terminal
-            overview = api.get_market_overview()
-            
-            if overview:
-                # Display market statistics
-                if 'regular_market' in overview:
-                    reg_stats = overview['regular_market']
-                    
-                    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-                    
-                    with metric_col1:
-                        total_vol = reg_stats.get('totalVolume', 0)
-                        st.metric("Total Volume", f"{total_vol:,.0f}" if total_vol else "N/A")
-                    
-                    with metric_col2:
-                        total_val = reg_stats.get('totalValue', 0)
-                        st.metric("Total Value", f"{total_val/1e9:.1f}B PKR" if total_val else "N/A")
-                    
-                    with metric_col3:
-                        gainers = reg_stats.get('gainers', 0)
-                        losers = reg_stats.get('losers', 0)
-                        st.metric("Gainers/Losers", f"{gainers}/{losers}")
-                    
-                    with metric_col4:
-                        trades = reg_stats.get('totalTrades', 0)
-                        st.metric("Total Trades", f"{trades:,}" if trades else "N/A")
-                
-                # Market breadth
-                if 'breadth' in overview:
-                    breadth = overview['breadth']
-                    st.markdown("### 📈 Market Breadth")
-                    
-                    breadth_col1, breadth_col2, breadth_col3 = st.columns(3)
-                    
-                    with breadth_col1:
-                        ad_ratio = breadth.get('advanceDeclineRatio', 0)
-                        st.metric("A/D Ratio", f"{ad_ratio:.2f}" if ad_ratio else "N/A")
-                    
-                    with breadth_col2:
-                        up_vol = breadth.get('upVolume', 0)
-                        down_vol = breadth.get('downVolume', 0)
-                        if up_vol and down_vol:
-                            vol_ratio = up_vol / down_vol
-                            st.metric("Up/Down Volume", f"{vol_ratio:.2f}")
-                        else:
-                            st.metric("Up/Down Volume", "N/A")
-                    
-                    with breadth_col3:
-                        advances = breadth.get('advances', 0)
-                        declines = breadth.get('declines', 0)
-                        st.metric("Advances", f"{advances}")
-                        st.metric("Declines", f"{declines}")
-            
-            else:
-                st.info("📊 Market overview data loading...")
-                
-        except Exception as e:
-            st.error(f"❌ Error loading market overview: {str(e)}")
-    
-    with col2:
-        st.markdown("### 🔄 Data Sources Status")
-        
-        # Test connectivity status
-        try:
-            api = st.session_state.psx_terminal
+            api = SimplePSXAPI()
             status = api.test_connectivity()
             
             if status:
-                st.markdown("""
-                <div class="live-data-card">
-                    <h5>✅ PSX Terminal API</h5>
-                    <p>Status: Connected</p>
-                    <p>Uptime: {:.1f}s</p>
-                    <p>Last Update: {}</p>
-                </div>
-                """.format(
-                    status.get('uptime', 0),
-                    datetime.now().strftime('%H:%M:%S')
-                ), unsafe_allow_html=True)
+                st.success(f"✅ PSX Terminal API Connected")
+                st.info(f"Uptime: {status.get('uptime', 0)} seconds")
+                st.info(f"Status: {status.get('status', 'Unknown')}")
             else:
-                st.markdown("""
-                <div class="warning-metric">
-                    <h5>⚠️ PSX Terminal API</h5>
-                    <p>Connection Issues</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
+                st.error("❌ PSX Terminal API Connection Failed")
         except Exception as e:
-            st.error(f"❌ API connectivity test failed: {str(e)}")
+            st.error(f"❌ Connection Error: {str(e)}")
+    
+    with col2:
+        symbols = get_cached_symbols()
+        if symbols:
+            st.success(f"✅ Symbols Loaded: {len(symbols)}")
+            st.info(f"Sample symbols: {', '.join(symbols[:5])}")
+        else:
+            st.error("❌ Unable to load symbols")
+
+def render_market_overview():
+    """Render market overview"""
+    st.markdown("## 📊 Market Overview")
+    
+    try:
+        api = SimplePSXAPI()
+        stats = api.get_market_stats()
+        
+        if stats:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_vol = stats.get('totalVolume', 0)
+                st.metric("Total Volume", f"{total_vol:,.0f}" if total_vol else "N/A")
+            
+            with col2:
+                total_val = stats.get('totalValue', 0)
+                if total_val:
+                    st.metric("Total Value", f"{total_val/1e9:.1f}B PKR")
+                else:
+                    st.metric("Total Value", "N/A")
+            
+            with col3:
+                gainers = stats.get('gainers', 0)
+                losers = stats.get('losers', 0)
+                st.metric("Gainers", f"{gainers}")
+                st.metric("Losers", f"{losers}")
+            
+            with col4:
+                trades = stats.get('totalTrades', 0)
+                st.metric("Total Trades", f"{trades:,}" if trades else "N/A")
+        else:
+            st.info("📊 Market statistics loading...")
+    except Exception as e:
+        st.error(f"Market overview error: {str(e)}")
 
 def render_symbol_analysis():
-    """Render detailed symbol analysis"""
-    st.markdown("## 🔍 Individual Symbol Analysis")
+    """Render symbol analysis"""
+    st.markdown("## 🔍 Symbol Analysis")
+    
+    symbols = get_cached_symbols()
+    if not symbols:
+        st.error("Unable to load symbols")
+        return
     
     col1, col2, col3 = st.columns([2, 1, 1])
     
     with col1:
-        symbols = st.session_state.get('available_symbols', ['HBL', 'UBL', 'MCB', 'ENGRO'])
+        # Limit symbols for better performance
+        display_symbols = symbols[:100] if len(symbols) > 100 else symbols
         selected_symbol = st.selectbox(
-            "Select Symbol for Analysis",
-            options=symbols[:50],  # Limit to first 50 for performance
+            "Select Symbol",
+            options=display_symbols,
             index=0,
-            help="Choose a symbol for detailed analysis"
+            help=f"Choose from {len(display_symbols)} symbols"
         )
     
     with col2:
         timeframe = st.selectbox(
             "Timeframe",
-            options=['1m', '5m', '15m', '1h', '4h', '1d'],
-            index=3,  # Default to 1h
-            help="Select chart timeframe"
+            options=['1h', '4h', '1d'],
+            index=0
         )
     
     with col3:
-        if st.button("🔄 Refresh Analysis", type="primary"):
+        if st.button("🔄 Refresh", type="primary"):
+            st.cache_data.clear()
             st.rerun()
     
     if selected_symbol:
-        try:
-            api = st.session_state.psx_terminal
+        tab1, tab2 = st.tabs(["📊 Market Data", "📈 Chart"])
+        
+        with tab1:
+            # Market data
+            market_data = get_cached_market_data(selected_symbol)
             
-            # Get comprehensive symbol data
-            with st.spinner(f"📊 Loading data for {selected_symbol}..."):
-                symbol_data = api.get_enhanced_symbol_data(selected_symbol)
-            
-            if symbol_data:
-                tab1, tab2, tab3, tab4 = st.tabs(["📈 Market Data", "📊 Charts", "🏢 Company Info", "💰 Fundamentals"])
+            if market_data:
+                col1, col2, col3, col4 = st.columns(4)
                 
-                with tab1:
-                    # Current market data
-                    if 'market_data' in symbol_data:
-                        market_data = symbol_data['market_data']
-                        
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            price = market_data.get('price', 0)
-                            change = market_data.get('change', 0)
-                            st.metric("Current Price", f"{price:.2f} PKR", f"{change:+.2f}")
-                        
-                        with col2:
-                            change_pct = market_data.get('change_percent', 0)
-                            volume = market_data.get('volume', 0)
-                            st.metric("Change %", f"{change_pct:+.2%}")
-                            st.metric("Volume", f"{volume:,}")
-                        
-                        with col3:
-                            high = market_data.get('high', 0)
-                            low = market_data.get('low', 0)
-                            st.metric("High", f"{high:.2f} PKR")
-                            st.metric("Low", f"{low:.2f} PKR")
-                        
-                        with col4:
-                            trades = market_data.get('trades', 0)
-                            value = market_data.get('value', 0)
-                            st.metric("Trades", f"{trades:,}")
-                            st.metric("Value", f"{value/1e6:.1f}M PKR")
+                with col1:
+                    price = market_data.get('price', 0)
+                    change = market_data.get('change', 0)
+                    st.metric("Price", f"{price:.2f} PKR", f"{change:+.2f}")
                 
-                with tab2:
-                    # K-line chart
-                    st.markdown(f"### 📈 {selected_symbol} - {timeframe} Chart")
-                    
-                    # Get k-line data
-                    klines = api.get_klines(selected_symbol, timeframe, limit=100)
-                    
-                    if klines:
-                        # Convert to DataFrame
-                        df = api.convert_to_dataframe(klines)
-                        
-                        if not df.empty:
-                            # Create candlestick chart
-                            fig = go.Figure(data=go.Candlestick(
-                                x=df.index,
-                                open=df['open'],
-                                high=df['high'],
-                                low=df['low'],
-                                close=df['close'],
-                                name=selected_symbol
-                            ))
-                            
-                            fig.update_layout(
-                                title=f"{selected_symbol} - {timeframe} Candlestick Chart",
-                                xaxis_title="Time",
-                                yaxis_title="Price (PKR)",
-                                height=500,
-                                showlegend=False
-                            )
-                            
-                            st.plotly_chart(fig, use_container_width=True)
-                            
-                            # Volume chart
-                            fig_vol = go.Figure()
-                            fig_vol.add_trace(go.Bar(
-                                x=df.index,
-                                y=df['volume'],
-                                name="Volume",
-                                marker_color='rgba(0, 150, 255, 0.6)'
-                            ))
-                            
-                            fig_vol.update_layout(
-                                title=f"{selected_symbol} - Volume",
-                                xaxis_title="Time",
-                                yaxis_title="Volume",
-                                height=300
-                            )
-                            
-                            st.plotly_chart(fig_vol, use_container_width=True)
-                        else:
-                            st.warning("⚠️ No chart data available")
-                    else:
-                        st.warning("⚠️ Unable to load chart data")
+                with col2:
+                    change_pct = market_data.get('changePercent', 0)
+                    st.metric("Change %", f"{change_pct:+.2%}")
                 
-                with tab3:
-                    # Company information
-                    if 'company_info' in symbol_data:
-                        company_info = symbol_data['company_info']
-                        
-                        st.markdown(f"### 🏢 Company Information - {selected_symbol}")
-                        
-                        # Financial stats
-                        if 'financialStats' in company_info:
-                            fin_stats = company_info['financialStats']
-                            
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                market_cap = fin_stats.get('marketCap', {})
-                                if market_cap:
-                                    st.metric("Market Cap", market_cap.get('raw', 'N/A'))
-                                
-                                shares = fin_stats.get('shares', {})
-                                if shares:
-                                    st.metric("Total Shares", shares.get('raw', 'N/A'))
-                            
-                            with col2:
-                                free_float = fin_stats.get('freeFloat', {})
-                                if free_float:
-                                    st.metric("Free Float", free_float.get('raw', 'N/A'))
-                                
-                                ff_percent = fin_stats.get('freeFloatPercent', {})
-                                if ff_percent:
-                                    st.metric("Free Float %", ff_percent.get('raw', 'N/A'))
-                        
-                        # Business description
-                        if 'businessDescription' in company_info:
-                            st.markdown("### 📋 Business Description")
-                            st.write(company_info['businessDescription'])
-                        
-                        # Key people
-                        if 'keyPeople' in company_info:
-                            st.markdown("### 👥 Key Personnel")
-                            for person in company_info['keyPeople']:
-                                st.write(f"**{person.get('name', 'N/A')}** - {person.get('position', 'N/A')}")
-                    else:
-                        st.info("📊 Company information not available")
+                with col3:
+                    volume = market_data.get('volume', 0)
+                    st.metric("Volume", f"{volume:,}")
                 
-                with tab4:
-                    # Fundamentals
-                    if 'fundamentals' in symbol_data:
-                        fundamentals = symbol_data['fundamentals']
-                        
-                        st.markdown(f"### 💰 Financial Metrics - {selected_symbol}")
-                        
-                        col1, col2, col3 = st.columns(3)
-                        
-                        with col1:
-                            pe_ratio = fundamentals.get('peRatio')
-                            if pe_ratio:
-                                st.metric("P/E Ratio", f"{pe_ratio:.2f}")
-                            
-                            div_yield = fundamentals.get('dividendYield')
-                            if div_yield:
-                                st.metric("Dividend Yield", f"{div_yield:.2f}%")
-                        
-                        with col2:
-                            year_change = fundamentals.get('yearChange')
-                            if year_change:
-                                st.metric("YTD Change", f"{year_change:+.2f}%")
-                            
-                            sector = fundamentals.get('sector')
-                            if sector:
-                                st.metric("Sector Code", sector)
-                        
-                        with col3:
-                            vol_30_avg = fundamentals.get('volume30Avg')
-                            if vol_30_avg:
-                                st.metric("30D Avg Volume", f"{vol_30_avg:,.0f}")
-                            
-                            is_compliant = fundamentals.get('isNonCompliant', True)
-                            st.metric("Compliance", "✅ Compliant" if not is_compliant else "⚠️ Non-Compliant")
-                    
-                    # Dividend history
-                    if 'dividends' in symbol_data:
-                        st.markdown("### 💵 Dividend History")
-                        
-                        dividends = symbol_data['dividends']
-                        if dividends:
-                            div_df = pd.DataFrame(dividends)
-                            st.dataframe(div_df, use_container_width=True)
-                        else:
-                            st.info("No recent dividend data available")
-                    else:
-                        st.info("📊 Fundamental data not available")
-            
+                with col4:
+                    trades = market_data.get('trades', 0)
+                    st.metric("Trades", f"{trades:,}")
+                
+                # Additional metrics
+                col5, col6, col7, col8 = st.columns(4)
+                
+                with col5:
+                    high = market_data.get('high', 0)
+                    st.metric("High", f"{high:.2f}")
+                
+                with col6:
+                    low = market_data.get('low', 0)
+                    st.metric("Low", f"{low:.2f}")
+                
+                with col7:
+                    value = market_data.get('value', 0)
+                    st.metric("Value", f"{value/1e6:.1f}M PKR")
+                
+                with col8:
+                    status = market_data.get('st', 'Unknown')
+                    st.metric("Status", status)
             else:
-                st.warning(f"⚠️ Unable to load data for {selected_symbol}")
-                
-        except Exception as e:
-            st.error(f"❌ Error analyzing {selected_symbol}: {str(e)}")
+                st.error(f"Unable to load data for {selected_symbol}")
+        
+        with tab2:
+            # Chart
+            api = SimplePSXAPI()
+            klines = api.get_klines(selected_symbol, timeframe, 50)
+            
+            if klines:
+                # Create DataFrame
+                df = pd.DataFrame(klines)
+                if not df.empty and 'timestamp' in df.columns:
+                    df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+                    df.set_index('datetime', inplace=True)
+                    
+                    # Candlestick chart
+                    fig = go.Figure(data=go.Candlestick(
+                        x=df.index,
+                        open=df['open'],
+                        high=df['high'],
+                        low=df['low'],
+                        close=df['close'],
+                        name=selected_symbol
+                    ))
+                    
+                    fig.update_layout(
+                        title=f"{selected_symbol} - {timeframe} Chart",
+                        xaxis_title="Time",
+                        yaxis_title="Price (PKR)",
+                        height=500
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Volume chart
+                    if 'volume' in df.columns:
+                        fig_vol = go.Figure()
+                        fig_vol.add_trace(go.Bar(
+                            x=df.index,
+                            y=df['volume'],
+                            name="Volume",
+                            marker_color='rgba(0, 150, 255, 0.6)'
+                        ))
+                        
+                        fig_vol.update_layout(
+                            title=f"{selected_symbol} - Volume",
+                            xaxis_title="Time",
+                            yaxis_title="Volume",
+                            height=300
+                        )
+                        
+                        st.plotly_chart(fig_vol, use_container_width=True)
+                else:
+                    st.warning("Chart data format issue")
+            else:
+                st.warning(f"Unable to load chart data for {selected_symbol}")
 
-def render_websocket_demo():
-    """Render WebSocket streaming demonstration"""
-    st.markdown("## 🌐 Live WebSocket Streaming")
+def render_documentation():
+    """Render documentation"""
+    st.markdown("## 📚 Documentation")
     
-    st.info("🚧 WebSocket streaming interface coming soon! This will provide real-time updates for:")
+    st.markdown("""
+    ### 🎯 PSX Terminal API Integration
     
-    col1, col2 = st.columns(2)
+    This system provides real-time access to Pakistan Stock Exchange data through the PSX Terminal API.
     
-    with col1:
-        st.markdown("""
-        ### 📈 Real-time Features:
-        - Live price updates
-        - Order book data  
-        - Trade by trade updates
-        - Market breadth changes
-        - Volume analysis
-        """)
+    **Features:**
+    - Real-time market data for 500+ PSX securities
+    - Interactive candlestick charts
+    - Market overview and statistics
+    - Professional data visualization
+    - Streamlit Cloud optimized performance
     
-    with col2:
-        st.markdown("""
-        ### 🔔 Alert System:
-        - Price breakouts
-        - Volume spikes
-        - Technical signals
-        - News events
-        - Risk alerts
-        """)
+    **Data Sources:**
+    - **Primary**: PSX Terminal API (https://psxterminal.com)
+    - **Coverage**: All PSX listed securities
+    - **Update Frequency**: Real-time during market hours
+    - **Timeframes**: 1h, 4h, 1d charts available
+    
+    **How to Use:**
+    1. Check system status for API connectivity
+    2. View market overview for broad market insights
+    3. Analyze individual symbols with charts and data
+    4. Use refresh button for latest data
+    """)
 
 def main():
-    """Enhanced main dashboard application"""
+    """Main application"""
     
-    # Initialize enhanced system
-    initialize_enhanced_system()
-    
-    if not st.session_state.get('system_initialized', False):
-        st.error("❌ System not initialized. Please check configuration and API connectivity.")
-        return
-    
-    # Render enhanced header
-    render_enhanced_header()
+    # Render header
+    render_header()
     
     # Sidebar navigation
     st.sidebar.title("🧭 Navigation")
     
     page = st.sidebar.selectbox(
-        "Select Module",
+        "Select Section",
         options=[
-            "🏠 System Overview",
-            "📊 Live Market Data", 
+            "🏠 System Status",
+            "📊 Market Overview", 
             "🔍 Symbol Analysis",
-            "🌐 WebSocket Streaming",
-            "🔬 Backtesting",
-            "🎯 Performance",
-            "🔧 System Status",
             "📚 Documentation"
         ]
     )
     
+    # Auto-refresh option
+    auto_refresh = st.sidebar.checkbox("🔄 Auto Refresh (30s)", value=False)
+    if auto_refresh:
+        st.rerun()
+    
     # Page routing
-    if page == "🏠 System Overview":
-        render_system_capabilities()
+    if page == "🏠 System Status":
+        render_system_status()
         
-    elif page == "📊 Live Market Data":
-        render_enhanced_live_data()
+    elif page == "📊 Market Overview":
+        render_market_overview()
         
     elif page == "🔍 Symbol Analysis":
         render_symbol_analysis()
         
-    elif page == "🌐 WebSocket Streaming":
-        render_websocket_demo()
-        
-    elif page == "🔬 Backtesting":
-        st.markdown("## 🔬 Enhanced Backtesting")
-        st.info("🚧 Enhanced backtesting interface with PSX Terminal data coming soon!")
-        
-    elif page == "🎯 Performance":
-        st.markdown("## 🎯 Performance Analytics")
-        st.info("📈 Enhanced portfolio performance analytics coming soon...")
-        
-    elif page == "🔧 System Status":
-        st.markdown("## 🔧 Enhanced System Status")
-        
-        # API connectivity tests
-        try:
-            api = st.session_state.psx_terminal
-            status = api.test_connectivity()
-            
-            if status:
-                st.success(f"✅ PSX Terminal API - Connected (Uptime: {status.get('uptime', 0):.1f}s)")
-            else:
-                st.error("❌ PSX Terminal API - Connection Failed")
-        except Exception as e:
-            st.error(f"❌ PSX Terminal API - Error: {str(e)}")
-        
-        # System components status
-        components = [
-            ("Enhanced Data Fetcher", "enhanced_fetcher"),
-            ("Signal Analyzer", "signal_analyzer"), 
-            ("Risk Manager", "risk_manager"),
-            ("Portfolio Optimizer", "portfolio_optimizer"),
-            ("ML System", "ml_system"),
-            ("Backtesting Engine", "backtester")
-        ]
-        
-        for name, attr in components:
-            if hasattr(st.session_state, attr):
-                st.success(f"✅ {name} - Ready")
-            else:
-                st.error(f"❌ {name} - Not initialized")
-        
     elif page == "📚 Documentation":
-        st.markdown("## 📚 PSX Terminal API Documentation")
-        
-        st.markdown("""
-        ### 🎯 API Capabilities
-        
-        **REST Endpoints:**
-        - `/api/status` - Test connectivity
-        - `/api/ticks/{type}/{symbol}` - Real-time market data
-        - `/api/symbols` - All available symbols
-        - `/api/stats/{type}` - Market statistics
-        - `/api/companies/{symbol}` - Company information
-        - `/api/fundamentals/{symbol}` - Financial ratios
-        - `/api/klines/{symbol}/{timeframe}` - Historical data
-        - `/api/dividends/{symbol}` - Dividend history
-        
-        **WebSocket Streams:**
-        - Market data updates
-        - K-line/candlestick data
-        - Statistics updates
-        - Symbol list updates
-        
-        **Market Types:**
-        - REG (Regular Market)
-        - FUT (Futures)
-        - IDX (Indices)
-        - ODL (Odd Lot)
-        - BNB (Bills and Bonds)
-        
-        **Timeframes:**
-        - 1m, 5m, 15m, 1h, 4h, 1d
-        """)
+        render_documentation()
     
     # Footer
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666;'>
-        <p>PSX Terminal - Enhanced Quantitative Trading System | Powered by PSX Terminal API</p>
-        <p>🔗 Real-time data • 🚀 WebSocket streaming • 📊 Professional analytics • 🛡️ Risk management</p>
+        <p>PSX Terminal Trading System | Real-time Pakistan Stock Exchange Data</p>
+        <p>📊 Live Data • 🎯 Professional Analysis • 🚀 Streamlit Cloud Optimized</p>
     </div>
     """, unsafe_allow_html=True)
 

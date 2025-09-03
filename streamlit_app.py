@@ -540,23 +540,165 @@ def render_live_trading_signals():
         st.error("Unable to load symbols")
         return
     
-    # Expanded major PSX tickers for 12 stocks display
-    major_tickers = [
+    # Stock Selection Interface
+    st.subheader("🎯 Select Your 12 Stocks for Live Signals")
+    
+    # Default major tickers
+    default_major_tickers = [
         'HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 
-        'TRG', 'SYSTEMS', 'PPL', 'NESTLE', 'COLG', 'BAHL', 'MEBL', 'EFERT'
+        'TRG', 'SYSTEMS'
     ]
-    available_symbols = [s for s in major_tickers if s in symbols]
     
-    # If major tickers not found, use first available symbols to reach 12
-    if len(available_symbols) < 12:
-        additional_symbols = [s for s in symbols[:30] if s not in available_symbols]
-        available_symbols.extend(additional_symbols[:12-len(available_symbols)])
+    # Create tabs for different selection methods
+    tab1, tab2, tab3 = st.tabs(["🎯 Quick Select", "🔍 Search & Pick", "📊 Sector Based"])
     
-    # Ensure we have exactly 12 symbols
-    available_symbols = available_symbols[:12]
+    with tab1:
+        st.markdown("**Quick preset selections:**")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🏦 Banking Focus", help="Major banks and financial institutions"):
+                st.session_state.selected_stocks = ['HBL', 'UBL', 'NBP', 'MCB', 'ABL', 'BAFL', 'AKBL', 'MEBL', 'JSBL', 'BAHL', 'FABL', 'BOK'][:12]
+        
+        with col2:
+            if st.button("🏭 Industrial Mix", help="Mix of industrial and manufacturing stocks"):
+                st.session_state.selected_stocks = ['FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'PPL', 'EFERT', 'FATIMA', 'COLG', 'NESTLE', 'UNILEVER', 'ICI'][:12]
+        
+        with col3:
+            if st.button("💼 Blue Chip", help="Top market cap and most liquid stocks"):
+                st.session_state.selected_stocks = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 'TRG', 'SYSTEMS']
     
-    st.subheader(f"📈 Live Signals for Top {len(available_symbols)} Stocks")
-    st.info("🔄 Signals update every 15 seconds | ⚡ Real-time algorithmic analysis")
+    with tab2:
+        st.markdown("**Search and select individual stocks:**")
+        
+        # Initialize selected stocks in session state
+        if 'selected_stocks' not in st.session_state:
+            st.session_state.selected_stocks = [s for s in default_major_tickers if s in symbols][:12]
+        
+        # Current selection display
+        st.write(f"**Currently selected ({len(st.session_state.selected_stocks)}/12):**")
+        if st.session_state.selected_stocks:
+            selected_display = ", ".join(st.session_state.selected_stocks)
+            st.code(selected_display)
+        
+        # Search and add stocks
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            search_stock = st.text_input("🔍 Search for stock to add:", placeholder="Type symbol name (e.g., UNITY, PIAIC)")
+        
+        with col2:
+            if st.button("➕ Add Stock") and search_stock:
+                search_upper = search_stock.upper()
+                matching_stocks = [s for s in symbols if search_upper in s]
+                
+                if matching_stocks:
+                    if len(st.session_state.selected_stocks) < 12:
+                        if matching_stocks[0] not in st.session_state.selected_stocks:
+                            st.session_state.selected_stocks.append(matching_stocks[0])
+                            st.success(f"Added {matching_stocks[0]}")
+                        else:
+                            st.warning(f"{matching_stocks[0]} already selected")
+                    else:
+                        st.warning("Maximum 12 stocks allowed")
+                else:
+                    st.error(f"No stock found matching '{search_stock}'")
+        
+        # Show available matching stocks
+        if search_stock:
+            search_upper = search_stock.upper()
+            matching_stocks = [s for s in symbols if search_upper in s][:10]
+            if matching_stocks:
+                st.write("**Available matches:**")
+                for stock in matching_stocks:
+                    if st.button(f"➕ {stock}", key=f"add_{stock}"):
+                        if len(st.session_state.selected_stocks) < 12:
+                            if stock not in st.session_state.selected_stocks:
+                                st.session_state.selected_stocks.append(stock)
+                                st.success(f"Added {stock}")
+                                st.rerun()
+        
+        # Remove stocks interface
+        if st.session_state.selected_stocks:
+            st.markdown("**Remove stocks:**")
+            cols = st.columns(min(6, len(st.session_state.selected_stocks)))
+            for i, stock in enumerate(st.session_state.selected_stocks):
+                with cols[i % 6]:
+                    if st.button(f"❌ {stock}", key=f"remove_{stock}"):
+                        st.session_state.selected_stocks.remove(stock)
+                        st.success(f"Removed {stock}")
+                        st.rerun()
+    
+    with tab3:
+        st.markdown("**Select by sector:**")
+        
+        sectors = {
+            "Banking": ['HBL', 'UBL', 'NBP', 'MCB', 'ABL', 'BAFL', 'AKBL', 'MEBL', 'JSBL', 'BAHL'],
+            "Oil & Gas": ['PSO', 'OGDC', 'PPL', 'SNGP', 'SSGC', 'POL'],
+            "Cement": ['LUCK', 'DG', 'PIOC', 'MLCF', 'FCCL'],
+            "Chemicals": ['FFC', 'ENGRO', 'EFERT', 'FATIMA', 'ICI', 'COLG'],
+            "Technology": ['TRG', 'SYSTEMS', 'NETSOL', 'IBFL'],
+            "FMCG": ['NESTLE', 'UNILEVER', 'COLG', 'BATA'],
+            "Textile": ['GADT', 'KOHE', 'SITC', 'KTML']
+        }
+        
+        sector_cols = st.columns(4)
+        for i, (sector, stocks) in enumerate(sectors.items()):
+            with sector_cols[i % 4]:
+                available_in_sector = [s for s in stocks if s in symbols]
+                if st.button(f"{sector} ({len(available_in_sector)})", key=f"sector_{sector}"):
+                    # Add sector stocks to selection (up to remaining capacity)
+                    remaining_slots = 12 - len(st.session_state.selected_stocks)
+                    for stock in available_in_sector[:remaining_slots]:
+                        if stock not in st.session_state.selected_stocks:
+                            st.session_state.selected_stocks.append(stock)
+    
+    # Control buttons
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔄 Reset to Default"):
+            st.session_state.selected_stocks = [s for s in default_major_tickers if s in symbols][:12]
+            st.success("Reset to default selection")
+            st.rerun()
+    
+    with col2:
+        if st.button("🎲 Random Selection"):
+            import random
+            available_random = [s for s in symbols if s not in st.session_state.get('selected_stocks', [])]
+            random_picks = random.sample(available_random, min(12-len(st.session_state.get('selected_stocks', [])), len(available_random)))
+            st.session_state.selected_stocks = (st.session_state.get('selected_stocks', []) + random_picks)[:12]
+            st.success("Added random stocks")
+            st.rerun()
+    
+    with col3:
+        if st.button("🗑️ Clear All"):
+            st.session_state.selected_stocks = []
+            st.success("Cleared all selections")
+            st.rerun()
+    
+    # Get final selected symbols
+    if 'selected_stocks' in st.session_state and st.session_state.selected_stocks:
+        available_symbols = st.session_state.selected_stocks[:12]
+    else:
+        # Fallback to defaults if nothing selected
+        available_symbols = [s for s in default_major_tickers if s in symbols][:12]
+    
+    st.markdown("---")
+    
+    # Display current selection prominently
+    st.subheader(f"📈 Live Signals for Your Selected {len(available_symbols)} Stocks")
+    
+    # Show selected stocks in an organized way
+    if available_symbols:
+        st.info(f"**Your Watchlist**: {' • '.join(available_symbols[:6])}" + 
+                (f" • {' • '.join(available_symbols[6:])}" if len(available_symbols) > 6 else ""))
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.caption("🔄 Signals update every 15 seconds | ⚡ Real-time algorithmic analysis")
+    with col2:
+        if st.button("🎯 Change Selection", key="change_selection_btn"):
+            st.info("Scroll up to modify your stock selection")
     
     # Create 4x3 grid for 12 stocks
     system = PSXAlgoTradingSystem()

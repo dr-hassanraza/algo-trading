@@ -126,48 +126,45 @@ class PSXAlgoTradingSystem:
             return []
     
     def get_real_time_data(self, symbol):
-        """Get real-time market data"""
+        """Get real-time market data with robust fallback"""
+        # Try PSX DPS API first (more reliable)
         try:
-            # Try PSX Terminal API first
-            response = self.session.get(f"{self.psx_terminal_url}/api/ticks/REG/{symbol}", timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('success'):
-                return data.get('data')
-            
-            # Fallback to PSX DPS
-            response = self.session.get(f"{self.psx_dps_url}/{symbol}", timeout=10)
+            response = self.session.get(f"{self.psx_dps_url}/{symbol}", timeout=15)
             response.raise_for_status()
             psx_data = response.json()
             
             # Handle PSX DPS response format
             if psx_data and 'data' in psx_data and psx_data['data']:
                 latest = psx_data['data'][0]  # First item is latest
-            elif psx_data and isinstance(psx_data, list):
-                latest = psx_data[0]  # Direct array format
-            else:
+                if latest and len(latest) >= 3:
+                    return {
+                        'symbol': symbol,
+                        'price': float(latest[1]),
+                        'volume': int(latest[2]),
+                        'timestamp': latest[0],
+                        'change': 0,
+                        'changePercent': 0
+                    }
+        except Exception as psx_dps_error:
+            # If PSX DPS fails, try PSX Terminal API with shorter timeout
+            try:
+                response = self.session.get(f"{self.psx_terminal_url}/api/ticks/REG/{symbol}", timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data.get('success'):
+                    return data.get('data')
+            except Exception as terminal_error:
+                # Both APIs failed, show a user-friendly message
+                st.warning(f"⚠️ {symbol}: Temporary data unavailable (APIs busy)")
                 return None
-            
-            if latest and len(latest) >= 3:
-                return {
-                    'symbol': symbol,
-                    'price': float(latest[1]),
-                    'volume': int(latest[2]),
-                    'timestamp': latest[0],
-                    'change': 0,
-                    'changePercent': 0
-                }
-            
-            return None
-        except Exception as e:
-            st.error(f"Data Error for {symbol}: {str(e)}")
-            return None
+        
+        return None
     
     def get_intraday_ticks(self, symbol, limit=100):
-        """Get intraday tick data for analysis"""
+        """Get intraday tick data for analysis with robust error handling"""
         try:
-            response = self.session.get(f"{self.psx_dps_url}/{symbol}", timeout=15)
+            response = self.session.get(f"{self.psx_dps_url}/{symbol}", timeout=20)
             response.raise_for_status()
             data = response.json()
             
@@ -181,7 +178,7 @@ class PSXAlgoTradingSystem:
             else:
                 return pd.DataFrame()
             
-            if tick_data:
+            if tick_data and len(tick_data) > 0:
                 # Convert to DataFrame
                 df = pd.DataFrame(tick_data, columns=['timestamp', 'price', 'volume'])
                 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')  # Unix timestamp
@@ -190,6 +187,10 @@ class PSXAlgoTradingSystem:
                 
                 # Remove any rows with NaN values
                 df = df.dropna()
+                
+                # Ensure we have minimum data for analysis
+                if len(df) < 10:
+                    return pd.DataFrame()
                 
                 # Sort by timestamp
                 df = df.sort_values('timestamp')
@@ -202,7 +203,7 @@ class PSXAlgoTradingSystem:
             
             return pd.DataFrame()
         except Exception as e:
-            st.error(f"Tick Data Error for {symbol}: {str(e)}")
+            # Return empty DataFrame silently - we'll handle this gracefully
             return pd.DataFrame()
     
     def calculate_technical_indicators(self, df):
@@ -685,6 +686,9 @@ def render_live_trading_signals():
     
     st.markdown("---")
     
+    # API Status Banner
+    st.info("🔄 **API Status**: Using PSX DPS (Official) as primary source. Some symbols may show 'PRICE ONLY' during high traffic periods.")
+    
     # Display current selection prominently
     st.subheader(f"📈 Live Signals for Your Selected {len(available_symbols)} Stocks")
     
@@ -695,7 +699,7 @@ def render_live_trading_signals():
     
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.caption("🔄 Signals update every 15 seconds | ⚡ Real-time algorithmic analysis")
+        st.caption("🔄 Auto-refresh active | ⚡ PSX DPS Official API | 🛡️ Robust fallback system")
     with col2:
         if st.button("🎯 Change Selection", key="change_selection_btn"):
             st.info("Scroll up to modify your stock selection")
@@ -717,7 +721,7 @@ def render_live_trading_signals():
                     # Get intraday ticks for analysis
                     ticks_df = get_cached_intraday_ticks(symbol, 50)
                     
-                    if not ticks_df.empty:
+                    if not ticks_df.empty and len(ticks_df) >= 10:
                         # Calculate indicators and generate signals
                         ticks_df = system.calculate_technical_indicators(ticks_df)
                         signal_data = system.generate_trading_signals(ticks_df, symbol)
@@ -750,9 +754,26 @@ def render_live_trading_signals():
                                 st.write(f"**Liquidity OK**: {'✅' if signal_data['liquidity_ok'] else '❌'}")
                                 st.write(f"**Position Size**: {signal_data['position_size']:.2%}")
                     else:
-                        st.warning(f"No tick data for {symbol}")
+                        # Show price-only view when technical analysis isn't available
+                        st.markdown(f"""
+                        <div class="signal-hold">
+                            <h5>{symbol}</h5>
+                            <h3>PRICE ONLY</h3>
+                            <p>Limited data available</p>
+                            <p>Price: {market_data['price']:.2f} PKR</p>
+                            <small>Volume: {market_data.get('volume', 0):,}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
                 else:
-                    st.error(f"No data for {symbol}")
+                    # Show unavailable data card
+                    st.markdown(f"""
+                    <div class="signal-hold">
+                        <h5>{symbol}</h5>
+                        <h3>OFFLINE</h3>
+                        <p>Data temporarily unavailable</p>
+                        <small>Refresh in few moments</small>
+                    </div>
+                    """, unsafe_allow_html=True)
     
     # Portfolio Summary Section
     st.markdown("---")

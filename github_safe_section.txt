@@ -1,0 +1,69 @@
+                with detail_col3:
+                    st.write("**📊 Signal Quality:**")
+                    st.write(f"• Overall Grade: {signal['grade']}")
+                    st.write(f"• Confidence: {signal['score']:.1f}/100")
+                    st.write(f"• Recommendation: {signal['recommendation']}")
+                
+                # Key factors summary
+                if signal.get('factors'):
+                    st.markdown("---")
+                    st.subheader("🎯 Key Decision Factors")
+                    factors_text = " | ".join(signal['factors'][:3])  # Top 3 factors
+                    st.info(f"**Primary factors:** {factors_text}")
+                
+                # PDF Export functionality
+                st.markdown("---")
+                st.subheader("📄 Export Report")
+                
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    if st.button("📄 Generate Report", type="primary"):
+                        try:
+                            # Prepare analysis data
+                            analysis_data = {
+                                'recommendation': signal['recommendation'],
+                                'signal_strength': signal['grade'],
+                                'current_price': f"{result['price']:.2f} PKR",
+                                'target_price': f"{risk['target1']:.2f} PKR",
+                                'stop_loss': f"{risk['stop_loss']:.2f} PKR",
+                                'risk_score': f"{signal['score']:.0f}/100",
+                                'volatility': 'Medium',
+                                'technical_indicators': {
+                                    'RSI': {'value': f"{tech['rsi']:.1f}", 'signal': rsi_status},
+                                    'MA44': {'value': f"{tech['ma44']:.2f}", 'signal': tech.get('ma44_trend', 'Unknown')},
+                                    'Bollinger Bands %B': {'value': f"{tech['bb_pctb']:.2f}", 'signal': bb_status},
+                                    'Volume Ratio': {'value': f"{tech['volume_ratio']:.1f}x", 'signal': vol_status}
+                                }
+                            }
+                            
+                            # Generate HTML report
+                            html_report = self.generate_simple_pdf_report(symbol, analysis_data)
+                            
+                            # Store in session state to prevent reset
+                            if 'html_report' not in st.session_state:
+                                st.session_state.html_report = {}
+                            st.session_state.html_report[symbol] = html_report
+                            
+                            st.success("✅ Report Generated Successfully!")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Report generation failed: {str(e)}")
+                
+                with col2:
+                    # Show download button if report exists in session state
+                    if hasattr(st.session_state, 'html_report') and symbol in st.session_state.html_report:
+                        filename = f"PSX_Analysis_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                        b64 = base64.b64encode(st.session_state.html_report[symbol].encode()).decode()
+                        href = f'''
+                        <a href="data:text/html;base64,{b64}" download="{filename}" 
+                           style="display: inline-block; padding: 12px 20px; background-color: #ff4b4b; 
+                                  color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                           📥 Download Analysis Report
+                        </a>
+                        '''
+                        st.markdown(href, unsafe_allow_html=True)
+                        st.info("💡 **Tip:** Download creates an HTML report that you can print as PDF from your browser (Ctrl+P → Save as PDF).")
+        
+        except Exception as e:
+            st.error(f"Analysis error: {str(e)}")

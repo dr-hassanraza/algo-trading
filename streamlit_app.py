@@ -15,6 +15,13 @@ import requests
 import warnings
 warnings.filterwarnings('ignore')
 
+# Authentication system imports
+try:
+    from user_auth import authenticate_user, add_user, get_user_data
+    AUTH_AVAILABLE = True
+except ImportError:
+    AUTH_AVAILABLE = False
+
 # Page configuration
 st.set_page_config(
     page_title="PSX Algo Trading System",
@@ -22,6 +29,90 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Authentication System
+def render_login_page():
+    """Render login/registration page"""
+    st.markdown('<h1 class="main-header">🔐 PSX Algo Trading System - Login</h1>', unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["🔑 Login", "📝 Register"])
+    
+    with tab1:
+        st.subheader("Login to Your Account")
+        
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submit_login = st.form_submit_button("🔑 Login", use_container_width=True)
+            
+            if submit_login:
+                if AUTH_AVAILABLE:
+                    if authenticate_user(username, password):
+                        st.session_state['authenticated'] = True
+                        st.session_state['username'] = username
+                        st.success("✅ Login successful! Redirecting...")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid username or password")
+                else:
+                    st.error("❌ Authentication system not available")
+    
+    with tab2:
+        st.subheader("Create New Account")
+        
+        with st.form("register_form"):
+            reg_username = st.text_input("Choose Username")
+            reg_password = st.text_input("Create Password", type="password")
+            reg_password_confirm = st.text_input("Confirm Password", type="password")
+            reg_name = st.text_input("Full Name")
+            reg_email = st.text_input("Email Address")
+            submit_register = st.form_submit_button("📝 Register", use_container_width=True)
+            
+            if submit_register:
+                if not all([reg_username, reg_password, reg_name, reg_email]):
+                    st.error("❌ Please fill in all fields")
+                elif reg_password != reg_password_confirm:
+                    st.error("❌ Passwords do not match")
+                elif len(reg_password) < 6:
+                    st.error("❌ Password must be at least 6 characters")
+                elif AUTH_AVAILABLE:
+                    try:
+                        if add_user(reg_username, reg_password, reg_name, reg_email):
+                            st.success("✅ Account created successfully! Please login.")
+                        else:
+                            st.error("❌ Username already exists")
+                    except Exception as e:
+                        st.error(f"❌ Registration failed: {str(e)}")
+                else:
+                    st.error("❌ Authentication system not available")
+    
+    # Guest access option
+    st.markdown("---")
+    st.markdown("### 👤 Guest Access")
+    if st.button("🚀 Continue as Guest", use_container_width=True):
+        st.session_state['authenticated'] = True
+        st.session_state['username'] = 'guest'
+        st.success("✅ Accessing as guest user...")
+        st.rerun()
+    
+    st.info("💡 **Guest users** can access all features but data won't be saved between sessions.")
+
+def render_logout():
+    """Render logout functionality in sidebar"""
+    if st.session_state.get('authenticated', False):
+        username = st.session_state.get('username', 'Unknown')
+        
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(f"👤 **Logged in as:** {username}")
+        
+        if st.sidebar.button("🔓 Logout"):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = None
+            st.rerun()
+
+def check_authentication():
+    """Check if user is authenticated"""
+    return st.session_state.get('authenticated', False)
 
 # Professional CSS styling
 st.markdown("""
@@ -91,6 +182,21 @@ st.markdown("""
         color: white;
         margin: 1rem 0;
         box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    
+    .login-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        margin: 2rem 0;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+    }
+    
+    .stForm > div {
+        background: rgba(255,255,255,0.95);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -1513,7 +1619,15 @@ def render_system_status():
             st.error("❌ Symbol Loading Failed")
 
 def main():
-    """Main application"""
+    """Main application with authentication"""
+    
+    # Check authentication
+    if not check_authentication():
+        render_login_page()
+        return
+    
+    # Render logout in sidebar
+    render_logout()
     
     # Render header
     render_header()

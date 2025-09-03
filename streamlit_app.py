@@ -138,14 +138,22 @@ class PSXAlgoTradingSystem:
             
             # Fallback to PSX DPS
             response = self.session.get(f"{self.psx_dps_url}/{symbol}", timeout=10)
-            tick_data = response.json()
+            response.raise_for_status()
+            psx_data = response.json()
             
-            if tick_data:
-                latest = tick_data[-1]
+            # Handle PSX DPS response format
+            if psx_data and 'data' in psx_data and psx_data['data']:
+                latest = psx_data['data'][0]  # First item is latest
+            elif psx_data and isinstance(psx_data, list):
+                latest = psx_data[0]  # Direct array format
+            else:
+                return None
+            
+            if latest and len(latest) >= 3:
                 return {
                     'symbol': symbol,
                     'price': float(latest[1]),
-                    'volume': int(latest[2]) if len(latest) > 2 else 0,
+                    'volume': int(latest[2]),
                     'timestamp': latest[0],
                     'change': 0,
                     'changePercent': 0
@@ -163,15 +171,31 @@ class PSXAlgoTradingSystem:
             response.raise_for_status()
             data = response.json()
             
-            if data:
+            # Check if data has the expected structure
+            if data and 'data' in data and data['data']:
+                # Use the 'data' array from PSX DPS response
+                tick_data = data['data']
+            elif data and isinstance(data, list):
+                # Direct array format
+                tick_data = data
+            else:
+                return pd.DataFrame()
+            
+            if tick_data:
                 # Convert to DataFrame
-                df = pd.DataFrame(data, columns=['timestamp', 'price', 'volume'])
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-                df['price'] = pd.to_numeric(df['price'])
-                df['volume'] = pd.to_numeric(df['volume'])
+                df = pd.DataFrame(tick_data, columns=['timestamp', 'price', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')  # Unix timestamp
+                df['price'] = pd.to_numeric(df['price'], errors='coerce')
+                df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
+                
+                # Remove any rows with NaN values
+                df = df.dropna()
+                
+                # Sort by timestamp
+                df = df.sort_values('timestamp')
                 
                 # Keep only recent data
-                if limit:
+                if limit and len(df) > limit:
                     df = df.tail(limit)
                 
                 return df.reset_index(drop=True)
@@ -815,35 +839,69 @@ def render_system_status():
     """Render system status"""
     st.markdown("## 🔧 System Status")
     
+    system = PSXAlgoTradingSystem()
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
         try:
-            system = PSXAlgoTradingSystem()
             # Test PSX Terminal API
             response = system.session.get(f"{system.psx_terminal_url}/api/status", timeout=5)
             if response.status_code == 200:
                 st.success("✅ PSX Terminal API Connected")
+                # Test symbols endpoint
+                symbols_response = system.session.get(f"{system.psx_terminal_url}/api/symbols", timeout=5)
+                if symbols_response.status_code == 200:
+                    symbols_data = symbols_response.json()
+                    if symbols_data.get('success') and symbols_data.get('data'):
+                        st.info(f"📊 {len(symbols_data['data'])} symbols available")
+                    else:
+                        st.warning("⚠️ Symbols data format issue")
+                else:
+                    st.warning("⚠️ Symbols endpoint issues")
             else:
-                st.warning("⚠️ PSX Terminal API Issues")
-        except:
-            st.error("❌ PSX Terminal API Failed")
+                st.warning(f"⚠️ PSX Terminal API Issues: {response.status_code}")
+        except Exception as e:
+            st.error(f"❌ PSX Terminal API Failed: {str(e)}")
     
     with col2:
         try:
-            # Test PSX DPS API
-            response = system.session.get(f"{system.psx_dps_url}/HBL", timeout=5)
-            if response.status_code == 200 and response.json():
-                st.success("✅ PSX DPS API Connected")
+            # Test PSX DPS API with symbol 786 (first symbol)
+            response = system.session.get(f"{system.psx_dps_url}/786", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data and 'data' in data and data['data']:
+                    st.success("✅ PSX DPS API Connected")
+                    st.info(f"📈 Latest 786 price: {data['data'][0][1]} PKR")
+                elif data and isinstance(data, list) and data:
+                    st.success("✅ PSX DPS API Connected")
+                    st.info(f"📈 Latest 786 price: {data[0][1]} PKR")
+                else:
+                    st.warning("⚠️ PSX DPS data format issue")
+                    st.write(f"Response: {data}")
             else:
-                st.warning("⚠️ PSX DPS API Issues")
-        except:
-            st.error("❌ PSX DPS API Failed")
+                st.warning(f"⚠️ PSX DPS API Issues: {response.status_code}")
+        except Exception as e:
+            st.error(f"❌ PSX DPS API Failed: {str(e)}")
     
     with col3:
         symbols = get_cached_symbols()
         if symbols:
             st.success(f"✅ {len(symbols)} Symbols Loaded")
+            st.info(f"Sample: {', '.join(symbols[:5])}")
+            
+            # Test data loading for first few symbols
+            st.subheader("🧪 Data Loading Test")
+            test_symbols = symbols[:3]
+            for symbol in test_symbols:
+                try:
+                    market_data = get_cached_real_time_data(symbol)
+                    if market_data:
+                        st.success(f"✅ {symbol}: {market_data.get('price', 'N/A')} PKR")
+                    else:
+                        st.error(f"❌ {symbol}: No data")
+                except Exception as e:
+                    st.error(f"❌ {symbol}: {str(e)}")
         else:
             st.error("❌ Symbol Loading Failed")
 

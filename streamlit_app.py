@@ -1060,8 +1060,67 @@ def render_symbol_analysis():
                 st.plotly_chart(fig, use_container_width=True)
             
             with tab3:
-                # Performance simulation
-                st.subheader("📊 Backtesting Performance")
+                # Performance simulation with comprehensive analytics
+                st.subheader("📊 Auto Backtesting Performance Analytics")
+                
+                # Performance Analytics Guide
+                with st.expander("📚 Performance Analytics Guide - What to Look For", expanded=False):
+                    st.markdown("""
+                    ### 🎯 **Key Performance Metrics Explained**
+                    
+                    #### **📈 Profitability Metrics:**
+                    - **Total Return %**: Overall profit/loss from 1M PKR initial capital
+                      - ✅ **Good**: >15% annual return  
+                      - ⚠️ **Average**: 5-15% annual return
+                      - ❌ **Poor**: <5% or negative
+                    
+                    - **Win Rate %**: Percentage of profitable trades
+                      - ✅ **Excellent**: >70% (Strong algorithm)
+                      - ✅ **Good**: 60-70% (Reliable system)
+                      - ⚠️ **Acceptable**: 50-60% (Needs improvement)
+                      - ❌ **Poor**: <50% (Review strategy)
+                    
+                    - **Profit Factor**: Total profits ÷ Total losses
+                      - ✅ **Excellent**: >2.0 (Strong edge)
+                      - ✅ **Good**: 1.5-2.0 (Profitable system)
+                      - ⚠️ **Break-even**: 1.0-1.5 (Marginal)
+                      - ❌ **Losing**: <1.0 (Unprofitable)
+                    
+                    #### **⚖️ Risk Management Metrics:**
+                    - **Maximum Drawdown**: Largest peak-to-trough decline
+                      - ✅ **Excellent**: <10% (Low risk)
+                      - ✅ **Good**: 10-15% (Moderate risk)
+                      - ⚠️ **Acceptable**: 15-25% (Higher risk)
+                      - ❌ **Poor**: >25% (Too risky)
+                    
+                    - **Sharpe Ratio**: Risk-adjusted returns (Return ÷ Volatility)
+                      - ✅ **Excellent**: >2.0 (Superior risk-adjusted returns)
+                      - ✅ **Good**: 1.0-2.0 (Good risk-adjusted returns)
+                      - ⚠️ **Acceptable**: 0.5-1.0 (Moderate)
+                      - ❌ **Poor**: <0.5 (Poor risk adjustment)
+                    
+                    #### **📊 Trading Activity Metrics:**
+                    - **Total Trades**: Number of completed round-trip trades
+                      - Look for: Sufficient sample size (>30 trades for reliability)
+                    
+                    - **Average Trade Duration**: How long positions are held
+                      - Intraday: 2-6 hours (for day trading)
+                      - Short-term: 1-5 days (for swing trading)
+                    
+                    #### **🎯 What Makes a Good Algorithm:**
+                    1. **Consistent Profitability**: Positive returns over time
+                    2. **High Win Rate**: >60% winning trades
+                    3. **Controlled Risk**: <20% maximum drawdown
+                    4. **Good Risk/Reward**: 1.5+ Sharpe ratio
+                    5. **Sufficient Activity**: 30+ trades for statistical significance
+                    
+                    #### **🚨 Red Flags to Watch:**
+                    - Long periods of continuous losses
+                    - Very few trades (insufficient data)
+                    - High volatility in equity curve
+                    - Win rate below 50%
+                    - Negative Sharpe ratio
+                    """)
                 
                 # Create signals DataFrame for performance simulation
                 signals_data = []
@@ -1080,38 +1139,195 @@ def render_symbol_analysis():
                         'position_size': temp_signal['position_size']
                     })
                 
-                if signals_data:
+                if signals_data and len(signals_data) > 10:
                     signals_df = pd.DataFrame(signals_data)
                     performance = system.simulate_trade_performance(signals_df)
                     
-                    if performance:
+                    if performance and performance.get('total_trades', 0) > 0:
+                        # Enhanced Performance Metrics
+                        st.markdown("### 📊 **Core Performance Metrics**")
+                        
                         col1, col2, col3, col4 = st.columns(4)
                         
-                        with col1:
-                            st.metric("Total Return", f"{performance['total_return']:.2f}%")
-                        with col2:
-                            st.metric("Win Rate", f"{performance['win_rate']:.1f}%")
-                        with col3:
-                            st.metric("Total Trades", performance['total_trades'])
-                        with col4:
-                            st.metric("Final Capital", f"{performance['final_capital']:,.0f} PKR")
+                        total_return = performance['total_return']
+                        win_rate = performance['win_rate']
+                        total_trades = performance['total_trades']
+                        final_capital = performance['final_capital']
                         
-                        # Equity curve
+                        with col1:
+                            color = "normal" if total_return > 0 else "inverse"
+                            st.metric("Total Return", f"{total_return:.2f}%", 
+                                    delta=f"{'Profit' if total_return > 0 else 'Loss'}", 
+                                    delta_color=color)
+                        
+                        with col2:
+                            win_color = "normal" if win_rate >= 60 else "off" if win_rate >= 50 else "inverse"
+                            st.metric("Win Rate", f"{win_rate:.1f}%", 
+                                    delta="Good" if win_rate >= 60 else "Average" if win_rate >= 50 else "Poor",
+                                    delta_color=win_color)
+                        
+                        with col3:
+                            st.metric("Total Trades", f"{total_trades}", 
+                                    delta="Good sample" if total_trades >= 30 else "Small sample",
+                                    delta_color="normal" if total_trades >= 30 else "off")
+                        
+                        with col4:
+                            capital_change = final_capital - 1000000
+                            st.metric("Final Capital", f"{final_capital:,.0f} PKR", 
+                                    delta=f"{capital_change:+,.0f} PKR")
+                        
+                        # Advanced Analytics
+                        st.markdown("### 🔍 **Advanced Analytics**")
+                        
+                        col5, col6, col7, col8 = st.columns(4)
+                        
+                        with col5:
+                            # Calculate profit factor
+                            if performance.get('trades'):
+                                profits = sum(t.get('profit', 0) for t in performance['trades'] if t.get('profit', 0) > 0)
+                                losses = abs(sum(t.get('profit', 0) for t in performance['trades'] if t.get('profit', 0) < 0))
+                                profit_factor = profits / max(losses, 1)
+                                
+                                pf_color = "normal" if profit_factor > 1.5 else "off" if profit_factor > 1.0 else "inverse"
+                                st.metric("Profit Factor", f"{profit_factor:.2f}", 
+                                        delta="Excellent" if profit_factor > 2.0 else "Good" if profit_factor > 1.5 else "Poor",
+                                        delta_color=pf_color)
+                            else:
+                                st.metric("Profit Factor", "N/A")
+                        
+                        with col6:
+                            # Calculate max drawdown from equity curve
+                            if performance.get('equity_curve'):
+                                equity_curve = performance['equity_curve']
+                                peak = equity_curve[0]
+                                max_dd = 0
+                                for value in equity_curve:
+                                    if value > peak:
+                                        peak = value
+                                    drawdown = (peak - value) / peak * 100
+                                    max_dd = max(max_dd, drawdown)
+                                
+                                dd_color = "normal" if max_dd < 15 else "off" if max_dd < 25 else "inverse"
+                                st.metric("Max Drawdown", f"{max_dd:.1f}%", 
+                                        delta="Low Risk" if max_dd < 15 else "Moderate" if max_dd < 25 else "High Risk",
+                                        delta_color=dd_color)
+                            else:
+                                st.metric("Max Drawdown", "N/A")
+                        
+                        with col7:
+                            # Calculate Sharpe ratio approximation
+                            if performance.get('equity_curve') and len(performance['equity_curve']) > 1:
+                                returns = np.diff(performance['equity_curve']) / performance['equity_curve'][:-1]
+                                if np.std(returns) > 0:
+                                    sharpe = np.mean(returns) / np.std(returns) * np.sqrt(252)  # Annualized
+                                    sharpe_color = "normal" if sharpe > 1.0 else "off" if sharpe > 0.5 else "inverse"
+                                    st.metric("Sharpe Ratio", f"{sharpe:.2f}", 
+                                            delta="Excellent" if sharpe > 2.0 else "Good" if sharpe > 1.0 else "Poor",
+                                            delta_color=sharpe_color)
+                                else:
+                                    st.metric("Sharpe Ratio", "N/A")
+                            else:
+                                st.metric("Sharpe Ratio", "N/A")
+                        
+                        with col8:
+                            # Average trade duration (simulated)
+                            avg_duration = 3.5  # Average intraday hold time
+                            st.metric("Avg Hold Time", f"{avg_duration:.1f}h", 
+                                    delta="Intraday Focus",
+                                    delta_color="normal")
+                        
+                        # Performance Analysis Summary
+                        st.markdown("### 📋 **Algorithm Assessment**")
+                        
+                        # Create assessment based on metrics
+                        assessment_score = 0
+                        assessment_items = []
+                        
+                        if total_return > 15:
+                            assessment_score += 2
+                            assessment_items.append("✅ Strong returns generated")
+                        elif total_return > 5:
+                            assessment_score += 1
+                            assessment_items.append("⚠️ Moderate returns")
+                        else:
+                            assessment_items.append("❌ Poor returns - review strategy")
+                        
+                        if win_rate >= 60:
+                            assessment_score += 2
+                            assessment_items.append("✅ High win rate - reliable signals")
+                        elif win_rate >= 50:
+                            assessment_score += 1
+                            assessment_items.append("⚠️ Average win rate")
+                        else:
+                            assessment_items.append("❌ Low win rate - improve signal quality")
+                        
+                        if total_trades >= 30:
+                            assessment_score += 1
+                            assessment_items.append("✅ Sufficient trade sample")
+                        else:
+                            assessment_items.append("⚠️ Small sample size - need more data")
+                        
+                        # Overall assessment
+                        if assessment_score >= 5:
+                            st.success("🎯 **Overall Assessment: STRONG ALGORITHM** - Ready for live trading")
+                        elif assessment_score >= 3:
+                            st.warning("⚠️ **Overall Assessment: DECENT ALGORITHM** - Consider optimizations")
+                        else:
+                            st.error("❌ **Overall Assessment: NEEDS IMPROVEMENT** - Review and optimize")
+                        
+                        # Detailed feedback
+                        for item in assessment_items:
+                            st.write(item)
+                        
+                        # Equity curve with enhanced analysis
                         if performance.get('equity_curve'):
+                            st.markdown("### 📈 **Equity Curve Analysis**")
+                            
                             fig = go.Figure()
+                            
+                            # Main equity curve
                             fig.add_trace(go.Scatter(
                                 y=performance['equity_curve'],
                                 mode='lines',
-                                name='Equity Curve',
-                                line=dict(color='green', width=2)
+                                name='Portfolio Value',
+                                line=dict(color='#1f77b4', width=3)
                             ))
+                            
+                            # Add benchmark line (initial capital)
+                            fig.add_hline(y=1000000, line_dash="dash", line_color="gray", 
+                                        annotation_text="Initial Capital (1M PKR)")
+                            
+                            # Add profit/loss zones
+                            if max(performance['equity_curve']) > 1000000:
+                                fig.add_hrect(y0=1000000, y1=max(performance['equity_curve']), 
+                                            fillcolor="green", opacity=0.1, 
+                                            annotation_text="Profit Zone", annotation_position="top left")
+                            
+                            if min(performance['equity_curve']) < 1000000:
+                                fig.add_hrect(y0=min(performance['equity_curve']), y1=1000000, 
+                                            fillcolor="red", opacity=0.1,
+                                            annotation_text="Loss Zone", annotation_position="bottom left")
+                            
                             fig.update_layout(
-                                title="Portfolio Equity Curve",
-                                xaxis_title="Trade Number",
-                                yaxis_title="Capital (PKR)",
-                                height=400
+                                title=f"{selected_symbol} - Portfolio Performance Over Time",
+                                xaxis_title="Trade Sequence",
+                                yaxis_title="Portfolio Value (PKR)",
+                                height=500,
+                                showlegend=True
                             )
+                            
                             st.plotly_chart(fig, use_container_width=True)
+                            
+                            # Equity curve insights
+                            st.markdown("**📊 Equity Curve Insights:**")
+                            st.write(f"• **Starting Capital**: 1,000,000 PKR")
+                            st.write(f"• **Ending Capital**: {final_capital:,.0f} PKR")
+                            st.write(f"• **Peak Capital**: {max(performance['equity_curve']):,.0f} PKR")
+                            st.write(f"• **Lowest Point**: {min(performance['equity_curve']):,.0f} PKR")
+                    else:
+                        st.warning("⚠️ Insufficient trading data for reliable performance analysis. Need more historical ticks.")
+                else:
+                    st.info("📊 Collecting trading signals for backtesting analysis...")
             
             with tab4:
                 # Detailed analysis

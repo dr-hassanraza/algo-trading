@@ -25,7 +25,15 @@ from dataclasses import dataclass
 from psx_bbands_candle_scanner import EODHDFetcher, TODAY
 from multi_data_source_api import MultiSourceDataAPI, StockData
 
-# Import PSX data reader
+# Import PSX DPS official data fetcher (HIGHEST PRIORITY)
+try:
+    from psx_dps_fetcher import PSXDPSFetcher
+    PSX_DPS_AVAILABLE = True
+except ImportError:
+    PSX_DPS_AVAILABLE = False
+    print("PSX DPS Official fetcher not available")
+
+# Import PSX data reader (backup)
 try:
     from psx_data_reader_fetcher import PSXDataFetcher
     PSX_READER_AVAILABLE = True
@@ -51,11 +59,21 @@ class EnhancedDataFetcher:
         self.eodhd_fetcher = EODHDFetcher(self.api_key)
         self.multi_source_api = MultiSourceDataAPI()
         
-        # Initialize PSX data reader if available
+        # Initialize PSX DPS official fetcher (HIGHEST PRIORITY)
+        self.psx_dps_fetcher = None
+        if PSX_DPS_AVAILABLE:
+            try:
+                self.psx_dps_fetcher = PSXDPSFetcher()
+                print("✅ PSX DPS Official API initialized (PRIMARY SOURCE)")
+            except Exception as e:
+                print(f"Failed to initialize PSX DPS fetcher: {e}")
+        
+        # Initialize PSX data reader if available (backup)
         self.psx_fetcher = None
         if PSX_READER_AVAILABLE:
             try:
                 self.psx_fetcher = PSXDataFetcher()
+                print("✅ PSX Data Reader initialized (BACKUP SOURCE)")
             except Exception as e:
                 print(f"Failed to initialize PSX Data Reader: {e}")
         
@@ -65,6 +83,8 @@ class EnhancedDataFetcher:
         
         # Success tracking for data source reliability
         self.source_success_rates = {
+            'psx_dps_official': {'success': 0, 'total': 0},
+            'eodhd_premium': {'success': 0, 'total': 0},
             'psx_reader': {'success': 0, 'total': 0},
             'eodhd': {'success': 0, 'total': 0},
             'yfinance': {'success': 0, 'total': 0},
@@ -91,10 +111,17 @@ class EnhancedDataFetcher:
             return self.cache[cache_key]['data']
         
         # Try multiple data sources in order of preference
-        # PSX data reader is now first priority for PSX stocks
+        # PSX DPS Official is now HIGHEST priority for PSX stocks
         data_sources = []
         
-        # Add PSX reader as first choice if available
+        # Add PSX DPS Official as FIRST choice (official PSX API)
+        if self.psx_dps_fetcher:
+            data_sources.append(('psx_dps_official', self._fetch_psx_dps_official))
+        
+        # Add EODHD Premium as second choice (your purchased API)
+        data_sources.append(('eodhd_premium', self._fetch_eodhd_premium))
+        
+        # Add PSX reader as third choice if available
         if self.psx_fetcher:
             data_sources.append(('psx_reader', self._fetch_psx_reader))
         
@@ -142,6 +169,30 @@ class EnhancedDataFetcher:
         
         # Final fallback - raise exception
         raise Exception(f"Failed to fetch data for {symbol} from all available sources including fallback")
+    
+    def _fetch_psx_dps_official(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
+        """Fetch data using PSX DPS Official API (HIGHEST PRIORITY)"""
+        if not self.psx_dps_fetcher:
+            return pd.DataFrame()
+        
+        try:
+            return self.psx_dps_fetcher.fetch_historical_data(symbol, start_date, end_date)
+        except Exception as e:
+            logger.error(f"PSX DPS Official fetch error: {e}")
+            return pd.DataFrame()
+    
+    def _fetch_eodhd_premium(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
+        """Fetch data using EODHD Premium API (purchased API - highest priority)"""
+        try:
+            from eodhd_premium_fetcher import EODHDPremiumFetcher
+            premium_fetcher = EODHDPremiumFetcher()
+            return premium_fetcher.get_historical_data(symbol, start_date, end_date)
+        except ImportError:
+            logger.warning("EODHD Premium fetcher not available")
+            return pd.DataFrame()
+        except Exception as e:
+            logger.error(f"EODHD Premium fetch error: {e}")
+            return pd.DataFrame()
     
     def _fetch_psx_reader(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
         """Fetch data using PSX Data Reader (direct PSX access)"""
@@ -214,14 +265,64 @@ class EnhancedDataFetcher:
         return pd.DataFrame()
     
     def get_real_time_data(self, symbol: str) -> Optional[StockData]:
-        """Get real-time stock data using multi-source API"""
+        """Get real-time stock data with PSX DPS as primary source"""
+        
+        # Try PSX DPS Official first (HIGHEST PRIORITY)
+        if self.psx_dps_fetcher:
+            try:
+                psx_data = self.psx_dps_fetcher.fetch_real_time_data(symbol)
+                if psx_data:
+                    # Convert to StockData format
+                    return StockData(
+                        symbol=psx_data['symbol'],
+                        price=psx_data['price'],
+                        volume=psx_data['volume'],
+                        change=0,  # PSX DPS doesn't provide change directly
+                        change_percent=0.0,  # PSX DPS doesn't provide change percent directly
+                        source=psx_data['source']
+                    )
+            except Exception as e:
+                logger.warning(f"PSX DPS real-time fetch failed: {e}")
+        
+        # Fallback to multi-source API
         base_symbol = symbol.split('.')[0]
         return self.multi_source_api.get_stock_data(base_symbol)
     
     def get_multiple_real_time(self, symbols: List[str]) -> Dict[str, Optional[StockData]]:
-        """Get real-time data for multiple symbols"""
-        base_symbols = [s.split('.')[0] for s in symbols]
-        return self.multi_source_api.get_multiple_stocks(base_symbols)
+        """Get real-time data for multiple symbols with PSX DPS priority"""
+        results = {}
+        
+        # Try PSX DPS first for all symbols
+        if self.psx_dps_fetcher:
+            try:
+                psx_results = self.psx_dps_fetcher.fetch_multiple_real_time(symbols)
+                for symbol, data in psx_results.items():
+                    if data:
+                        results[symbol] = StockData(
+                            symbol=data['symbol'],
+                            price=data['price'],
+                            volume=data['volume'],
+                            change=0,
+                            change_percent=0.0,
+                            source=data['source']
+                        )
+                    else:
+                        results[symbol] = None
+            except Exception as e:
+                logger.warning(f"PSX DPS multiple fetch failed: {e}")
+        
+        # For any symbols that failed, try multi-source API as fallback
+        for symbol in symbols:
+            if symbol not in results or results[symbol] is None:
+                try:
+                    base_symbol = symbol.split('.')[0]
+                    fallback_data = self.multi_source_api.get_stock_data(base_symbol)
+                    results[symbol] = fallback_data
+                except Exception as e:
+                    logger.warning(f"Multi-source fallback failed for {symbol}: {e}")
+                    results[symbol] = None
+        
+        return results
     
     def get_psx_tickers(self) -> List[str]:
         """Get list of available PSX tickers using PSX Data Reader"""
@@ -238,7 +339,16 @@ class EnhancedDataFetcher:
     def get_psx_current_data(self, symbol: str):
         """Get current PSX data using most accurate source available"""
         
-        # Try accurate price fetcher first (highest priority)
+        # Try PSX DPS Official first (HIGHEST PRIORITY)
+        if self.psx_dps_fetcher:
+            try:
+                psx_dps_data = self.psx_dps_fetcher.fetch_real_time_data(symbol)
+                if psx_dps_data and psx_dps_data.get('price'):
+                    return psx_dps_data
+            except Exception as e:
+                logger.warning(f"PSX DPS current data fetch failed: {e}")
+        
+        # Try accurate price fetcher second
         if ACCURATE_PRICE_AVAILABLE:
             try:
                 accurate_price = get_most_accurate_price(symbol)
@@ -255,6 +365,16 @@ class EnhancedDataFetcher:
     def get_verified_current_price(self, symbol: str) -> dict:
         """Get verified current price with accuracy indicators"""
         
+        # Try PSX DPS Official first (HIGHEST ACCURACY)
+        if self.psx_dps_fetcher:
+            try:
+                psx_data = self.psx_dps_fetcher.fetch_real_time_data(symbol)
+                if psx_data and psx_data.get('price'):
+                    return psx_data
+            except Exception as e:
+                logger.error(f"PSX DPS price verification failed: {e}")
+        
+        # Try accurate price fetcher as fallback
         if ACCURATE_PRICE_AVAILABLE:
             try:
                 return get_most_accurate_price(symbol)
@@ -355,6 +475,17 @@ def test_enhanced_fetcher():
             print(f"   ✅ {symbol}: {data.price:.2f} PKR ({data.change:+.2f}) - {data.source}")
         else:
             print(f"   ❌ {symbol}: No real-time data")
+    
+    # Test PSX DPS specifically
+    print(f"\n🏛️ Testing PSX DPS Official API:")
+    psx_test_symbols = ['UBL', 'FFC', 'LUCK']
+    for symbol in psx_test_symbols:
+        current_data = fetcher.get_verified_current_price(symbol)
+        if current_data and current_data.get('price'):
+            print(f"   ✅ {symbol}: {current_data['price']:.2f} PKR - {current_data['source']}")
+            print(f"      📊 Confidence: {current_data.get('confidence', 'N/A')}/10")
+        else:
+            print(f"   ❌ {symbol}: No PSX DPS data")
     
     # Show reliability stats
     print(f"\n📊 Data Source Reliability:")

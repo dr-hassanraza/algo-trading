@@ -1,0 +1,100 @@
+created_date: '2025-09-03T11:21:22.523846'
+data:
+  backup_price_sources:
+  - eodhd
+  - yfinance
+  data_path: ./data
+  data_update_time: '17:00'
+  database_type: sqlite
+  primary_price_source: psx_dps
+  use_database: true
+execution:
+  bid_ask_spread_assumption: 0.002
+  commission_rate: 0.0015
+  paper_trading_enabled: true
+  participation_rate: 0.05
+  trading_end_time: '15:00'
+  trading_start_time: 09:45
+  use_vwap: true
+features:
+  enable_bollinger: true
+  enable_macd: true
+  enable_quality_metrics: true
+  enable_rsi: true
+  enable_value_metrics: true
+  max_features: 50
+  momentum_periods:
+  - 21
+  - 63
+  - 126
+  reversal_periods:
+  - 5
+  - 10
+  use_sector_neutralization: true
+  volatility_periods:
+  - 21
+  - 63
+model:
+  cv_folds: 5
+  embargo_days: 2
+  ensemble_models:
+  - xgboost
+  - rf
+  label_forward_days: 5
+  lightgbm_params:
+    bagging_fraction: 0.8
+    bagging_freq: 5
+    boosting_type: gbdt
+    feature_fraction: 0.8
+    learning_rate: 0.05
+    metric: rmse
+    num_leaves: 31
+    objective: regression
+    random_state: 42
+    verbose: -1
+  primary_model: lightgbm
+  retrain_frequency_days: 30
+  train_window_months: 24
+  use_purged_cv: true
+  validation_months: 3
+performance:
+  annual_alpha_max: 0.12
+  annual_alpha_min: 0.04
+  annual_alpha_target: 0.06
+  max_daily_loss: 0.03
+  max_drawdown_limit: 0.2
+  profit_factor_min: 1.5
+  sharpe_ratio_min: 1.0
+  sharpe_ratio_target: 1.5
+  target_volatility: 0.15
+  win_rate_target: 0.55
+portfolio:
+  gross_exposure_max: 1.0
+  long_allocation: 0.6
+  max_positions: 50
+  max_single_position: 0.05
+  min_positions: 10
+  net_exposure_target: 0.2
+  rebalance_frequency: DAILY
+  short_allocation: 0.4
+  turnover_target: 0.5
+  use_kelly_criterion: true
+risk:
+  correlation_limit: 0.7
+  daily_loss_limit: 0.03
+  drawdown_circuit_breaker: 0.15
+  stop_loss_pct: 0.05
+  take_profit_pct: 0.1
+  use_trailing_stops: true
+  var_confidence: 0.05
+system_name: PSX Quant System
+universe:
+  avg_volume_min: 10000000
+  exclude_penny_stocks: true
+  exclude_suspended: true
+  market_cap_min: 5000000000
+  max_positions_per_sector: 5
+  max_sector_exposure: 0.25
+  price_max: 10000.0
+  price_min: 10.0
+version: 2.0.0

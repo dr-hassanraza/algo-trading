@@ -1,214 +1,143 @@
-# PSX Algorithmic Trading Chatbot
+# PSX Quantitative Trading System 📈
 
-A conversational AI assistant for Pakistan Stock Exchange (PSX) trading with technical analysis, portfolio management, and natural language interaction.
+A professional-grade quantitative trading system for the Pakistan Stock Exchange (PSX) featuring real-time data integration, machine learning models, and comprehensive backtesting capabilities.
 
-## Features
+## 🚀 Live Demo
 
-🤖 **Natural Language Interface**
-- Chat with your trading assistant in plain English
-- Understand commands like "scan UBL and MCB" or "show my portfolio"
-- Context-aware conversations with memory
+**[Try the Live Dashboard →](https://your-streamlit-app-url.streamlit.app/)**
 
-📊 **Technical Analysis**
-- Bollinger Bands analysis with %B indicator
-- 44-period Moving Average trend detection
-- Candlestick pattern recognition
-- Multi-criteria signal generation
+## ✨ Key Features
 
-💼 **Portfolio Management**
-- Track positions with real-time P&L calculations
-- Record trades: "I bought 100 UBL at 150"
-- Cash balance management
-- Transaction history and performance metrics
+### 📊 Real-Time Data Integration
+- **PSX DPS Official API**: Direct integration with PSX's official data source
+- **Tick-by-tick Processing**: Handle high-frequency intraday data  
+- **Multiple Data Sources**: EODHD Premium API as backup
+- **Live Market Monitoring**: Real-time price and volume tracking
 
-🎯 **Trading Signals**
-- Automated buy signal detection
-- Human-readable signal explanations
-- Customizable risk tolerance settings
+### 🤖 Advanced Machine Learning
+- **LightGBM Ensemble Models**: Professional gradient boosting
+- **Purged Time Series Cross-Validation**: Prevents data leakage
+- **Walk-Forward Analysis**: Robust out-of-sample testing
+- **Feature Engineering Pipeline**: 50+ technical and fundamental features
 
-📈 **Market Scanning**
-- Scan multiple PSX symbols simultaneously
-- Watchlist management
-- Visual charts generation (optional)
+### 💼 Professional Portfolio Management
+- **Kelly Criterion Position Sizing**: Optimal capital allocation
+- **Risk Parity Optimization**: Balanced risk exposure
+- **Dynamic Rebalancing**: Automated portfolio adjustments
+- **Sector Exposure Limits**: Diversification controls
 
-## Installation
+### 🛡️ Comprehensive Risk Management
+- **Real-time Stop Loss/Take Profit**: Automated risk controls
+- **Drawdown Circuit Breakers**: Portfolio protection
+- **Position Limits**: Risk-based sizing
+- **VaR & Stress Testing**: Advanced risk metrics
 
-1. **Clone or download the files**
-2. **Install dependencies:**
-   ```bash
-   pip install pandas numpy requests matplotlib textblob
-   ```
+### 📈 Professional Backtesting
+- **Walk-Forward Validation**: Institutional-grade testing
+- **Intraday & Daily Strategies**: Multiple timeframes
+- **Performance Attribution**: Detailed analysis
+- **Transaction Cost Modeling**: Realistic execution simulation
 
-3. **Get EODHD API key:**
-   - Sign up at [EODHD.com](https://eodhd.com/)
-   - Set environment variable:
-   ```bash
-   export EODHD_API_KEY="your_api_key_here"
-   ```
+## 🎯 Performance Targets
 
-## Quick Start
+| Metric | Target | Description |
+|--------|--------|-------------|
+| **Annual Alpha** | 6%+ | Excess return vs KSE100 |
+| **Sharpe Ratio** | 1.5+ | Risk-adjusted returns |
+| **Max Drawdown** | <20% | Maximum portfolio decline |
+| **Win Rate** | 55%+ | Profitable trades ratio |
 
-### Basic Scanner Usage
+## 🚀 Quick Start
+
+### 1. Clone Repository
 ```bash
-python psx_bbands_candle_scanner.py --tickers UBL.KAR MCB.KAR OGDC.KAR --asof today --charts
+git clone https://github.com/yourusername/psx-quantitative-trading.git
+cd psx-quantitative-trading
 ```
 
-### Interactive Chatbot
+### 2. Install Dependencies
 ```bash
-python trading_chatbot.py
+pip install -r requirements.txt
 ```
 
-## Chatbot Commands
-
-### Market Analysis
-- `"Scan UBL and MCB"`
-- `"Check my watchlist"`
-- `"Any buy signals today?"`
-- `"Show me recommendations"`
-
-### Portfolio Management
-- `"Show my portfolio"`
-- `"I bought 100 UBL at 150"`
-- `"Sell 50 MCB at 200"`
-- `"What's my P&L?"`
-
-### Watchlist Management
-- `"Add OGDC to watchlist"`
-- `"Remove PPL from watchlist"`
-- `"Show my watchlist"`
-
-### Educational
-- `"Explain Bollinger Bands"`
-- `"How do signals work?"`
-- `"What does MA44 mean?"`
-
-## Trading Signal Criteria
-
-The chatbot uses a sophisticated 5-criteria system for buy signals:
-
-1. **Trend**: MA44 slope positive over 10 days (uptrend)
-2. **Position**: Current price above MA44 support
-3. **Momentum**: Bollinger %B between 0.35-0.85 (healthy zone)
-4. **Pattern**: Green candle with real body ≥40% of day's range
-5. **Entry**: Recent low within 2% of MA44 (pullback opportunity)
-
-## File Structure
-
-```
-Algo_Trading/
-├── trading_chatbot.py          # Main chatbot interface
-├── psx_bbands_candle_scanner.py # Technical analysis engine
-├── portfolio_manager.py        # Portfolio tracking system
-├── chatbot_state.json         # Conversation memory (auto-created)
-├── portfolio.json             # Portfolio data (auto-created)
-└── scan_reports/              # Scanner output directory
-    └── YYYY-MM-DD/
-        ├── diagnostics.csv    # Detailed analysis
-        ├── candidates.csv     # Buy candidates only
-        └── charts/           # Optional PNG charts
+### 3. Run Dashboard
+```bash
+streamlit run streamlit_professional_dashboard.py
 ```
 
-## Examples
+## 📱 Dashboard Features
 
-### Starting the Chatbot
-```
-🤖 PSX Trading Chatbot initialized!
-Type 'quit' to exit, 'help' for commands
+- **🏠 System Overview**: Real-time system status and performance targets
+- **📊 Live Market Data**: Real-time PSX prices with auto-refresh
+- **🔬 Strategy Backtesting**: Daily and intraday strategy testing
+- **🎯 Performance Analytics**: Comprehensive metrics and analysis
+- **🔧 System Status**: Component health monitoring
+- **📚 Documentation**: Complete system documentation
 
-You: Hello
-🤖 👋 Hello! I'm your PSX trading assistant. I can help you with:
+## 📊 Data Sources
 
-• Market Scanning: "Scan UBL and MCB" or "Check my watchlist"
-• Trading Signals: "Show me buy signals" or "Any recommendations?"
-• Portfolio Tracking: "Show my portfolio" or "Portfolio performance"
-• Trade Recording: "I bought 100 UBL at 150" or "Sell 50 MCB at 200"
-• Explanations: "Explain Bollinger Bands" or "How do signals work?"
-• Watchlist: "Add OGDC to watchlist" or "Show my watchlist"
+### Primary: PSX DPS Official API
+- **Endpoint**: `https://dps.psx.com.pk/timeseries/int/{SYMBOL}`
+- **Format**: `[timestamp, price, volume]` arrays
+- **Coverage**: All PSX listed securities
+- **Update**: Real-time during market hours
 
-What would you like to explore?
-```
+### Backup: EODHD Premium API
+- **Coverage**: Historical and fundamental data
+- **Reliability**: 99.9% uptime guarantee
 
-### Recording a Trade
-```
-You: I bought 100 shares of UBL at 145.50
-🤖 ✅ Trade executed: Added new position: UBL 100 shares @ 145.50
-```
+## 🔄 Usage Examples
 
-### Getting Signals
-```
-You: Any buy signals today?
-🤖 🎯 Buy Signals for Tomorrow:
+### Live Data Fetching
+```python
+from psx_dps_fetcher import PSXDPSFetcher
 
-**UBL.KAR** (Close: 147.80)
-  • MA44: 142.30 | BB %B: 0.67
-  • Signal: uptrend confirmed, above MA44 support, healthy momentum zone, strong green candle
-
-⚠️ Remember: These are educational signals only. Always do your own research before trading.
+fetcher = PSXDPSFetcher()
+data = fetcher.fetch_intraday_ticks('HBL')
+print(f"✅ Fetched {len(data)} ticks for HBL")
 ```
 
-## Configuration
+### Backtesting
+```python
+from intraday_backtesting_engine import IntradayWalkForwardBacktester
+from quant_system_config import SystemConfig
 
-### Risk Tolerance
-The chatbot adapts to your risk preference:
-- `Conservative`: Stricter signal criteria
-- `Moderate`: Balanced approach (default)
-- `Aggressive`: More permissive signals
+config = SystemConfig()
+backtester = IntradayWalkForwardBacktester(config)
+results = backtester.run_intraday_backtest(['HBL', 'UBL'], start_date, end_date)
+```
 
-### PSX Symbols
-Use `.KAR` suffix for EODHD API (e.g., `UBL.KAR`). The system automatically adds this if you use bare symbols like `UBL`.
+## 🛡️ Risk Management
 
-## Data Sources
+- **Position Sizing**: Kelly criterion with risk overlay
+- **Stop Loss**: Dynamic based on volatility (2-5%)
+- **Take Profit**: 1:2 risk-reward minimum
+- **Daily Loss Limit**: 3% of portfolio value
+- **Max Drawdown**: 20% circuit breaker
 
-- **Market Data**: EODHD.com (requires API key)
-- **Symbols**: Pakistan Stock Exchange (PSX)
-- **Timeframe**: Daily candles
-- **History**: Configurable (default: 260 days ≈ 1 year)
+## 🚀 Deployment
 
-## Limitations & Disclaimers
+### Streamlit Cloud
+1. Push to GitHub
+2. Connect to Streamlit Cloud
+3. Deploy automatically
 
-⚠️ **Educational Use Only**
-- This is for learning and research purposes
-- Not financial advice
-- Always do your own research
-- Past performance doesn't guarantee future results
+### Local Development
+```bash
+streamlit run streamlit_professional_dashboard.py
+```
 
-🔒 **Technical Limitations**
-- Requires internet connection for market data
-- End-of-day data only (not real-time intraday)
-- PSX symbols only
-- Single-threaded scanning (can be slow for many symbols)
+## 📄 License
 
-## Troubleshooting
+MIT License - see [LICENSE](LICENSE) file for details.
 
-### Common Issues
+## 🙏 Acknowledgments
 
-1. **API Key Error**: Make sure `EODHD_API_KEY` environment variable is set
-2. **No Data**: Check symbol format (use `.KAR` suffix)
-3. **Import Errors**: Run `pip install textblob` for NLP features
-4. **Slow Scanning**: Reduce number of symbols or use smaller date ranges
+- **PSX**: Official DPS API
+- **EODHD**: Market data provider
+- **LightGBM**: ML framework
+- **Streamlit**: Dashboard framework
 
-### Debug Mode
-For detailed error information, check the scanner output files in `scan_reports/YYYY-MM-DD/`.
+---
 
-## Future Enhancements
-
-- Real-time data integration
-- Multiple exchange support
-- Advanced backtesting
-- Risk management tools
-- Mobile app interface
-- Automated trade execution
-- Machine learning signal enhancement
-
-## Contributing
-
-This is an educational project. Feel free to:
-- Add new technical indicators
-- Improve the NLP processing
-- Enhance portfolio analytics
-- Add new chart types
-- Optimize performance
-
-## License
-
-Educational use only. Not for commercial trading without proper licensing and disclaimers.
+**⭐ Star this repository if you find it useful!**

@@ -1,59 +1,68 @@
 #!/usr/bin/env python3
 """
-PSX DPS (Data Portal Services) Official Data Fetcher
-====================================================
+PSX DPS Official JSON API Data Fetcher
+======================================
 
-Direct integration with https://dps.psx.com.pk - the official PSX data source.
-This provides the most accurate and authoritative PSX stock data.
+Direct integration with https://dps.psx.com.pk/timeseries/int/{SYMBOL}
+This provides the most accurate and authoritative PSX stock data using
+the official JSON API endpoint.
 
 Features:
-- Official PSX real-time prices
-- Market indices (KSE100, ALLSHR, KSE30)
-- Historical data
-- Trading volumes
-- Company profiles
-- Sector classifications
+- Real-time stock prices via official JSON API
+- Historical time series data  
+- Trading volumes with timestamps
+- Market status detection
+- High-frequency tick data
+
+API Format: [timestamp, price, volume]
+Example: [1756878579, 385.0, 5000]
 """
 
 import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 import datetime as dt
 from typing import Dict, List, Optional, Any
 import logging
 import time
-import re
 import json
 
 logger = logging.getLogger(__name__)
 
 class PSXDPSFetcher:
-    """Official PSX Data Portal Services fetcher"""
+    """Official PSX DPS JSON API fetcher for real-time and historical data"""
     
     def __init__(self):
-        self.base_url = "https://dps.psx.com.pk"
+        self.base_url = "https://dps.psx.com.pk/timeseries/int"
         self.session = requests.Session()
         
-        # Set headers to mimic browser behavior
+        # Set headers for JSON API requests
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none'
+            'Referer': 'https://dps.psx.com.pk/',
+            'Origin': 'https://dps.psx.com.pk'
         })
         
         # Cache for API responses
         self.cache = {}
-        self.cache_expiry = 60  # 1 minute for real-time data
+        self.cache_expiry = 30  # 30 seconds for real-time data
         
         # Rate limiting
         self.last_request = 0
-        self.min_delay = 0.5  # 500ms between requests
+        self.min_delay = 0.2  # 200ms between requests
+        
+        # Common PSX symbols for validation
+        self.known_symbols = [
+            'UBL', 'MCB', 'HBL', 'ABL', 'BAFL', 'NBP', 'BOP', 'MEBL',
+            'LUCK', 'DGKC', 'FCCL', 'CHCC', 'MLCF', 'PIOC', 'KOHC',
+            'PPL', 'OGDC', 'POL', 'MARI', 'MPCL', 'PSO', 'SNGP', 'SSGC',
+            'ENGRO', 'FFC', 'FATIMA', 'ICI', 'LOTTE', 'NESTLE', 'PTC',
+            'KTML', 'KAPCO', 'HUBCO', 'KEL', 'PTCL', 'TRG', 'SYSTEMS',
+            'ARPL', 'AIRLINK', 'WTL', 'TPL', 'UNITY', 'AVN', 'BIPL'
+        ]
         
     def _rate_limit(self):
         """Implement rate limiting"""
@@ -62,348 +71,617 @@ class PSXDPSFetcher:
             time.sleep(self.min_delay - elapsed)
         self.last_request = time.time()
     
-    def get_stock_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Get real-time stock quote from PSX DPS"""
+    def fetch_real_time_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch real-time data for a stock symbol using PSX DPS JSON API
+        
+        Args:
+            symbol: Stock symbol (e.g., 'UBL', 'MCB')
+            
+        Returns:
+            Dictionary with current price, volume, and timestamp
+        """
+        clean_symbol = self._clean_symbol(symbol)
+        
+        # Check cache first
+        cache_key = f"realtime_{clean_symbol}"
+        if self._is_cached(cache_key):
+            logger.debug(f"Using cached real-time data for {clean_symbol}")
+            return self.cache[cache_key]['data']
         
         self._rate_limit()
         
         try:
-            # PSX DPS stock page URL structure
-            clean_symbol = symbol.replace('.KAR', '').replace('.PSX', '').upper()
+            url = f"{self.base_url}/{clean_symbol}"
+            logger.debug(f"Fetching real-time data from: {url}")
             
-            # Try the main market data page first
-            url = f"{self.base_url}/company/{clean_symbol}"
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
             
-            logger.info(f"Fetching PSX data for {clean_symbol}: {url}")
+            data = response.json()
+            
+            if data.get('status') == 1 and data.get('data'):
+                time_series = data['data']
+                
+                if time_series:
+                    # Get the most recent data point
+                    latest = time_series[0]  # First entry is most recent
+                    
+                    result = {
+                        'symbol': clean_symbol,
+                        'price': float(latest[1]),
+                        'volume': int(latest[2]),
+                        'timestamp': int(latest[0]),
+                        'datetime': dt.datetime.fromtimestamp(latest[0]),
+                        'currency': 'PKR',
+                        'source': 'PSX DPS Official API',
+                        'confidence': 10,  # Highest confidence - official API
+                        'is_current': True,
+                        'data_freshness': 'Real-time'
+                    }
+                    
+                    # Cache the result
+                    self._cache_data(cache_key, result)
+                    
+                    logger.info(f"✅ Real-time data for {clean_symbol}: {result['price']:.2f} PKR")
+                    return result
+                
+            logger.warning(f"No data returned for {clean_symbol}")
+            return None
+            
+        except requests.RequestException as e:
+            logger.error(f"Network error fetching {clean_symbol}: {e}")
+            return None
+        except (KeyError, ValueError, IndexError) as e:
+            logger.error(f"Data parsing error for {clean_symbol}: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error fetching {clean_symbol}: {e}")
+            return None
+    
+    def fetch_intraday_ticks(self, symbol: str, limit: int = None) -> pd.DataFrame:
+        """
+        Fetch complete intraday tick-by-tick data for high-frequency analysis
+        
+        Args:
+            symbol: Stock symbol (e.g., 'FFC', 'UBL')
+            limit: Maximum number of ticks to return (None = all available)
+            
+        Returns:
+            DataFrame with columns: ['timestamp', 'price', 'volume', 'datetime_pkt']
+            Sorted newest to oldest (as returned by PSX DPS)
+        """
+        clean_symbol = self._clean_symbol(symbol)
+        
+        # Use shorter cache for intraday data (10 seconds)
+        cache_key = f"intraday_{clean_symbol}_{limit or 'all'}"
+        if cache_key in self.cache:
+            cache_time = self.cache[cache_key]['timestamp']
+            if (time.time() - cache_time) < 10:  # 10 second cache
+                logger.debug(f"Using cached intraday data for {clean_symbol}")
+                return self.cache[cache_key]['data']
+        
+        self._rate_limit()
+        
+        try:
+            url = f"{self.base_url}/{clean_symbol}"
+            logger.debug(f"Fetching intraday ticks from: {url}")
             
             response = self.session.get(url, timeout=15)
             response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            data = response.json()
             
-            # Extract price data from the page
-            stock_data = self._extract_stock_data(soup, clean_symbol)
-            
-            if stock_data:
-                stock_data['source'] = 'PSX Official DPS'
-                stock_data['timestamp'] = dt.datetime.now()
-                stock_data['symbol'] = clean_symbol
-                return stock_data
-            
-            # If company page doesn't work, try alternative methods
-            return self._try_alternative_methods(clean_symbol)
+            if data.get('status') == 1 and data.get('data'):
+                time_series = data['data']
+                
+                if not time_series:
+                    return pd.DataFrame()
+                
+                # Limit data if requested
+                if limit and len(time_series) > limit:
+                    time_series = time_series[:limit]
+                
+                # Parse tick data
+                tick_data = []
+                for tick in time_series:
+                    unix_timestamp, price, volume = tick
+                    
+                    # Convert to Pakistan time (UTC+5)
+                    utc_time = dt.datetime.fromtimestamp(unix_timestamp, tz=dt.timezone.utc)
+                    pkt_time = utc_time + dt.timedelta(hours=5)
+                    
+                    tick_data.append({
+                        'timestamp': unix_timestamp,
+                        'price': float(price),
+                        'volume': int(volume),
+                        'datetime_utc': utc_time,
+                        'datetime_pkt': pkt_time.replace(tzinfo=None),  # Remove timezone for easier handling
+                        'time_pkt': pkt_time.strftime('%H:%M:%S')
+                    })
+                
+                df = pd.DataFrame(tick_data)
+                
+                # Cache the result
+                self.cache[cache_key] = {
+                    'data': df,
+                    'timestamp': time.time()
+                }
+                
+                logger.info(f"✅ Intraday ticks for {clean_symbol}: {len(df)} trades")
+                return df
+                
+            logger.warning(f"No intraday data returned for {clean_symbol}")
+            return pd.DataFrame()
             
         except Exception as e:
-            logger.error(f"PSX DPS fetch failed for {symbol}: {e}")
-            return None
+            logger.error(f"Error fetching intraday data for {clean_symbol}: {e}")
+            return pd.DataFrame()
     
-    def _extract_stock_data(self, soup: BeautifulSoup, symbol: str) -> Optional[Dict[str, Any]]:
-        """Extract stock data from parsed HTML"""
+    def fetch_historical_data(self, symbol: str, start_date: dt.date = None, end_date: dt.date = None) -> pd.DataFrame:
+        """
+        Fetch historical data for a stock symbol
         
-        try:
-            data = {}
+        Args:
+            symbol: Stock symbol
+            start_date: Start date (defaults to 30 days ago)
+            end_date: End date (defaults to today)
             
-            # Look for price information in various possible locations
-            price_selectors = [
-                # Common patterns for stock prices on financial websites
-                '[class*="price"]',
-                '[class*="last"]',
-                '[class*="current"]',
-                '[id*="price"]',
-                '[id*="last"]',
-                '.stock-price',
-                '.current-price',
-                '.last-price',
-                'span[class*="price"]',
-                'div[class*="price"]'
-            ]
-            
-            for selector in price_selectors:
-                elements = soup.select(selector)
-                for element in elements:
-                    text = element.get_text(strip=True)
-                    # Look for numeric values that could be prices
-                    price_match = re.search(r'(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)', text)
-                    if price_match:
-                        try:
-                            price = float(price_match.group(1).replace(',', ''))
-                            # Reasonable range for PSX stocks
-                            if 1 <= price <= 50000:
-                                data['price'] = price
-                                data['price_text'] = text
-                                break
-                        except ValueError:
-                            continue
-                
-                if 'price' in data:
-                    break
-            
-            # Look for volume data
-            volume_selectors = [
-                '[class*="volume"]',
-                '[id*="volume"]',
-                'td:contains("Volume")',
-                'th:contains("Volume")'
-            ]
-            
-            for selector in volume_selectors:
-                elements = soup.select(selector)
-                for element in elements:
-                    text = element.get_text(strip=True)
-                    volume_match = re.search(r'(\d{1,3}(?:,\d{3})*)', text)
-                    if volume_match:
-                        try:
-                            volume = int(volume_match.group(1).replace(',', ''))
-                            data['volume'] = volume
-                            break
-                        except ValueError:
-                            continue
-                
-                if 'volume' in data:
-                    break
-            
-            # Look for change information
-            change_selectors = [
-                '[class*="change"]',
-                '[class*="diff"]',
-                '[id*="change"]',
-                'span[style*="color"]'  # Colored text often indicates change
-            ]
-            
-            for selector in change_selectors:
-                elements = soup.select(selector)
-                for element in elements:
-                    text = element.get_text(strip=True)
-                    # Look for change patterns like +5.25 or -2.30
-                    change_match = re.search(r'([+-]?\d+\.?\d*)', text)
-                    if change_match:
-                        try:
-                            change = float(change_match.group(1))
-                            data['change'] = change
-                            
-                            # Try to extract percentage if available
-                            pct_match = re.search(r'([+-]?\d+\.?\d*)%', text)
-                            if pct_match:
-                                data['change_percent'] = float(pct_match.group(1))
-                            break
-                        except ValueError:
-                            continue
-                
-                if 'change' in data:
-                    break
-            
-            # Look for any table data that might contain our symbol
-            tables = soup.find_all('table')
-            for table in tables:
-                rows = table.find_all('tr')
-                for row in rows:
-                    cells = row.find_all(['td', 'th'])
-                    if len(cells) >= 3:  # Need at least symbol, price, and one other field
-                        first_cell = cells[0].get_text(strip=True)
-                        if symbol.upper() in first_cell.upper():
-                            # Try to extract price from subsequent cells
-                            for i in range(1, min(len(cells), 5)):
-                                cell_text = cells[i].get_text(strip=True)
-                                price_match = re.search(r'(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)', cell_text)
-                                if price_match:
-                                    try:
-                                        price = float(price_match.group(1).replace(',', ''))
-                                        if 1 <= price <= 50000:
-                                            data['price'] = price
-                                            data['table_source'] = True
-                                            break
-                                    except ValueError:
-                                        continue
-                            if 'price' in data:
-                                break
-                
-                if 'price' in data:
-                    break
-            
-            # Return data if we found at least a price
-            if 'price' in data:
-                return data
-            
-            return None
-            
-        except Exception as e:
-            logger.debug(f"Data extraction error: {e}")
-            return None
-    
-    def _try_alternative_methods(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Try alternative methods to get stock data"""
+        Returns:
+            DataFrame with historical OHLCV data
+        """
+        clean_symbol = self._clean_symbol(symbol)
         
-        try:
-            # Method 1: Try the main market data page
-            url = f"{self.base_url}/"
-            response = self.session.get(url, timeout=10)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Look for any mention of our symbol on the main page
-                page_text = soup.get_text()
-                if symbol.upper() in page_text.upper():
-                    # Try to extract price near the symbol mention
-                    lines = page_text.split('\n')
-                    for i, line in enumerate(lines):
-                        if symbol.upper() in line.upper():
-                            # Check surrounding lines for price patterns
-                            search_lines = lines[max(0, i-2):i+3]
-                            for search_line in search_lines:
-                                price_match = re.search(r'(\d{1,4}(?:,\d{3})*(?:\.\d{1,4})?)', search_line)
-                                if price_match:
-                                    try:
-                                        price = float(price_match.group(1).replace(',', ''))
-                                        if 1 <= price <= 50000:
-                                            return {
-                                                'price': price,
-                                                'method': 'main_page_search'
-                                            }
-                                    except ValueError:
-                                        continue
-            
-            return None
-            
-        except Exception as e:
-            logger.debug(f"Alternative method error: {e}")
-            return None
-    
-    def get_market_indices(self) -> Dict[str, Dict[str, Any]]:
-        """Get major PSX market indices (KSE100, ALLSHR, KSE30)"""
+        # Set default dates if not provided
+        if end_date is None:
+            end_date = dt.date.today()
+        if start_date is None:
+            start_date = end_date - dt.timedelta(days=30)
+        
+        cache_key = f"historical_{clean_symbol}_{start_date}_{end_date}"
+        if self._is_cached(cache_key):
+            logger.debug(f"Using cached historical data for {clean_symbol}")
+            return self.cache[cache_key]['data']
         
         self._rate_limit()
         
         try:
-            url = f"{self.base_url}/"
-            response = self.session.get(url, timeout=10)
+            url = f"{self.base_url}/{clean_symbol}"
+            logger.debug(f"Fetching historical data from: {url}")
+            
+            response = self.session.get(url, timeout=15)
             response.raise_for_status()
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            data = response.json()
             
-            indices = {}
-            
-            # Common PSX indices
-            target_indices = ['KSE100', 'ALLSHR', 'KSE30', 'KSE All Share']
-            
-            # Look for index data
-            for index_name in target_indices:
-                # Search for the index name and nearby price data
-                text = soup.get_text()
-                if index_name in text:
-                    # Try to find price data near the index name
-                    lines = text.split('\n')
-                    for i, line in enumerate(lines):
-                        if index_name in line:
-                            # Look in surrounding lines for numbers
-                            search_lines = lines[max(0, i-2):i+3]
-                            for search_line in search_lines:
-                                numbers = re.findall(r'(\d{1,6}(?:,\d{3})*(?:\.\d{1,4})?)', search_line)
-                                if numbers:
-                                    try:
-                                        # Take the largest reasonable number as the index value
-                                        values = [float(n.replace(',', '')) for n in numbers]
-                                        index_value = max([v for v in values if 1000 <= v <= 200000])
-                                        
-                                        indices[index_name] = {
-                                            'value': index_value,
-                                            'timestamp': dt.datetime.now()
-                                        }
-                                        break
-                                    except (ValueError, IndexError):
-                                        continue
-                            break
-            
-            return indices
+            if data.get('status') == 1 and data.get('data'):
+                time_series = data['data']
+                
+                if not time_series:
+                    return pd.DataFrame()
+                
+                # Convert to DataFrame
+                df_data = []
+                for entry in time_series:
+                    timestamp, price, volume = entry
+                    dt_obj = dt.datetime.fromtimestamp(timestamp)
+                    
+                    # Filter by date range if specified
+                    if start_date and dt_obj.date() < start_date:
+                        continue
+                    if end_date and dt_obj.date() > end_date:
+                        continue
+                    
+                    df_data.append({
+                        'Date': dt_obj,
+                        'Price': float(price),
+                        'Volume': int(volume),
+                        'Timestamp': timestamp
+                    })
+                
+                if not df_data:
+                    return pd.DataFrame()
+                
+                df = pd.DataFrame(df_data)
+                df = df.sort_values('Date').reset_index(drop=True)
+                
+                # Convert to OHLCV format by grouping by date
+                ohlcv_df = self._convert_to_ohlcv(df)
+                
+                if not ohlcv_df.empty:
+                    # Cache the result
+                    self._cache_data(cache_key, ohlcv_df)
+                    logger.info(f"✅ Historical data for {clean_symbol}: {len(ohlcv_df)} days")
+                
+                return ohlcv_df
+                
+            logger.warning(f"No historical data returned for {clean_symbol}")
+            return pd.DataFrame()
             
         except Exception as e:
-            logger.error(f"Market indices fetch failed: {e}")
-            return {}
+            logger.error(f"Error fetching historical data for {clean_symbol}: {e}")
+            return pd.DataFrame()
     
-    def search_symbol(self, query: str) -> List[str]:
-        """Search for symbols on PSX DPS"""
+    def fetch_multiple_real_time(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch real-time data for multiple symbols
         
-        # This would require analyzing the search functionality on the PSX DPS site
-        # For now, return empty list as we'd need to reverse engineer their search API
-        return []
-    
-    def get_historical_data(self, symbol: str, start_date: dt.date, end_date: dt.date) -> pd.DataFrame:
-        """Get historical data (if available on PSX DPS)"""
-        
-        # PSX DPS might have historical data functionality
-        # This would require detailed analysis of their historical data interface
-        return pd.DataFrame()
-
-# Integration function for existing system
-def get_official_psx_price(symbol: str) -> Dict[str, Any]:
-    """Get official PSX price from DPS with enhanced error handling"""
-    
-    fetcher = PSXDPSFetcher()
-    
-    print(f"🏛️ Fetching official PSX price for {symbol}...")
-    
-    try:
-        result = fetcher.get_stock_quote(symbol)
-        
-        if result and result.get('price'):
-            print(f"✅ Official PSX price: {result['price']:.2f} PKR")
-            print(f"📊 Source: {result['source']}")
+        Args:
+            symbols: List of stock symbols
             
+        Returns:
+            Dictionary with symbol as key and real-time data as value
+        """
+        results = {}
+        
+        for symbol in symbols:
+            try:
+                data = self.fetch_real_time_data(symbol)
+                results[symbol] = data
+            except Exception as e:
+                logger.error(f"Error fetching {symbol}: {e}")
+                results[symbol] = None
+        
+        return results
+    
+    def get_market_status(self) -> Dict[str, Any]:
+        """Get PSX market status"""
+        now = dt.datetime.now()
+        
+        # PSX trading hours: 9:30 AM - 3:30 PM PKT (Monday-Friday)
+        if now.weekday() >= 5:  # Weekend
             return {
-                'price': result['price'],
-                'currency': 'PKR',
-                'source': result['source'],
-                'confidence': 9,  # High confidence for official source
-                'is_current': True,
-                'data_freshness': 'Official PSX data',
-                'timestamp': result['timestamp'],
-                'volume': result.get('volume'),
-                'change': result.get('change'),
-                'change_percent': result.get('change_percent')
+                'status': 'closed',
+                'message': 'PSX Closed (Weekend)',
+                'next_open': 'Monday 9:30 AM PKT',
+                'is_trading': False
+            }
+        
+        if now.time() < dt.time(9, 30):
+            return {
+                'status': 'pre_market',
+                'message': 'Pre-Market (Opens 9:30 AM PKT)',
+                'next_event': 'Market opens at 9:30 AM',
+                'is_trading': False
+            }
+        elif now.time() > dt.time(15, 30):
+            return {
+                'status': 'closed',
+                'message': 'PSX Closed (Opens 9:30 AM tomorrow)',
+                'next_event': 'Market opens tomorrow at 9:30 AM',
+                'is_trading': False
             }
         else:
-            print(f"❌ Could not fetch official PSX price for {symbol}")
-            return None
+            return {
+                'status': 'open',
+                'message': 'PSX Open (Closes 3:30 PM PKT)',
+                'next_event': 'Market closes at 3:30 PM',
+                'is_trading': True
+            }
+    
+    def search_symbols(self, query: str) -> List[str]:
+        """Search for symbols matching the query"""
+        query_upper = query.upper()
+        matches = [symbol for symbol in self.known_symbols if query_upper in symbol]
+        return matches[:10]  # Return top 10 matches
+    
+    def validate_symbol(self, symbol: str) -> bool:
+        """Validate if a symbol is available"""
+        clean_symbol = self._clean_symbol(symbol)
+        
+        # Quick validation against known symbols
+        if clean_symbol in self.known_symbols:
+            return True
+        
+        # Test with API call
+        try:
+            result = self.fetch_real_time_data(clean_symbol)
+            return result is not None
+        except:
+            return False
+    
+    def _clean_symbol(self, symbol: str) -> str:
+        """Clean and standardize symbol format"""
+        return symbol.replace('.KAR', '').replace('.PSX', '').upper().strip()
+    
+    def _convert_to_ohlcv(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert tick data to OHLCV format by grouping by date"""
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Group by date
+        df['Date'] = pd.to_datetime(df['Date']).dt.date
+        
+        ohlcv_data = []
+        for date, group in df.groupby('Date'):
+            group_sorted = group.sort_values('Timestamp')
             
-    except Exception as e:
-        logger.error(f"Official PSX fetch failed: {e}")
-        print(f"❌ Official PSX fetch error: {e}")
-        return None
+            ohlcv_data.append({
+                'Date': pd.Timestamp(date),
+                'Open': group_sorted['Price'].iloc[0],
+                'High': group_sorted['Price'].max(),
+                'Low': group_sorted['Price'].min(),
+                'Close': group_sorted['Price'].iloc[-1],
+                'Volume': group_sorted['Volume'].sum()
+            })
+        
+        ohlcv_df = pd.DataFrame(ohlcv_data)
+        return ohlcv_df.sort_values('Date').reset_index(drop=True)
+    
+    def _is_cached(self, cache_key: str) -> bool:
+        """Check if data is cached and still valid"""
+        if cache_key not in self.cache:
+            return False
+        
+        cache_time = self.cache[cache_key]['timestamp']
+        return (time.time() - cache_time) < self.cache_expiry
+    
+    def _cache_data(self, cache_key: str, data: Any):
+        """Cache data with timestamp"""
+        self.cache[cache_key] = {
+            'data': data,
+            'timestamp': time.time()
+        }
+    
+    def get_volume_profile(self, symbol: str, time_window_minutes: int = 30) -> Dict[str, Any]:
+        """
+        Analyze volume profile for the last N minutes
+        
+        Args:
+            symbol: Stock symbol
+            time_window_minutes: Time window for analysis
+            
+        Returns:
+            Dictionary with volume profile analysis
+        """
+        try:
+            df = self.fetch_intraday_ticks(symbol)
+            
+            if df.empty:
+                return {}
+            
+            # Filter to time window
+            cutoff_time = dt.datetime.now() - dt.timedelta(minutes=time_window_minutes)
+            recent_df = df[df['datetime_pkt'] >= cutoff_time].copy()
+            
+            if recent_df.empty:
+                return {}
+            
+            # Calculate volume profile
+            total_volume = recent_df['volume'].sum()
+            avg_price = (recent_df['price'] * recent_df['volume']).sum() / total_volume
+            
+            # Price levels with high volume (VWAP areas)
+            price_min = recent_df['price'].min()
+            price_max = recent_df['price'].max()
+            price_range = price_max - price_min
+            
+            # Divide into price levels
+            num_levels = min(10, len(recent_df))
+            if num_levels < 2:
+                num_levels = 2
+                
+            level_size = price_range / num_levels
+            
+            volume_by_level = {}
+            for i in range(num_levels):
+                level_min = price_min + (i * level_size)
+                level_max = level_min + level_size
+                
+                level_trades = recent_df[
+                    (recent_df['price'] >= level_min) & 
+                    (recent_df['price'] < level_max)
+                ]
+                
+                level_volume = level_trades['volume'].sum()
+                level_price = (level_min + level_max) / 2
+                
+                if level_volume > 0:
+                    volume_by_level[f"{level_price:.2f}"] = level_volume
+            
+            # Find high volume nodes (POC - Point of Control)
+            poc_price = max(volume_by_level.keys(), key=lambda k: volume_by_level[k]) if volume_by_level else avg_price
+            
+            return {
+                'total_trades': len(recent_df),
+                'total_volume': total_volume,
+                'vwap': avg_price,
+                'price_range': price_range,
+                'poc_price': float(poc_price) if isinstance(poc_price, str) else poc_price,
+                'volume_by_level': volume_by_level,
+                'high_volume_price': float(poc_price) if isinstance(poc_price, str) else poc_price,
+                'time_window_minutes': time_window_minutes
+            }
+            
+        except Exception as e:
+            logger.error(f"Volume profile analysis error for {symbol}: {e}")
+            return {}
+    
+    def get_price_momentum(self, symbol: str, lookback_minutes: int = 15) -> Dict[str, Any]:
+        """
+        Calculate price momentum indicators for intraday trading
+        
+        Args:
+            symbol: Stock symbol
+            lookback_minutes: Minutes to look back for momentum calculation
+            
+        Returns:
+            Dictionary with momentum indicators
+        """
+        try:
+            df = self.fetch_intraday_ticks(symbol, limit=100)  # Get recent trades
+            
+            if df.empty or len(df) < 2:
+                return {}
+            
+            # Current vs historical comparison
+            current_price = df.iloc[0]['price']
+            
+            # Filter to time window
+            cutoff_time = dt.datetime.now() - dt.timedelta(minutes=lookback_minutes)
+            recent_df = df[df['datetime_pkt'] >= cutoff_time].copy()
+            
+            if len(recent_df) < 2:
+                return {}
+            
+            # Price momentum
+            oldest_price = recent_df.iloc[-1]['price']  # Oldest in window
+            price_change = current_price - oldest_price
+            price_change_pct = (price_change / oldest_price) * 100
+            
+            # Volume momentum
+            recent_volume = recent_df['volume'].sum()
+            avg_trade_volume = recent_df['volume'].mean()
+            
+            # Trade frequency
+            trade_frequency = len(recent_df) / lookback_minutes  # trades per minute
+            
+            # Price velocity (change per minute)
+            time_diff = (recent_df.iloc[0]['datetime_pkt'] - recent_df.iloc[-1]['datetime_pkt']).total_seconds() / 60
+            price_velocity = price_change / max(time_diff, 1)  # PKR per minute
+            
+            # Support/Resistance levels from recent trades
+            support_level = recent_df['price'].min()
+            resistance_level = recent_df['price'].max()
+            
+            # Momentum classification
+            momentum_strength = "Strong" if abs(price_change_pct) > 2.0 else \
+                               "Moderate" if abs(price_change_pct) > 0.5 else "Weak"
+            
+            momentum_direction = "Bullish" if price_change > 0 else "Bearish" if price_change < 0 else "Neutral"
+            
+            return {
+                'current_price': current_price,
+                'price_change': price_change,
+                'price_change_pct': price_change_pct,
+                'momentum_strength': momentum_strength,
+                'momentum_direction': momentum_direction,
+                'recent_volume': recent_volume,
+                'avg_trade_volume': avg_trade_volume,
+                'trade_frequency': trade_frequency,
+                'price_velocity': price_velocity,
+                'support_level': support_level,
+                'resistance_level': resistance_level,
+                'lookback_minutes': lookback_minutes,
+                'trades_analyzed': len(recent_df)
+            }
+            
+        except Exception as e:
+            logger.error(f"Price momentum analysis error for {symbol}: {e}")
+            return {}
+    
+    def get_liquidity_analysis(self, symbol: str) -> Dict[str, Any]:
+        """
+        Analyze market liquidity based on recent tick data
+        
+        Args:
+            symbol: Stock symbol
+            
+        Returns:
+            Dictionary with liquidity metrics
+        """
+        try:
+            df = self.fetch_intraday_ticks(symbol, limit=50)  # Last 50 trades
+            
+            if df.empty:
+                return {}
+            
+            # Time between trades (liquidity indicator)
+            df_sorted = df.sort_values('timestamp')  # Oldest first for proper diff
+            df_sorted['time_diff'] = df_sorted['timestamp'].diff()
+            
+            avg_time_between_trades = df_sorted['time_diff'].mean()
+            
+            # Volume distribution
+            total_volume = df['volume'].sum()
+            large_trades = df[df['volume'] >= df['volume'].quantile(0.8)]  # Top 20% by volume
+            large_trade_volume = large_trades['volume'].sum()
+            large_trade_pct = (large_trade_volume / total_volume) * 100
+            
+            # Price impact analysis
+            price_std = df['price'].std()
+            price_range = df['price'].max() - df['price'].min()
+            
+            # Liquidity score (inverse of time between trades, higher = more liquid)
+            liquidity_score = 1 / max(avg_time_between_trades, 1) * 1000  # Normalize
+            
+            liquidity_level = "High" if liquidity_score > 10 else \
+                             "Medium" if liquidity_score > 5 else "Low"
+            
+            return {
+                'avg_time_between_trades': avg_time_between_trades,
+                'total_trades': len(df),
+                'total_volume': total_volume,
+                'large_trade_percentage': large_trade_pct,
+                'price_volatility': price_std,
+                'price_range': price_range,
+                'liquidity_score': liquidity_score,
+                'liquidity_level': liquidity_level
+            }
+            
+        except Exception as e:
+            logger.error(f"Liquidity analysis error for {symbol}: {e}")
+            return {}
+    
+    def clear_cache(self):
+        """Clear all cached data"""
+        self.cache = {}
+
+# Convenience functions for external use
+def get_official_psx_price(symbol: str) -> Optional[Dict[str, Any]]:
+    """Get official PSX price for a symbol"""
+    fetcher = PSXDPSFetcher()
+    return fetcher.fetch_real_time_data(symbol)
+
+def get_official_psx_historical(symbol: str, days: int = 30) -> pd.DataFrame:
+    """Get official PSX historical data"""
+    fetcher = PSXDPSFetcher()
+    end_date = dt.date.today()
+    start_date = end_date - dt.timedelta(days=days)
+    return fetcher.fetch_historical_data(symbol, start_date, end_date)
 
 # Test function
 def test_psx_dps_fetcher():
     """Test the PSX DPS fetcher"""
-    print("🚀 Testing PSX DPS Official Data Fetcher")
-    print("=" * 55)
+    print("🚀 Testing PSX DPS Official JSON API Data Fetcher")
+    print("=" * 50)
     
     fetcher = PSXDPSFetcher()
     
-    # Test major indices first
-    print("\n📊 Testing market indices...")
-    indices = fetcher.get_market_indices()
-    if indices:
-        for name, data in indices.items():
-            print(f"✅ {name}: {data['value']:.2f}")
-    else:
-        print("⚠️ No market indices found")
+    # Test market status
+    market_status = fetcher.get_market_status()
+    print(f"📊 Market Status: {market_status['message']}")
     
-    # Test stock quotes
-    test_symbols = ['UBL', 'MCB', 'ABL']
+    # Test real-time data
+    test_symbols = ['UBL', 'MCB', 'LUCK', 'FFC']
+    print(f"\n📈 Testing Real-time Data:")
     
     for symbol in test_symbols:
-        print(f"\n💰 Testing {symbol} stock quote...")
-        result = get_official_psx_price(symbol)
-        
-        if result:
-            print(f"   Price: {result['price']:.2f} PKR")
-            if result.get('change'):
-                print(f"   Change: {result['change']:+.2f}")
-            if result.get('volume'):
-                print(f"   Volume: {result['volume']:,}")
-        else:
-            print(f"   ❌ Failed to get price for {symbol}")
+        try:
+            data = fetcher.fetch_real_time_data(symbol)
+            if data:
+                print(f"   ✅ {symbol}: {data['price']:.2f} PKR (Vol: {data['volume']:,})")
+                print(f"      📅 Updated: {data['datetime'].strftime('%Y-%m-%d %H:%M:%S')}")
+            else:
+                print(f"   ❌ {symbol}: No data available")
+        except Exception as e:
+            print(f"   ❌ {symbol}: Error - {e}")
     
-    print(f"\n🏁 PSX DPS test completed!")
+    # Test historical data
+    print(f"\n📊 Testing Historical Data:")
+    for symbol in ['UBL', 'MCB']:
+        try:
+            historical = fetcher.fetch_historical_data(symbol)
+            if not historical.empty:
+                print(f"   ✅ {symbol}: {len(historical)} days of historical data")
+                print(f"      📅 Range: {historical['Date'].min().date()} to {historical['Date'].max().date()}")
+                print(f"      💰 Latest close: {historical['Close'].iloc[-1]:.2f} PKR")
+            else:
+                print(f"   ❌ {symbol}: No historical data")
+        except Exception as e:
+            print(f"   ❌ {symbol}: Historical error - {e}")
+    
+    print(f"\n🏁 PSX DPS fetcher test completed!")
 
 if __name__ == "__main__":
     test_psx_dps_fetcher()

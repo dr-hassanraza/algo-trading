@@ -278,6 +278,13 @@ try:
 except ImportError:
     PSX_DPS_AVAILABLE = False
 
+# Import EODHD Premium fetcher
+try:
+    from eodhd_premium_fetcher import get_eodhd_premium_price
+    EODHD_PREMIUM_AVAILABLE = True
+except ImportError:
+    EODHD_PREMIUM_AVAILABLE = False
+
 def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
     """Get the most accurate price available"""
     
@@ -285,7 +292,17 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
     
     print(f"\n🎯 Getting most accurate price for {clean_symbol}...")
     
-    # 1. Try PSX DPS official source first (highest priority)
+    # 1. Try EODHD Premium first (your purchased API - highest priority)
+    if EODHD_PREMIUM_AVAILABLE:
+        try:
+            premium_result = get_eodhd_premium_price(clean_symbol)
+            if premium_result and premium_result.get('price'):
+                print(f"✅ Found via EODHD Premium: {premium_result['price']:.2f} PKR")
+                return premium_result
+        except Exception as e:
+            print(f"⚠️ EODHD Premium failed: {e}")
+    
+    # 2. Try PSX DPS official source (second priority)  
     if PSX_DPS_AVAILABLE:
         try:
             official_result = get_official_psx_price(clean_symbol)
@@ -295,7 +312,7 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"⚠️ PSX DPS failed: {e}")
     
-    # 2. Check manual database (fallback for verification)
+    # 3. Check manual database (fallback for verification)
     if clean_symbol in MANUAL_PSX_PRICES:
         manual_data = MANUAL_PSX_PRICES[clean_symbol]
         print(f"✅ Found in manual database: {manual_data['price']:.2f} PKR")
@@ -309,7 +326,7 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
             'data_freshness': 'Manual verification'
         }
     
-    # 3. Try other web scraping sources (as additional fallback)
+    # 4. Try other web scraping sources (as additional fallback)
     scraper = PSXWebScraper()
     scraped_result = scraper.get_accurate_psx_price(clean_symbol)
     
@@ -320,7 +337,7 @@ def get_most_accurate_price(symbol: str) -> Dict[str, Any]:
         scraped_result['data_freshness'] = 'Real-time scraping'
         return scraped_result
     
-    # 4. Final fallback message
+    # 5. Final fallback message
     print(f"❌ Could not find accurate current price for {clean_symbol}")
     print(f"💡 Consider checking PSX DPS website directly or adding to manual database")
     

@@ -913,6 +913,71 @@ def render_header():
         </div>
         """, unsafe_allow_html=True)
 
+def safe_generate_signal(symbol, market_data, system):
+    """Safely generate trading signal with comprehensive error handling"""
+    try:
+        # Get intraday ticks for analysis
+        ticks_df = get_cached_intraday_ticks(symbol, 50)
+        
+        if not ticks_df.empty and len(ticks_df) >= 10:
+            # Calculate indicators and generate signals
+            ticks_df = system.calculate_technical_indicators(ticks_df)
+            signal_data = system.generate_trading_signals(ticks_df, symbol)
+            
+            # Validate signal data structure
+            if not signal_data or not isinstance(signal_data, dict):
+                raise ValueError("Invalid signal data returned")
+            
+            # Ensure required fields exist with safe defaults
+            safe_price = market_data.get('price', 100)
+            defaults = {
+                'signal': 'HOLD',
+                'confidence': 0,
+                'entry_price': safe_price,
+                'stop_loss': safe_price * 0.98,
+                'take_profit': safe_price * 1.04,
+                'reasons': ['Technical analysis'],
+                'volume_support': False,
+                'liquidity_ok': True,
+                'position_size': 0.0
+            }
+            
+            for field, default_value in defaults.items():
+                if field not in signal_data:
+                    signal_data[field] = default_value
+            
+            return signal_data
+            
+        else:
+            # Insufficient data - return safe default
+            safe_price = market_data.get('price', 100)
+            return {
+                'signal': 'HOLD',
+                'confidence': 0,
+                'entry_price': safe_price,
+                'stop_loss': safe_price * 0.98,
+                'take_profit': safe_price * 1.04,
+                'reasons': ['Insufficient historical data'],
+                'volume_support': False,
+                'liquidity_ok': True,
+                'position_size': 0.0
+            }
+            
+    except Exception as e:
+        # Error in analysis - return safe fallback
+        safe_price = market_data.get('price', 100)
+        return {
+            'signal': 'HOLD',
+            'confidence': 0,
+            'entry_price': safe_price,
+            'stop_loss': safe_price * 0.98,
+            'take_profit': safe_price * 1.04,
+            'reasons': [f'Analysis error: {str(e)[:50]}'],
+            'volume_support': False,
+            'liquidity_ok': True,
+            'position_size': 0.0
+        }
+
 def render_live_trading_signals():
     """Render live trading signals"""
     st.markdown("## 🚨 Live Trading Signals")
@@ -1148,73 +1213,82 @@ def render_live_trading_signals():
     # Create 4x3 grid for 12 stocks
     system = PSXAlgoTradingSystem()
     
-    # Display stocks in rows of 4
-    for row in range(0, len(available_symbols), 4):
-        cols = st.columns(4)
-        row_symbols = available_symbols[row:row+4]
-        
-        for col_idx, symbol in enumerate(row_symbols):
-            with cols[col_idx]:
-                # Get real-time data
-                market_data = get_cached_real_time_data(symbol)
-                
-                if market_data:
-                    # Get intraday ticks for analysis
-                    ticks_df = get_cached_intraday_ticks(symbol, 50)
+    # Display stocks in rows of 4 with error handling
+    try:
+        for row in range(0, len(available_symbols), 4):
+            cols = st.columns(4)
+            row_symbols = available_symbols[row:row+4]
+            
+            for col_idx, symbol in enumerate(row_symbols):
+                with cols[col_idx]:
+                    try:
+                        # Get real-time data
+                        market_data = get_cached_real_time_data(symbol)
+                        
+                        if market_data and 'price' in market_data and market_data['price'] > 0:
+                            # Safe signal generation with full error handling
+                            signal_data = safe_generate_signal(symbol, market_data, system)
+                            
+                            # Display signal with safe data extraction
+                            signal_type = signal_data.get('signal', 'HOLD')
+                            confidence = signal_data.get('confidence', 0)
+                            signal_class = f"signal-{signal_type.lower().replace('_', '-')}"
+                            
+                            st.markdown(f"""
+                            <div class="{signal_class}">
+                                <h5>{symbol}</h5>
+                                <h3>{signal_type}</h3>
+                                <p>Confidence: {confidence:.1f}%</p>
+                                <p>Price: {market_data['price']:.2f} PKR</p>
+                                <small>Entry: {signal_data.get('entry_price', market_data['price']):.2f}</small><br>
+                                <small>Stop: {signal_data.get('stop_loss', market_data['price'] * 0.98):.2f}</small><br>
+                                <small>Target: {signal_data.get('take_profit', market_data['price'] * 1.04):.2f}</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Show reasons if available
+                            if signal_data.get('reasons'):
+                                with st.expander(f"📋 {symbol} Analysis"):
+                                    for reason in signal_data['reasons'][:3]:
+                                        st.write(f"• {reason}")
+                                    
+                                    st.write(f"**Volume Support**: {'✅' if signal_data.get('volume_support', False) else '❌'}")
+                                    st.write(f"**Liquidity OK**: {'✅' if signal_data.get('liquidity_ok', True) else '❌'}")
+                                    st.write(f"**Position Size**: {signal_data.get('position_size', 0.0):.2%}")
+                        
+                        elif market_data and 'price' in market_data:
+                            # Show price-only view when price is available but possibly invalid
+                            st.markdown(f"""
+                            <div class="signal-hold">
+                                <h5>{symbol}</h5>
+                                <h3>PRICE ONLY</h3>
+                                <p>Limited analysis capability</p>
+                                <p>Price: {market_data.get('price', 0):.2f} PKR</p>
+                                <small>Volume: {market_data.get('volume', 0):,}</small>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        else:
+                            # Show unavailable data card
+                            st.markdown(f"""
+                            <div class="signal-hold">
+                                <h5>{symbol}</h5>
+                                <h3>OFFLINE</h3>
+                                <p>Data temporarily unavailable</p>
+                                <small>Refresh in few moments</small>
+                            </div>
+                            """, unsafe_allow_html=True)
                     
-                    if not ticks_df.empty and len(ticks_df) >= 10:
-                        # Calculate indicators and generate signals
-                        ticks_df = system.calculate_technical_indicators(ticks_df)
-                        signal_data = system.generate_trading_signals(ticks_df, symbol)
+                    except Exception as e:
+                        # Show error for this individual stock
+                        st.error(f"❌ **{symbol}**: Analysis failed")
+                        st.caption(f"Error: {str(e)[:100]}")
                         
-                        # Display signal
-                        signal_type = signal_data['signal']
-                        confidence = signal_data['confidence']
-                        
-                        signal_class = f"signal-{signal_type.lower().replace('_', '-')}"
-                        
-                        st.markdown(f"""
-                        <div class="{signal_class}">
-                            <h5>{symbol}</h5>
-                            <h3>{signal_type}</h3>
-                            <p>Confidence: {confidence:.1f}%</p>
-                            <p>Price: {market_data['price']:.2f} PKR</p>
-                            <small>Entry: {signal_data['entry_price']:.2f}</small><br>
-                            <small>Stop: {signal_data['stop_loss']:.2f}</small><br>
-                            <small>Target: {signal_data['take_profit']:.2f}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Show reasons
-                        if signal_data.get('reasons'):
-                            with st.expander(f"📋 {symbol} Analysis"):
-                                for reason in signal_data['reasons'][:3]:
-                                    st.write(f"• {reason}")
-                                
-                                st.write(f"**Volume Support**: {'✅' if signal_data['volume_support'] else '❌'}")
-                                st.write(f"**Liquidity OK**: {'✅' if signal_data['liquidity_ok'] else '❌'}")
-                                st.write(f"**Position Size**: {signal_data['position_size']:.2%}")
-                    else:
-                        # Show price-only view when technical analysis isn't available
-                        st.markdown(f"""
-                        <div class="signal-hold">
-                            <h5>{symbol}</h5>
-                            <h3>PRICE ONLY</h3>
-                            <p>Limited data available</p>
-                            <p>Price: {market_data['price']:.2f} PKR</p>
-                            <small>Volume: {market_data.get('volume', 0):,}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    # Show unavailable data card
-                    st.markdown(f"""
-                    <div class="signal-hold">
-                        <h5>{symbol}</h5>
-                        <h3>OFFLINE</h3>
-                        <p>Data temporarily unavailable</p>
-                        <small>Refresh in few moments</small>
-                    </div>
-                    """, unsafe_allow_html=True)
+    except Exception as e:
+        # Catch any errors in the entire signal rendering loop
+        st.error("🚨 **Signal Analysis Error**")
+        st.error(f"There was an error processing the trading signals: {str(e)}")
+        st.info("💡 **Troubleshooting**: Try refreshing the page or selecting different stocks.")
     
     # Portfolio Summary Section
     st.markdown("---")

@@ -72,6 +72,7 @@ def render_login_page():
                                 st.session_state['authenticated'] = True
                                 st.session_state['username'] = username
                                 st.session_state['login_method'] = 'gmail'
+                                st.session_state['login_time'] = datetime.now().isoformat()
                                 st.success("✅ Gmail login successful! Redirecting...")
                                 st.rerun()
                         else:
@@ -102,6 +103,7 @@ def render_login_page():
                                 st.session_state['authenticated'] = True
                                 st.session_state['username'] = username
                                 st.session_state['login_method'] = 'linkedin'
+                                st.session_state['login_time'] = datetime.now().isoformat()
                                 st.success("✅ LinkedIn login successful! Redirecting...")
                                 st.rerun()
                         else:
@@ -128,6 +130,7 @@ def render_login_page():
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
                         st.session_state['login_method'] = 'password'
+                        st.session_state['login_time'] = datetime.now().isoformat()
                         st.success("✅ Login successful! Redirecting...")
                         st.rerun()
                     else:
@@ -198,21 +201,66 @@ def render_login_page():
     st.info("💡 **Guest users** can access all features but data won't be saved between sessions.")
 
 def render_logout():
-    """Render logout functionality in sidebar"""
+    """Render logout functionality in sidebar with session info"""
     if st.session_state.get('authenticated', False):
         username = st.session_state.get('username', 'Unknown')
+        login_method = st.session_state.get('login_method', 'Unknown')
+        session_id = st.session_state.get('session_id', 'Unknown')[:8]  # Show first 8 chars
         
         st.sidebar.markdown("---")
         st.sidebar.markdown(f"👤 **Logged in as:** {username}")
+        st.sidebar.caption(f"🔐 Method: {login_method.title()} | Session: {session_id}")
+        
+        # Session status indicator
+        from datetime import datetime, timedelta
+        login_time = st.session_state.get('login_time')
+        if login_time:
+            try:
+                login_dt = datetime.fromisoformat(login_time)
+                session_age = datetime.now() - login_dt
+                if session_age < timedelta(hours=1):
+                    st.sidebar.success("🟢 Session Active")
+                elif session_age < timedelta(hours=12):
+                    st.sidebar.info("🟡 Session Stable")
+                else:
+                    st.sidebar.warning("🟠 Session Expiring Soon")
+            except:
+                st.sidebar.info("🔵 Session Active")
         
         if st.sidebar.button("🔓 Logout"):
+            # Clear all authentication data
             st.session_state['authenticated'] = False
             st.session_state['username'] = None
+            st.session_state['login_method'] = None
+            st.session_state['login_time'] = None
+            st.session_state['session_id'] = None
+            st.success("👋 Logged out successfully!")
             st.rerun()
 
 def check_authentication():
-    """Check if user is authenticated"""
-    return st.session_state.get('authenticated', False)
+    """Check if user is authenticated with session validation"""
+    # Check basic authentication
+    if not st.session_state.get('authenticated', False):
+        return False
+    
+    # Validate session hasn't expired (optional timeout check)
+    if 'login_time' in st.session_state:
+        from datetime import datetime, timedelta
+        login_time = st.session_state.get('login_time')
+        if isinstance(login_time, str):
+            try:
+                login_time = datetime.fromisoformat(login_time)
+            except:
+                login_time = datetime.now()
+        
+        # Session timeout: 24 hours
+        if datetime.now() - login_time > timedelta(hours=24):
+            st.session_state['authenticated'] = False
+            st.session_state['username'] = None
+            st.session_state['login_time'] = None
+            return False
+    
+    return True
 
 # Professional CSS styling
 st.markdown("""
@@ -682,21 +730,69 @@ class PSXAlgoTradingSystem:
 
 @st.cache_data(ttl=30)
 def get_cached_symbols():
-    """Cache symbols for 30 seconds"""
-    system = PSXAlgoTradingSystem()
-    return system.get_symbols()
+    """Cache symbols for 30 seconds with error handling"""
+    try:
+        system = PSXAlgoTradingSystem()
+        symbols = system.get_symbols()
+        if symbols:
+            return symbols
+        else:
+            # Return fallback symbols if empty
+            return ["HBL", "UBL", "FFC", "ENGRO", "LUCK", "PSO", "OGDC", "NBP", "MCB", "ABL"]
+    except Exception as e:
+        # Log error but don't crash - return minimal symbol set
+        print(f"Error fetching symbols: {e}")
+        return ["HBL", "UBL", "FFC", "ENGRO", "LUCK", "PSO", "OGDC", "NBP", "MCB", "ABL"]
 
 @st.cache_data(ttl=15)
 def get_cached_real_time_data(symbol):
-    """Cache real-time data for 15 seconds"""
-    system = PSXAlgoTradingSystem()
-    return system.get_real_time_data(symbol)
+    """Cache real-time data for 15 seconds with error handling"""
+    try:
+        system = PSXAlgoTradingSystem()
+        data = system.get_real_time_data(symbol)
+        if data and 'price' in data:
+            return data
+        else:
+            # Return fallback data structure
+            return {'price': 0.0, 'volume': 0, 'change': 0.0, 'change_pct': 0.0}
+    except Exception as e:
+        # Log error but don't crash - return fallback data
+        print(f"Error fetching real-time data for {symbol}: {e}")
+        return {'price': 0.0, 'volume': 0, 'change': 0.0, 'change_pct': 0.0}
 
 @st.cache_data(ttl=60)
 def get_cached_intraday_ticks(symbol, limit=100):
-    """Cache intraday ticks for 1 minute"""
-    system = PSXAlgoTradingSystem()
-    return system.get_intraday_ticks(symbol, limit)
+    """Cache intraday ticks for 1 minute with error handling"""
+    try:
+        system = PSXAlgoTradingSystem()
+        data = system.get_intraday_ticks(symbol, limit)
+        if data is not None and len(data) > 0:
+            return data
+        else:
+            # Return empty DataFrame with proper structure
+            import pandas as pd
+            return pd.DataFrame(columns=['timestamp', 'price', 'volume', 'high', 'low', 'close'])
+    except Exception as e:
+        # Log error but don't crash - return empty DataFrame
+        print(f"Error fetching intraday ticks for {symbol}: {e}")
+        import pandas as pd
+        return pd.DataFrame(columns=['timestamp', 'price', 'volume', 'high', 'low', 'close'])
+
+def safe_data_operation(operation_name, operation_func, fallback_result=None):
+    """Safely execute data operations without affecting user session"""
+    try:
+        result = operation_func()
+        return result
+    except Exception as e:
+        # Log error but don't crash or logout user
+        print(f"Safe operation '{operation_name}' failed: {e}")
+        
+        # Show non-intrusive error to user
+        if not st.session_state.get('data_error_shown', False):
+            st.sidebar.warning(f"⚠️ {operation_name} temporarily unavailable")
+            st.session_state['data_error_shown'] = True
+        
+        return fallback_result
 
 def render_header():
     """Render header"""
@@ -2197,18 +2293,30 @@ def render_admin_panel():
                             st.error("❌ Failed to change password. Please verify your current password.")
 
 def main():
-    """Main application with authentication"""
+    """Main application with authentication and error handling"""
     
-    # Check authentication
-    if not check_authentication():
-        render_login_page()
+    try:
+        # Check authentication
+        if not check_authentication():
+            render_login_page()
+            return
+        
+        # Render logout in sidebar
+        render_logout()
+        
+        # Render header
+        render_header()
+        
+        # Session persistence check
+        if 'session_id' not in st.session_state:
+            import uuid
+            st.session_state['session_id'] = str(uuid.uuid4())
+        
+    except Exception as e:
+        st.error("🔧 **System Initialization Error**")
+        st.error(f"Error details: {str(e)}")
+        st.info("Please refresh the page. If the problem persists, contact support.")
         return
-    
-    # Render logout in sidebar
-    render_logout()
-    
-    # Render header
-    render_header()
     
     # Sidebar navigation
     st.sidebar.title("🧭 Navigation")
@@ -2239,21 +2347,40 @@ def main():
         time.sleep(30)
         st.rerun()
     
-    # Page routing
-    if page == "🚨 Live Signals":
-        render_live_trading_signals()
+    # Page routing with error handling
+    try:
+        if page == "🚨 Live Signals":
+            render_live_trading_signals()
+            
+        elif page == "🔍 Symbol Analysis":
+            render_symbol_analysis()
+            
+        elif page == "🧠 Algorithm Overview":
+            render_algorithm_overview()
+            
+        elif page == "🔧 System Status":
+            render_system_status()
+            
+        elif page == "👑 Admin Panel":
+            render_admin_panel()
+            
+    except Exception as e:
+        st.error("🚨 **Page Loading Error**")
+        st.error(f"There was an error loading the {page} page.")
         
-    elif page == "🔍 Symbol Analysis":
-        render_symbol_analysis()
+        with st.expander("🔍 Error Details", expanded=False):
+            st.code(f"Error: {str(e)}")
+            st.code(f"Page: {page}")
+            st.code(f"Session ID: {st.session_state.get('session_id', 'Unknown')}")
         
-    elif page == "🧠 Algorithm Overview":
-        render_algorithm_overview()
+        st.info("💡 **Troubleshooting Steps:**")
+        st.write("1. Try refreshing the page")
+        st.write("2. Navigate to a different section and come back")
+        st.write("3. Check your internet connection")
+        st.write("4. If the problem persists, contact support")
         
-    elif page == "🔧 System Status":
-        render_system_status()
-        
-    elif page == "👑 Admin Panel":
-        render_admin_panel()
+        # Don't logout on page errors - just show error
+        return
     
     # Footer
     st.markdown("---")

@@ -141,7 +141,7 @@ class IntradayRiskManager:
             if risk_per_share <= 0:
                 return {'recommended_quantity': 0, 'risk_amount': 0, 'reason': 'Invalid risk parameters'}
             
-            # Basic position size
+            # TODO: Enhance position sizing with volatility adjustment and Kelly criterion
             base_quantity = int(max_risk_amount / risk_per_share)
             
             # Adjust for signal confidence

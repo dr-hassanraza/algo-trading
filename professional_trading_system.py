@@ -22,6 +22,7 @@ import argparse
 import logging
 import os
 import sys
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 import pandas as pd
@@ -34,6 +35,7 @@ from advanced_indicators import detect_candlestick_patterns, macd, stochastic, a
 from risk_manager import calculate_position_size, multi_timeframe_check, risk_manager
 from visualization_engine import create_chart, create_portfolio_dashboard, export_results
 from portfolio_manager import PortfolioManager
+from quant_system_config import create_default_config
 
 class ProfessionalTradingSystem:
     """Complete professional trading system"""
@@ -42,11 +44,11 @@ class ProfessionalTradingSystem:
         self.portfolio_manager = PortfolioManager()
         self.logger = logging.getLogger(__name__)
         
-        # Common PSX symbols
-        self.common_symbols = [
-            'UBL', 'MCB', 'OGDC', 'PPL', 'HUBCO', 'KAPCO', 'LUCK', 'ENGRO',
-            'FCCL', 'DGKC', 'MLCF', 'FFBL', 'ATRL', 'SEARL', 'PIOC', 'FFC'
-        ]
+        # Load system configuration
+        self.config = create_default_config()
+        
+        # Common PSX symbols from configuration
+        self.common_symbols = self.config.universe.common_symbols
         
         self.logger.info("Professional Trading System initialized")
     
@@ -116,7 +118,7 @@ class ProfessionalTradingSystem:
         # Get current prices (simplified - in production, fetch from API)
         current_prices = {}
         for symbol in self.portfolio_manager.positions.keys():
-            # For demonstration, use stored avg price
+            # TODO: Replace with real-time price feed from PSX API
             current_prices[symbol] = self.portfolio_manager.positions[symbol].avg_price
         
         # Portfolio summary
@@ -129,7 +131,7 @@ class ProfessionalTradingSystem:
                 'symbol': symbol,
                 'value': position.quantity * current_prices[symbol],
                 'risk_amount': position.quantity * current_prices[symbol] * 0.02,  # 2% risk
-                'sector': 'Financial'  # Simplified
+                'sector': 'Financial'  # TODO: Fetch sector from market data API
             })
         
         portfolio_risk = risk_manager.calculate_portfolio_risk(portfolio_positions)
@@ -161,7 +163,7 @@ class ProfessionalTradingSystem:
                 if analysis_type == 'enhanced':
                     result = self.enhanced_analysis(symbol, create_charts=False, export=False)
                 else:
-                    # Basic analysis would go here
+                    # TODO: Implement comprehensive multi-timeframe analysis
                     result = enhanced_signal_analysis(symbol)
                 
                 results[symbol] = result
@@ -424,7 +426,33 @@ def main():
     try:
         if args.web_interface:
             print("🚀 Launching web interface...")
-            print("Run: streamlit run streamlit_app.py")
+            
+            # Check if streamlit_app.py exists
+            streamlit_files = ['streamlit_app.py', 'streamlit_professional_dashboard.py']
+            streamlit_file = None
+            
+            for file in streamlit_files:
+                if os.path.exists(file):
+                    streamlit_file = file
+                    break
+            
+            if streamlit_file:
+                print(f"📊 Starting Streamlit dashboard: {streamlit_file}")
+                try:
+                    # Launch Streamlit in a subprocess
+                    subprocess.run(["streamlit", "run", streamlit_file], check=True)
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to launch Streamlit: {e}")
+                    print("💡 Make sure Streamlit is installed: pip install streamlit")
+                    print(f"📝 Fallback: Run manually with 'streamlit run {streamlit_file}'")
+                except FileNotFoundError:
+                    print("❌ Streamlit not found in PATH")
+                    print("💡 Install Streamlit: pip install streamlit")
+                    print(f"📝 Fallback: Run manually with 'streamlit run {streamlit_file}'")
+            else:
+                print("❌ No Streamlit app file found")
+                print("💡 Looking for: streamlit_app.py or streamlit_professional_dashboard.py")
+                print("📝 Please ensure the Streamlit app file exists in the current directory")
             
         elif args.portfolio_report:
             print("📊 Generating portfolio report...")

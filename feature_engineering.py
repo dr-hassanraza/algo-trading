@@ -226,7 +226,7 @@ class FeatureEngineer:
             return pd.DataFrame()
         
         # This would typically use actual fundamental data
-        # For demo purposes, creating placeholder structure
+        # TODO: Implement proper fundamental data processing with real financial metrics
         
         features_list = []
         

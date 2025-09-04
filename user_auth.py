@@ -2,6 +2,7 @@ import json
 import hashlib
 import os
 from pathlib import Path
+from datetime import datetime
 
 USERS_FILE = Path("users.json")
 
@@ -133,3 +134,80 @@ def increment_usage(username: str):
             "ip_address": ""
         }
         save_users(users)
+
+def create_admin_account():
+    """Creates default admin account if it doesn't exist"""
+    users = get_users()
+    
+    if "admin" not in users:
+        admin_user = {
+            "password": hash_password("admin123"),  # Default admin password
+            "name": "System Administrator", 
+            "email": "admin@psxtrading.com",
+            "ip_address": "",
+            "usage_count": 0,
+            "user_type": "admin",
+            "login_method": "password",
+            "created_at": str(datetime.now()),
+            "last_login": ""
+        }
+        
+        users["admin"] = admin_user
+        save_users(users)
+        return True
+    return False
+
+def authenticate_social_user(email: str, name: str, provider: str) -> str:
+    """Authenticate or create user via social login"""
+    users = get_users()
+    
+    # Create username from email
+    username = email.split('@')[0].lower()
+    
+    # If user exists with this email, update login info
+    for existing_username, user_data in users.items():
+        if user_data.get("email") == email:
+            user_data["last_login"] = str(datetime.now())
+            user_data["login_method"] = provider
+            save_users(users)
+            return existing_username
+    
+    # Create new user
+    counter = 1
+    original_username = username
+    while username in users:
+        username = f"{original_username}{counter}"
+        counter += 1
+    
+    users[username] = {
+        "password": "",  # No password for social login
+        "name": name,
+        "email": email,
+        "ip_address": "",
+        "usage_count": 0,
+        "user_type": "user",
+        "login_method": provider,
+        "created_at": str(datetime.now()),
+        "last_login": str(datetime.now())
+    }
+    save_users(users)
+    return username
+
+def is_admin(username: str) -> bool:
+    """Check if user is admin"""
+    users = get_users()
+    user_data = users.get(username, {})
+    return user_data.get("user_type") == "admin"
+
+def get_all_users() -> dict:
+    """Get all users (admin only)"""
+    return get_users()
+
+def update_user_type(username: str, user_type: str) -> bool:
+    """Update user type (admin only)"""
+    users = get_users()
+    if username in users:
+        users[username]["user_type"] = user_type
+        save_users(users)
+        return True
+    return False

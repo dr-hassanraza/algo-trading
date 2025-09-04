@@ -17,8 +17,12 @@ warnings.filterwarnings('ignore')
 
 # Authentication system imports
 try:
-    from user_auth import authenticate_user, add_user, get_user_data
+    from user_auth import (authenticate_user, add_user, get_user_data, 
+                          create_admin_account, authenticate_social_user, 
+                          is_admin, get_all_users, update_user_type)
     AUTH_AVAILABLE = True
+    # Create admin account on startup
+    create_admin_account()
 except ImportError:
     AUTH_AVAILABLE = False
 
@@ -40,8 +44,81 @@ def render_login_page():
     with tab1:
         st.subheader("Login to Your Account")
         
+        # Social Login Options
+        st.markdown("### 🌐 **Quick Social Login**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📧 Login with Gmail", use_container_width=True, type="secondary"):
+                st.session_state['show_gmail_login'] = True
+        
+        with col2:
+            if st.button("💼 Login with LinkedIn", use_container_width=True, type="secondary"):
+                st.session_state['show_linkedin_login'] = True
+        
+        # Gmail Login Modal
+        if st.session_state.get('show_gmail_login', False):
+            st.markdown("#### 📧 Gmail Authentication")
+            gmail_email = st.text_input("Gmail Address", placeholder="yourname@gmail.com")
+            gmail_name = st.text_input("Full Name", placeholder="Your Full Name")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Authenticate Gmail", use_container_width=True):
+                    if gmail_email and gmail_name and "@gmail.com" in gmail_email:
+                        if AUTH_AVAILABLE:
+                            username = authenticate_social_user(gmail_email, gmail_name, "gmail")
+                            if username:
+                                st.session_state['authenticated'] = True
+                                st.session_state['username'] = username
+                                st.session_state['login_method'] = 'gmail'
+                                st.success("✅ Gmail login successful! Redirecting...")
+                                st.rerun()
+                        else:
+                            st.error("❌ Authentication system not available")
+                    else:
+                        st.error("❌ Please enter valid Gmail address and name")
+            
+            with col2:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state['show_gmail_login'] = False
+                    st.rerun()
+        
+        # LinkedIn Login Modal
+        if st.session_state.get('show_linkedin_login', False):
+            st.markdown("#### 💼 LinkedIn Authentication")
+            linkedin_email = st.text_input("LinkedIn Email", placeholder="yourname@company.com")
+            linkedin_name = st.text_input("Professional Name", placeholder="Your Professional Name")
+            linkedin_company = st.text_input("Company (Optional)", placeholder="Your Company")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Authenticate LinkedIn", use_container_width=True):
+                    if linkedin_email and linkedin_name:
+                        if AUTH_AVAILABLE:
+                            display_name = f"{linkedin_name} ({linkedin_company})" if linkedin_company else linkedin_name
+                            username = authenticate_social_user(linkedin_email, display_name, "linkedin")
+                            if username:
+                                st.session_state['authenticated'] = True
+                                st.session_state['username'] = username
+                                st.session_state['login_method'] = 'linkedin'
+                                st.success("✅ LinkedIn login successful! Redirecting...")
+                                st.rerun()
+                        else:
+                            st.error("❌ Authentication system not available")
+                    else:
+                        st.error("❌ Please enter valid email and name")
+            
+            with col2:
+                if st.button("❌ Cancel", use_container_width=True):
+                    st.session_state['show_linkedin_login'] = False
+                    st.rerun()
+        
+        st.markdown("---")
+        st.markdown("### 🔑 **Traditional Login**")
+        
         with st.form("login_form"):
-            username = st.text_input("Username")
+            username = st.text_input("Username or Email")
             password = st.text_input("Password", type="password")
             submit_login = st.form_submit_button("🔑 Login", use_container_width=True)
             
@@ -50,12 +127,16 @@ def render_login_page():
                     if authenticate_user(username, password):
                         st.session_state['authenticated'] = True
                         st.session_state['username'] = username
+                        st.session_state['login_method'] = 'password'
                         st.success("✅ Login successful! Redirecting...")
                         st.rerun()
                     else:
                         st.error("❌ Invalid username or password")
                 else:
                     st.error("❌ Authentication system not available")
+        
+        # Admin Login Info
+        st.info("🔒 **Admin Access**: Username: `admin` | Password: `admin123`")
     
     with tab2:
         st.subheader("Create New Account")
@@ -1618,6 +1699,188 @@ def render_system_status():
         else:
             st.error("❌ Symbol Loading Failed")
 
+def render_admin_panel():
+    """Render admin dashboard with user management and system stats"""
+    st.markdown('<h1 class="main-header">👑 Admin Panel</h1>', unsafe_allow_html=True)
+    
+    if not AUTH_AVAILABLE:
+        st.error("❌ Authentication system not available")
+        return
+    
+    # Verify admin access
+    if not is_admin(st.session_state.get('username', '')):
+        st.error("❌ Access denied. Admin privileges required.")
+        return
+    
+    # Admin dashboard tabs
+    tab1, tab2, tab3 = st.tabs(["👥 User Management", "📊 System Analytics", "⚙️ System Settings"])
+    
+    with tab1:
+        st.subheader("👥 User Management")
+        
+        # Get all users
+        all_users = get_all_users()
+        if not all_users:
+            st.info("No users registered yet.")
+            return
+        
+        # User statistics
+        total_users = len(all_users)
+        admin_users = sum(1 for user in all_users.values() if user.get('user_type') == 'admin')
+        social_logins = sum(1 for user in all_users.values() if user.get('login_method') in ['gmail', 'linkedin'])
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Users", total_users)
+        with col2:
+            st.metric("Admin Users", admin_users)
+        with col3:
+            st.metric("Social Logins", social_logins)
+        with col4:
+            st.metric("Password Logins", total_users - social_logins)
+        
+        st.markdown("---")
+        
+        # User table
+        user_data = []
+        for username, data in all_users.items():
+            user_data.append({
+                'Username': username,
+                'Name': data.get('name', 'N/A'),
+                'Email': data.get('email', 'N/A'),
+                'Type': data.get('user_type', 'user'),
+                'Login Method': data.get('login_method', 'password'),
+                'Usage Count': data.get('usage_count', 0),
+                'Last Login': data.get('last_login', 'Never'),
+                'Created At': data.get('created_at', 'N/A')
+            })
+        
+        df_users = pd.DataFrame(user_data)
+        st.dataframe(df_users, use_container_width=True)
+        
+        # User management actions
+        st.subheader("🔧 User Management Actions")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Promote User to Admin**")
+            selected_user = st.selectbox(
+                "Select User", 
+                options=[u for u in all_users.keys() if all_users[u].get('user_type') != 'admin']
+            )
+            
+            if st.button("👑 Promote to Admin", use_container_width=True):
+                if selected_user and update_user_type(selected_user, 'admin'):
+                    st.success(f"✅ {selected_user} promoted to admin!")
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to promote user")
+        
+        with col2:
+            st.markdown("**Demote Admin to User**")
+            admin_users_list = [u for u in all_users.keys() 
+                              if all_users[u].get('user_type') == 'admin' and u != 'admin']
+            
+            if admin_users_list:
+                selected_admin = st.selectbox("Select Admin", options=admin_users_list)
+                
+                if st.button("👤 Demote to User", use_container_width=True):
+                    if selected_admin and update_user_type(selected_admin, 'user'):
+                        st.success(f"✅ {selected_admin} demoted to regular user!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to demote user")
+            else:
+                st.info("No other admins to demote")
+    
+    with tab2:
+        st.subheader("📊 System Analytics")
+        
+        # System usage metrics
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # User registration over time
+            reg_dates = [data.get('created_at', '') for data in all_users.values() if data.get('created_at')]
+            if reg_dates:
+                try:
+                    reg_df = pd.DataFrame({
+                        'Date': pd.to_datetime(reg_dates).dt.date,
+                        'Registrations': 1
+                    }).groupby('Date').sum().reset_index()
+                    
+                    fig = px.line(reg_df, x='Date', y='Registrations', 
+                                 title='User Registrations Over Time')
+                    st.plotly_chart(fig, use_container_width=True)
+                except:
+                    st.info("Registration timeline data not available")
+            else:
+                st.info("No registration data available")
+        
+        with col2:
+            # Usage statistics
+            usage_data = [data.get('usage_count', 0) for data in all_users.values()]
+            if usage_data and any(usage_data):
+                fig = px.histogram(x=usage_data, nbins=10, 
+                                 title='User Activity Distribution')
+                fig.update_xaxis(title='Usage Count')
+                fig.update_yaxis(title='Number of Users')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No usage data available")
+        
+        # Login method breakdown
+        login_methods = {}
+        for data in all_users.values():
+            method = data.get('login_method', 'password')
+            login_methods[method] = login_methods.get(method, 0) + 1
+        
+        if login_methods:
+            fig = px.pie(values=list(login_methods.values()), 
+                        names=list(login_methods.keys()),
+                        title='Login Methods Distribution')
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with tab3:
+        st.subheader("⚙️ System Settings")
+        
+        # System information
+        st.markdown("**📋 System Information**")
+        system_info = {
+            "Authentication System": "✅ Active" if AUTH_AVAILABLE else "❌ Inactive",
+            "Current Admin": st.session_state.get('username', 'Unknown'),
+            "Login Method": st.session_state.get('login_method', 'Unknown'),
+            "Session Active": "✅ Yes" if st.session_state.get('authenticated') else "❌ No"
+        }
+        
+        for key, value in system_info.items():
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.write(f"**{key}:**")
+            with col2:
+                st.write(value)
+        
+        st.markdown("---")
+        
+        # Admin tools
+        st.markdown("**🛠️ Admin Tools**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Refresh User Data", use_container_width=True):
+                st.success("✅ User data refreshed!")
+                st.rerun()
+        
+        with col2:
+            if st.button("📊 Export User Data", use_container_width=True):
+                user_json = json.dumps(all_users, indent=2, default=str)
+                st.download_button(
+                    label="📥 Download JSON",
+                    data=user_json,
+                    file_name=f"users_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json"
+                )
+
 def main():
     """Main application with authentication"""
     
@@ -1635,14 +1898,21 @@ def main():
     # Sidebar navigation
     st.sidebar.title("🧭 Navigation")
     
+    # Check if user is admin to show admin panel
+    navigation_options = [
+        "🚨 Live Signals",
+        "🔍 Symbol Analysis", 
+        "🧠 Algorithm Overview",
+        "🔧 System Status"
+    ]
+    
+    # Add admin panel for admin users
+    if AUTH_AVAILABLE and is_admin(st.session_state.get('username', '')):
+        navigation_options.append("👑 Admin Panel")
+    
     page = st.sidebar.selectbox(
         "Select Section",
-        options=[
-            "🚨 Live Signals",
-            "🔍 Symbol Analysis", 
-            "🧠 Algorithm Overview",
-            "🔧 System Status"
-        ]
+        options=navigation_options
     )
     
     # Auto-refresh options
@@ -1666,6 +1936,9 @@ def main():
         
     elif page == "🔧 System Status":
         render_system_status()
+        
+    elif page == "👑 Admin Panel":
+        render_admin_panel()
     
     # Footer
     st.markdown("---")

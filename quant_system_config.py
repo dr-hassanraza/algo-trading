@@ -59,6 +59,12 @@ class PerformanceTargets:
 class UniverseConfig:
     """Trading universe configuration"""
     
+    # Common PSX symbols for trading
+    common_symbols: List[str] = field(default_factory=lambda: [
+        'UBL', 'MCB', 'OGDC', 'PPL', 'HUBCO', 'KAPCO', 'LUCK', 'ENGRO',
+        'FCCL', 'DGKC', 'MLCF', 'FFBL', 'ATRL', 'SEARL', 'PIOC', 'FFC'
+    ])
+    
     # PSX Universe
     market_cap_min: float = 5_000_000_000    # 5B PKR minimum market cap
     avg_volume_min: float = 10_000_000       # 10M PKR daily volume minimum
@@ -309,6 +315,7 @@ class SystemConfig:
                 'profit_factor_min': self.performance.profit_factor_min
             },
             'universe': {
+                'common_symbols': self.universe.common_symbols,
                 'market_cap_min': self.universe.market_cap_min,
                 'avg_volume_min': self.universe.avg_volume_min,
                 'price_min': self.universe.price_min,
@@ -384,15 +391,115 @@ class SystemConfig:
     
     def from_dict(self, config_dict: Dict[str, Any]):
         """Update configuration from dictionary"""
-        # This would implement the reverse of to_dict()
-        # For brevity, implementing key sections
+        # Meta information
+        if 'system_name' in config_dict:
+            self.system_name = config_dict['system_name']
+        if 'version' in config_dict:
+            self.version = config_dict['version']
+        if 'created_date' in config_dict:
+            self.created_date = config_dict['created_date']
+        
+        # Performance section
         if 'performance' in config_dict:
             perf = config_dict['performance']
-            self.performance.annual_alpha_target = perf.get('annual_alpha_target', 0.06)
-            self.performance.sharpe_ratio_target = perf.get('sharpe_ratio_target', 1.5)
-            self.performance.max_drawdown_limit = perf.get('max_drawdown_limit', 0.20)
+            self.performance.annual_alpha_target = perf.get('annual_alpha_target', self.performance.annual_alpha_target)
+            self.performance.annual_alpha_min = perf.get('annual_alpha_min', self.performance.annual_alpha_min)
+            self.performance.annual_alpha_max = perf.get('annual_alpha_max', self.performance.annual_alpha_max)
+            self.performance.sharpe_ratio_target = perf.get('sharpe_ratio_target', self.performance.sharpe_ratio_target)
+            self.performance.sharpe_ratio_min = perf.get('sharpe_ratio_min', self.performance.sharpe_ratio_min)
+            self.performance.max_drawdown_limit = perf.get('max_drawdown_limit', self.performance.max_drawdown_limit)
+            self.performance.max_daily_loss = perf.get('max_daily_loss', self.performance.max_daily_loss)
+            self.performance.target_volatility = perf.get('target_volatility', self.performance.target_volatility)
+            self.performance.win_rate_target = perf.get('win_rate_target', self.performance.win_rate_target)
+            self.performance.profit_factor_min = perf.get('profit_factor_min', self.performance.profit_factor_min)
         
-        # Add other sections as needed...
+        # Universe section
+        if 'universe' in config_dict:
+            univ = config_dict['universe']
+            self.universe.common_symbols = univ.get('common_symbols', self.universe.common_symbols)
+            self.universe.market_cap_min = univ.get('market_cap_min', self.universe.market_cap_min)
+            self.universe.avg_volume_min = univ.get('avg_volume_min', self.universe.avg_volume_min)
+            self.universe.price_min = univ.get('price_min', self.universe.price_min)
+            self.universe.price_max = univ.get('price_max', self.universe.price_max)
+            self.universe.max_positions_per_sector = univ.get('max_positions_per_sector', self.universe.max_positions_per_sector)
+            self.universe.max_sector_exposure = univ.get('max_sector_exposure', self.universe.max_sector_exposure)
+            self.universe.exclude_suspended = univ.get('exclude_suspended', self.universe.exclude_suspended)
+            self.universe.exclude_penny_stocks = univ.get('exclude_penny_stocks', self.universe.exclude_penny_stocks)
+        
+        # Portfolio section
+        if 'portfolio' in config_dict:
+            port = config_dict['portfolio']
+            self.portfolio.max_positions = port.get('max_positions', self.portfolio.max_positions)
+            self.portfolio.min_positions = port.get('min_positions', self.portfolio.min_positions)
+            self.portfolio.max_single_position = port.get('max_single_position', self.portfolio.max_single_position)
+            self.portfolio.long_allocation = port.get('long_allocation', self.portfolio.long_allocation)
+            self.portfolio.short_allocation = port.get('short_allocation', self.portfolio.short_allocation)
+            self.portfolio.net_exposure_target = port.get('net_exposure_target', self.portfolio.net_exposure_target)
+            self.portfolio.gross_exposure_max = port.get('gross_exposure_max', self.portfolio.gross_exposure_max)
+            if 'rebalance_frequency' in port:
+                self.portfolio.rebalance_frequency = FrequencyType(port['rebalance_frequency'])
+            self.portfolio.turnover_target = port.get('turnover_target', self.portfolio.turnover_target)
+            self.portfolio.use_kelly_criterion = port.get('use_kelly_criterion', self.portfolio.use_kelly_criterion)
+        
+        # Features section
+        if 'features' in config_dict:
+            feat = config_dict['features']
+            self.features.momentum_periods = feat.get('momentum_periods', self.features.momentum_periods)
+            self.features.reversal_periods = feat.get('reversal_periods', self.features.reversal_periods)
+            self.features.volatility_periods = feat.get('volatility_periods', self.features.volatility_periods)
+            self.features.enable_rsi = feat.get('enable_rsi', self.features.enable_rsi)
+            self.features.enable_macd = feat.get('enable_macd', self.features.enable_macd)
+            self.features.enable_bollinger = feat.get('enable_bollinger', self.features.enable_bollinger)
+            self.features.enable_value_metrics = feat.get('enable_value_metrics', self.features.enable_value_metrics)
+            self.features.enable_quality_metrics = feat.get('enable_quality_metrics', self.features.enable_quality_metrics)
+            self.features.use_sector_neutralization = feat.get('use_sector_neutralization', self.features.use_sector_neutralization)
+            self.features.max_features = feat.get('max_features', self.features.max_features)
+        
+        # Model section
+        if 'model' in config_dict:
+            model = config_dict['model']
+            self.model.primary_model = model.get('primary_model', self.model.primary_model)
+            self.model.ensemble_models = model.get('ensemble_models', self.model.ensemble_models)
+            self.model.train_window_months = model.get('train_window_months', self.model.train_window_months)
+            self.model.validation_months = model.get('validation_months', self.model.validation_months)
+            self.model.retrain_frequency_days = model.get('retrain_frequency_days', self.model.retrain_frequency_days)
+            self.model.cv_folds = model.get('cv_folds', self.model.cv_folds)
+            self.model.use_purged_cv = model.get('use_purged_cv', self.model.use_purged_cv)
+            self.model.embargo_days = model.get('embargo_days', self.model.embargo_days)
+            self.model.label_forward_days = model.get('label_forward_days', self.model.label_forward_days)
+            self.model.lightgbm_params = model.get('lightgbm_params', self.model.lightgbm_params)
+        
+        # Risk section
+        if 'risk' in config_dict:
+            risk = config_dict['risk']
+            self.risk.stop_loss_pct = risk.get('stop_loss_pct', self.risk.stop_loss_pct)
+            self.risk.take_profit_pct = risk.get('take_profit_pct', self.risk.stop_loss_pct)
+            self.risk.use_trailing_stops = risk.get('use_trailing_stops', self.risk.use_trailing_stops)
+            self.risk.daily_loss_limit = risk.get('daily_loss_limit', self.risk.daily_loss_limit)
+            self.risk.drawdown_circuit_breaker = risk.get('drawdown_circuit_breaker', self.risk.drawdown_circuit_breaker)
+            self.risk.var_confidence = risk.get('var_confidence', self.risk.var_confidence)
+            self.risk.correlation_limit = risk.get('correlation_limit', self.risk.correlation_limit)
+        
+        # Execution section
+        if 'execution' in config_dict:
+            exec_config = config_dict['execution']
+            self.execution.use_vwap = exec_config.get('use_vwap', self.execution.use_vwap)
+            self.execution.participation_rate = exec_config.get('participation_rate', self.execution.participation_rate)
+            self.execution.trading_start_time = exec_config.get('trading_start_time', self.execution.trading_start_time)
+            self.execution.trading_end_time = exec_config.get('trading_end_time', self.execution.trading_end_time)
+            self.execution.commission_rate = exec_config.get('commission_rate', self.execution.commission_rate)
+            self.execution.bid_ask_spread_assumption = exec_config.get('bid_ask_spread_assumption', self.execution.bid_ask_spread_assumption)
+            self.execution.paper_trading_enabled = exec_config.get('paper_trading_enabled', self.execution.paper_trading_enabled)
+        
+        # Data section
+        if 'data' in config_dict:
+            data = config_dict['data']
+            self.data.primary_price_source = data.get('primary_price_source', self.data.primary_price_source)
+            self.data.backup_price_sources = data.get('backup_price_sources', self.data.backup_price_sources)
+            self.data.data_path = data.get('data_path', self.data.data_path)
+            self.data.use_database = data.get('use_database', self.data.use_database)
+            self.data.database_type = data.get('database_type', self.data.database_type)
+            self.data.data_update_time = data.get('data_update_time', self.data.data_update_time)
     
     def validate_config(self) -> List[str]:
         """Validate configuration parameters"""

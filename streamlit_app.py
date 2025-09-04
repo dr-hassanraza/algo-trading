@@ -94,35 +94,12 @@ def render_login_page():
     tab1, tab2 = st.tabs(["🔑 Login", "📝 Register"])
     
     with tab1:
-        # Enhanced login section
-        st.markdown("""
-        <div style='background: white; padding: 2rem; border-radius: 15px; margin-bottom: 1rem;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;'>
-            <h2 style='color: #333; text-align: center; margin-bottom: 1.5rem; 
-                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                       background-clip: text; font-weight: 600;'>
-                🔑 Welcome Back
-            </h2>
-            <p style='text-align: center; color: #666; margin-bottom: 2rem; font-size: 1.1rem;'>
-                Choose your preferred login method to access your trading dashboard
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Login header
+        st.markdown("## 🔑 **Welcome Back**")
+        st.markdown("*Choose your preferred login method to access your trading dashboard*")
         
-        # Social Login Options
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #f8f9ff 0%, #f0f2f6 100%); 
-                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;
-                    border: 2px solid #e3e8f0;'>
-            <h3 style='color: #667eea; text-align: center; margin-bottom: 1rem; font-weight: 600;'>
-                🌐 Quick Social Login
-            </h3>
-            <p style='text-align: center; color: #666; margin-bottom: 1rem; font-size: 0.9rem;'>
-                Sign in instantly with your existing accounts
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Social Login section using native components
+        st.info("### 🌐 **Quick Social Login**\nSign in instantly with your existing accounts")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -193,19 +170,9 @@ def render_login_page():
                     st.session_state['show_linkedin_login'] = False
                     st.rerun()
         
-        # Traditional login section
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #fff9f0 0%, #f5f5f5 100%); 
-                    padding: 1.5rem; border-radius: 12px; margin-top: 2rem;
-                    border: 2px solid #e8dcc6;'>
-            <h3 style='color: #ff9500; text-align: center; margin-bottom: 1rem; font-weight: 600;'>
-                🔑 Traditional Login
-            </h3>
-            <p style='text-align: center; color: #666; margin-bottom: 1rem; font-size: 0.9rem;'>
-                Use your username and password for secure access
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Traditional login section using native components
+        st.markdown("---")
+        st.warning("### 🔑 **Traditional Login**\nUse your username and password for secure access")
         
         with st.form("login_form"):
             username = st.text_input("Username or Email")
@@ -228,43 +195,20 @@ def render_login_page():
         
     
     with tab2:
-        # Enhanced registration section
-        st.markdown("""
-        <div style='background: white; padding: 2rem; border-radius: 15px; margin-bottom: 1rem;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;'>
-            <h2 style='color: #333; text-align: center; margin-bottom: 1.5rem; 
-                       background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-                       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                       background-clip: text; font-weight: 600;'>
-                🚀 Join PSX Trading
-            </h2>
-            <p style='text-align: center; color: #666; margin-bottom: 2rem; font-size: 1.1rem;'>
-                Create your account to start algorithmic trading with professional signals
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Registration header
+        st.markdown("## 🚀 **Join PSX Trading**")
+        st.markdown("*Create your account to start algorithmic trading with professional signals*")
         
-        # Registration benefits
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #f0fff4 0%, #f8f9fa 100%); 
-                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;
-                    border: 2px solid #c3e6cb;'>
-            <h4 style='color: #28a745; text-align: center; margin-bottom: 1rem; font-weight: 600;'>
-                ✨ What You Get
-            </h4>
-            <div style='display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap; text-align: center;'>
-                <div style='min-width: 150px;'>
-                    <p style='margin: 0; color: #155724; font-weight: 500;'>🎯 Custom Watchlists</p>
-                </div>
-                <div style='min-width: 150px;'>
-                    <p style='margin: 0; color: #155724; font-weight: 500;'>📊 Performance Tracking</p>
-                </div>
-                <div style='min-width: 150px;'>
-                    <p style='margin: 0; color: #155724; font-weight: 500;'>🔔 Signal Alerts</p>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Registration benefits using native components
+        st.success("### ✨ **What You Get**")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**🎯 Custom Watchlists**")
+        with col2:
+            st.markdown("**📊 Performance Tracking**") 
+        with col3:
+            st.markdown("**🔔 Signal Alerts**")
         
         with st.form("register_form"):
             reg_username = st.text_input("Choose Username")
@@ -301,49 +245,41 @@ def render_login_page():
         st.success("✅ Accessing as guest user...")
         st.rerun()
     
-    # Professional footer section
+    # Professional footer section with native Streamlit components
     st.markdown("---")
-    st.markdown("""
-    <div style='background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
-                padding: 2rem; border-radius: 15px; margin-top: 2rem;
-                text-align: center; border: 1px solid #dee2e6;'>
-        <div style='margin-bottom: 1.5rem;'>
-            <h4 style='color: #495057; margin-bottom: 1rem; font-weight: 600;'>
-                🌟 Trusted by Professional Traders
-            </h4>
-            <div style='display: flex; justify-content: center; gap: 3rem; flex-wrap: wrap; margin: 1rem 0;'>
-                <div style='color: #6c757d; font-size: 0.9rem;'>
-                    <strong>🔒 Bank-Grade Security</strong><br>
-                    <span style='color: #868e96;'>End-to-end encryption</span>
-                </div>
-                <div style='color: #6c757d; font-size: 0.9rem;'>
-                    <strong>⚡ Real-time Data</strong><br>
-                    <span style='color: #868e96;'>PSX official API</span>
-                </div>
-                <div style='color: #6c757d; font-size: 0.9rem;'>
-                    <strong>🎯 95% Accuracy</strong><br>
-                    <span style='color: #868e96;'>ML-powered signals</span>
-                </div>
-            </div>
-        </div>
-        
-        <div style='border-top: 1px solid #dee2e6; padding-top: 1.5rem; margin-top: 1.5rem;'>
-            <p style='color: #6c757d; margin: 0.5rem 0; font-size: 0.9rem;'>
-                💡 <strong>New to algorithmic trading?</strong> 
-                Guest users can explore all features without registration.
-            </p>
-            <p style='color: #868e96; margin: 0; font-size: 0.8rem;'>
-                Data and watchlists are saved for registered users only.
-            </p>
-        </div>
-        
-        <div style='margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dee2e6;'>
-            <p style='color: #adb5bd; font-size: 0.8rem; margin: 0;'>
-                🚀 PSX Algorithmic Trading System v2.0 • Built with advanced ML models
-            </p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    
+    # Trust section
+    st.markdown("### 🌟 **Trusted by Professional Traders**")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("""
+        **🔒 Bank-Grade Security**  
+        _End-to-end encryption_
+        """)
+    
+    with col2:
+        st.markdown("""
+        **⚡ Real-time Data**  
+        _PSX official API_
+        """)
+    
+    with col3:
+        st.markdown("""
+        **🎯 95% Accuracy**  
+        _ML-powered signals_
+        """)
+    
+    st.markdown("---")
+    
+    # Guest user info
+    st.info("""
+    💡 **New to algorithmic trading?** Guest users can explore all features without registration.  
+    📊 Data and watchlists are saved for registered users only.
+    """)
+    
+    # System info
+    st.caption("🚀 PSX Algorithmic Trading System v2.0 • Built with advanced ML models")
 
 def render_logout():
     """Render logout functionality in sidebar with session info"""

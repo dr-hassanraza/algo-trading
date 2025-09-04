@@ -280,6 +280,19 @@ def render_login_page():
     
     # System info
     st.caption("🚀 PSX Algorithmic Trading System v2.0 • Built with advanced ML models")
+    
+    # Developer attribution
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 10px; margin-top: 1rem;'>
+        <p style='margin: 0; color: #666; font-size: 0.9rem;'>
+            <strong>🎓 System developed by:</strong><br>
+            <strong>Dr. Hassan Raza</strong><br>
+            Associate Professor, SZABIST University<br>
+            📧 Email: <a href="mailto:pm.basf@szabist-isb.edu.pk" style="color: #667eea;">pm.basf@szabist-isb.edu.pk</a>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 def render_logout():
     """Render logout functionality in sidebar with session info"""
@@ -364,6 +377,9 @@ st.markdown("""
         text-align: center;
         margin: 0.5rem 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border: 2px solid #007E33;
+        font-weight: bold;
+        animation: pulse-green 2s infinite;
     }
     
     .signal-buy {
@@ -384,6 +400,19 @@ st.markdown("""
         text-align: center;
         margin: 0.5rem 0;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .signal-strong-sell {
+        background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
+        padding: 1rem;
+        border-radius: 8px;
+        color: white;
+        text-align: center;
+        margin: 0.5rem 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border: 2px solid #b71c1c;
+        font-weight: bold;
+        animation: pulse-red 2s infinite;
     }
     
     .signal-hold {
@@ -426,6 +455,31 @@ st.markdown("""
         padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
+    }
+    
+    /* Pulse animations for STRONG signals */
+    @keyframes pulse-green {
+        0% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(0, 200, 81, 0.7);
+        }
+        70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 10px rgba(0, 200, 81, 0);
+        }
+        100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(0, 200, 81, 0);
+        }
+    }
+    
+    @keyframes pulse-red {
+        0% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(211, 47, 47, 0.7);
+        }
+        70% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 10px rgba(211, 47, 47, 0);
+        }
+        100% {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(211, 47, 47, 0);
+        }
     }
 </style>
 """, unsafe_allow_html=True)

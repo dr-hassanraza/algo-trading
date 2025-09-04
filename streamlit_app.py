@@ -636,81 +636,226 @@ class PSXAlgoTradingSystem:
             rs = avg_gains / avg_losses
             df['rsi'] = 100 - (100 / (1 + rs))
             
+            # MACD Indicator
+            ema_12 = df['price'].ewm(span=12).mean()
+            ema_26 = df['price'].ewm(span=26).mean()
+            df['macd'] = ema_12 - ema_26
+            df['macd_signal'] = df['macd'].ewm(span=9).mean()
+            df['macd_histogram'] = df['macd'] - df['macd_signal']
+            
+            # Bollinger Bands
+            bb_period = 20
+            bb_std = 2
+            df['bb_middle'] = df['price'].rolling(window=bb_period).mean()
+            bb_rolling_std = df['price'].rolling(window=bb_period).std()
+            df['bb_upper'] = df['bb_middle'] + (bb_rolling_std * bb_std)
+            df['bb_lower'] = df['bb_middle'] - (bb_rolling_std * bb_std)
+            df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
+            df['bb_position'] = (df['price'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+            
+            # ADX (Average Directional Index) - Simplified Version
+            high_low = df['price'].rolling(2).max() - df['price'].rolling(2).min()
+            high_close = abs(df['price'] - df['price'].shift(1))
+            low_close = abs(df['price'].shift(1) - df['price'])
+            
+            true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            df['atr'] = true_range.rolling(window=14).mean()
+            
+            # Directional Movement
+            plus_dm = df['price'].diff().where(df['price'].diff() > 0, 0)
+            minus_dm = (-df['price'].diff()).where(df['price'].diff() < 0, 0)
+            
+            plus_di = 100 * (plus_dm.rolling(window=14).mean() / df['atr'])
+            minus_di = 100 * (minus_dm.rolling(window=14).mean() / df['atr'])
+            
+            dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+            df['adx'] = dx.rolling(window=14).mean()
+            df['plus_di'] = plus_di
+            df['minus_di'] = minus_di
+            
             return df
         except Exception as e:
             st.error(f"Technical indicators error: {str(e)}")
             return df
     
     def generate_trading_signals(self, df, symbol):
-        """Generate algorithmic trading signals"""
+        """Enhanced algorithmic trading signals with multiple indicators and lower thresholds"""
         if df.empty or len(df) < 20:
             return {"signal": "HOLD", "confidence": 0, "reason": "Insufficient data"}
         
         try:
             latest = df.iloc[-1]
+            prev = df.iloc[-2] if len(df) > 1 else latest
             signals = []
             confidence = 0
             reasons = []
             
-            # Trend Following Signals
+            # 1. TREND FOLLOWING SIGNALS (Lower threshold from 25 to 15)
             if latest['price'] > latest['sma_5'] > latest['sma_10']:
                 signals.append("BUY")
-                confidence += 25
-                reasons.append("Uptrend confirmed")
+                confidence += 15
+                reasons.append("Short-term uptrend")
             elif latest['price'] < latest['sma_5'] < latest['sma_10']:
                 signals.append("SELL")
-                confidence += 25
-                reasons.append("Downtrend confirmed")
-            
-            # Volume Analysis
-            if latest['volume_ratio'] > 1.5:
-                confidence += 20
-                reasons.append("High volume support")
-            elif latest['volume_ratio'] < 0.5:
-                confidence -= 10
-                reasons.append("Low volume concern")
-            
-            # Momentum Analysis
-            if latest['momentum'] > 0.002:  # 0.2% positive momentum
-                signals.append("BUY")
-                confidence += 20
-                reasons.append("Strong positive momentum")
-            elif latest['momentum'] < -0.002:  # -0.2% negative momentum
-                signals.append("SELL")
-                confidence += 20
-                reasons.append("Strong negative momentum")
-            
-            # Mean Reversion Signals
-            distance_from_sma = (latest['price'] - latest['sma_20']) / latest['sma_20']
-            
-            if distance_from_sma > 0.05:  # 5% above mean
-                signals.append("SELL")
                 confidence += 15
-                reasons.append("Overbought condition")
-            elif distance_from_sma < -0.05:  # 5% below mean
-                signals.append("BUY")
-                confidence += 15
-                reasons.append("Oversold condition")
+                reasons.append("Short-term downtrend")
             
-            # RSI Signals
-            if 'rsi' in latest and not pd.isna(latest['rsi']):
-                if latest['rsi'] > 70:
+            # Medium-term trend
+            if latest['sma_5'] > latest['sma_20']:
+                signals.append("BUY")
+                confidence += 10
+                reasons.append("Medium-term bullish")
+            elif latest['sma_5'] < latest['sma_20']:
+                signals.append("SELL")
+                confidence += 10
+                reasons.append("Medium-term bearish")
+            
+            # 2. MACD SIGNALS (New!)
+            if 'macd' in latest and 'macd_signal' in latest and not pd.isna(latest['macd']):
+                # MACD crossover
+                if latest['macd'] > latest['macd_signal'] and prev['macd'] <= prev['macd_signal']:
+                    signals.append("BUY")
+                    confidence += 20
+                    reasons.append("MACD bullish crossover")
+                elif latest['macd'] < latest['macd_signal'] and prev['macd'] >= prev['macd_signal']:
                     signals.append("SELL")
-                    confidence += 15
-                    reasons.append("RSI overbought")
-                elif latest['rsi'] < 30:
+                    confidence += 20
+                    reasons.append("MACD bearish crossover")
+                
+                # MACD histogram
+                if 'macd_histogram' in latest and not pd.isna(latest['macd_histogram']):
+                    if latest['macd_histogram'] > 0 and latest['macd_histogram'] > prev['macd_histogram']:
+                        signals.append("BUY")
+                        confidence += 10
+                        reasons.append("MACD momentum increasing")
+                    elif latest['macd_histogram'] < 0 and latest['macd_histogram'] < prev['macd_histogram']:
+                        signals.append("SELL")
+                        confidence += 10
+                        reasons.append("MACD momentum decreasing")
+            
+            # 3. BOLLINGER BANDS SIGNALS (New!)
+            if 'bb_position' in latest and not pd.isna(latest['bb_position']):
+                bb_pos = latest['bb_position']
+                
+                # Squeeze and expansion
+                if 'bb_width' in latest and latest['bb_width'] < 0.05:  # Tight bands
+                    confidence += 5
+                    reasons.append("BB squeeze - breakout potential")
+                
+                # Position-based signals (more sensitive)
+                if bb_pos < 0.2:  # Near lower band
                     signals.append("BUY")
                     confidence += 15
+                    reasons.append("Near BB lower band - oversold")
+                elif bb_pos > 0.8:  # Near upper band
+                    signals.append("SELL")
+                    confidence += 15
+                    reasons.append("Near BB upper band - overbought")
+                elif 0.4 <= bb_pos <= 0.6:  # Middle area
+                    confidence += 5
+                    reasons.append("BB middle - neutral zone")
+            
+            # 4. ADX TREND STRENGTH (New!)
+            if 'adx' in latest and 'plus_di' in latest and 'minus_di' in latest:
+                if not pd.isna(latest['adx']) and latest['adx'] > 20:  # Strong trend
+                    if latest['plus_di'] > latest['minus_di']:
+                        signals.append("BUY")
+                        confidence += 15
+                        reasons.append("ADX strong uptrend")
+                    else:
+                        signals.append("SELL")
+                        confidence += 15
+                        reasons.append("ADX strong downtrend")
+                elif not pd.isna(latest['adx']) and latest['adx'] < 20:
+                    confidence -= 5
+                    reasons.append("ADX weak trend - ranging market")
+            
+            # 5. RSI SIGNALS (Enhanced with more levels)
+            if 'rsi' in latest and not pd.isna(latest['rsi']):
+                rsi = latest['rsi']
+                if rsi > 75:  # Very overbought
+                    signals.append("SELL")
+                    confidence += 20
+                    reasons.append("RSI very overbought")
+                elif rsi > 60:  # Moderately overbought
+                    signals.append("SELL")
+                    confidence += 10
+                    reasons.append("RSI overbought")
+                elif rsi < 25:  # Very oversold
+                    signals.append("BUY")
+                    confidence += 20
+                    reasons.append("RSI very oversold")
+                elif rsi < 40:  # Moderately oversold
+                    signals.append("BUY")
+                    confidence += 10
                     reasons.append("RSI oversold")
             
-            # Determine final signal
+            # 6. VOLUME ANALYSIS (Enhanced)
+            if 'volume_ratio' in latest and not pd.isna(latest['volume_ratio']):
+                vol_ratio = latest['volume_ratio']
+                if vol_ratio > 2.0:  # Very high volume
+                    confidence += 15
+                    reasons.append("Exceptional volume")
+                elif vol_ratio > 1.3:  # High volume (lowered from 1.5)
+                    confidence += 10
+                    reasons.append("High volume support")
+                elif vol_ratio < 0.6:  # Low volume (raised from 0.5)
+                    confidence -= 8
+                    reasons.append("Low volume concern")
+            
+            # 7. MOMENTUM ANALYSIS (More sensitive)
+            if 'momentum' in latest and not pd.isna(latest['momentum']):
+                mom = latest['momentum']
+                if mom > 0.001:  # Lowered from 0.002 (0.1% vs 0.2%)
+                    signals.append("BUY")
+                    confidence += 12
+                    reasons.append("Positive momentum")
+                elif mom < -0.001:  # More sensitive
+                    signals.append("SELL")
+                    confidence += 12
+                    reasons.append("Negative momentum")
+            
+            # 8. MEAN REVERSION (More sensitive thresholds)
+            if 'sma_20' in latest and not pd.isna(latest['sma_20']):
+                distance_from_sma = (latest['price'] - latest['sma_20']) / latest['sma_20']
+                
+                if distance_from_sma > 0.03:  # Lowered from 0.05 (3% vs 5%)
+                    signals.append("SELL")
+                    confidence += 12
+                    reasons.append("Above mean - overbought")
+                elif distance_from_sma < -0.03:  # More sensitive
+                    signals.append("BUY")
+                    confidence += 12
+                    reasons.append("Below mean - oversold")
+            
+            # 9. VOLATILITY ANALYSIS (New!)
+            if 'volatility' in latest and not pd.isna(latest['volatility']):
+                if latest['volatility'] > 0.02:  # High volatility
+                    confidence -= 5
+                    reasons.append("High volatility - increased risk")
+                elif latest['volatility'] < 0.005:  # Low volatility
+                    confidence += 5
+                    reasons.append("Low volatility - stable conditions")
+            
+            # FINAL SIGNAL DETERMINATION (Lowered thresholds!)
             buy_signals = signals.count("BUY")
             sell_signals = signals.count("SELL")
             
-            if buy_signals > sell_signals and confidence > 50:
-                signal_type = "STRONG_BUY" if confidence > 75 else "BUY"
-            elif sell_signals > buy_signals and confidence > 50:
-                signal_type = "STRONG_SELL" if confidence > 75 else "SELL"
+            # Much lower thresholds for actionable signals
+            if buy_signals > sell_signals:
+                if confidence >= 60:  # Lowered from 75
+                    signal_type = "STRONG_BUY"
+                elif confidence >= 35:  # Lowered from 50
+                    signal_type = "BUY"
+                else:
+                    signal_type = "HOLD"
+            elif sell_signals > buy_signals:
+                if confidence >= 60:  # Lowered from 75
+                    signal_type = "STRONG_SELL"
+                elif confidence >= 35:  # Lowered from 50
+                    signal_type = "SELL"
+                else:
+                    signal_type = "HOLD"
             else:
                 signal_type = "HOLD"
             
@@ -987,12 +1132,19 @@ def render_live_trading_signals():
         st.markdown("""
         ### 🎯 **Signal Interpretation Guide**
         
-        #### **Signal Types & Actions:**
-        - 🟢 **STRONG BUY (75-100% Confidence)**: High conviction entry - Consider 3-5% position
-        - 🟢 **BUY (60-75% Confidence)**: Moderate entry - Consider 2-3% position  
-        - 🟡 **HOLD (40-60% Confidence)**: Wait for better setup - No action required
-        - 🔴 **SELL (60-75% Confidence)**: Exit long positions - Consider short if applicable
-        - 🔴 **STRONG SELL (75-100% Confidence)**: Immediate exit - Strong short candidate
+        #### **Signal Types & Actions (Enhanced Sensitivity):**
+        - 🟢 **STRONG BUY (60-100% Confidence)**: High conviction entry - Consider 3-5% position
+        - 🟢 **BUY (35-60% Confidence)**: Moderate entry - Consider 2-3% position  
+        - 🟡 **HOLD (0-35% Confidence)**: Wait for better setup - No action required
+        - 🔴 **SELL (35-60% Confidence)**: Exit long positions - Consider short if applicable
+        - 🔴 **STRONG SELL (60-100% Confidence)**: Immediate exit - Strong short candidate
+        
+        **🎯 New Enhanced Indicators:**
+        - **MACD**: Crossovers and momentum analysis
+        - **Bollinger Bands**: Volatility and mean reversion signals
+        - **ADX**: Trend strength confirmation (>20 = strong trend)
+        - **Enhanced RSI**: Multiple sensitivity levels (25/40/60/75)
+        - **Volume Analysis**: More sensitive volume breakdowns
         
         #### **📊 Fundamental Criteria (Built into Signals):**
         

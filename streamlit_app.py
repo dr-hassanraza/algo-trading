@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore')
 try:
     from user_auth import (authenticate_user, add_user, get_user_data, 
                           create_admin_account, authenticate_social_user, 
-                          is_admin, get_all_users, update_user_type)
+                          is_admin, get_all_users, update_user_type, change_password)
     AUTH_AVAILABLE = True
     # Create admin account on startup
     create_admin_account()
@@ -135,8 +135,27 @@ def render_login_page():
                 else:
                     st.error("❌ Authentication system not available")
         
-        # Admin Login Info
-        st.info("🔒 **Admin Access**: Username: `admin` | Password: `admin123`")
+        # Admin Access Note (Hidden for Security)
+        with st.expander("🔒 Admin Access Information", expanded=False):
+            st.warning("⚠️ **For System Administrator Only**")
+            st.markdown("""
+            Admin credentials are available to system administrators only.
+            
+            **Security Notice**: Admin access provides full system control including:
+            - User management and permissions
+            - System analytics and monitoring  
+            - Configuration changes
+            - Data export capabilities
+            
+            If you are the system administrator, contact the deployment manager for credentials.
+            """)
+            
+            # Only show actual credentials in development environment
+            import os
+            if os.getenv('STREAMLIT_ENV') == 'development' or os.getenv('DEBUG') == 'true':
+                st.code("Username: admin | Password: admin123")
+            else:
+                st.info("Admin credentials hidden in production environment")
     
     with tab2:
         st.subheader("Create New Account")
@@ -2132,6 +2151,50 @@ def render_admin_panel():
                     file_name=f"users_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json"
                 )
+        
+        # Password Change Section
+        st.markdown("---")
+        st.markdown("**🔐 Security Settings**")
+        
+        # Check if admin is using default password
+        current_admin = all_users.get('admin', {})
+        if not current_admin.get('password_changed', False):
+            st.warning("⚠️ **Security Alert**: Default admin password detected. Please change immediately!")
+        
+        with st.expander("🔑 Change Admin Password", expanded=not current_admin.get('password_changed', False)):
+            st.markdown("**Change your admin password for better security**")
+            
+            with st.form("change_password_form"):
+                old_password = st.text_input("Current Password", type="password", help="Enter your current admin password")
+                new_password = st.text_input("New Password", type="password", help="Choose a strong password (8+ characters)")
+                confirm_password = st.text_input("Confirm New Password", type="password", help="Re-enter your new password")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    submit_password_change = st.form_submit_button("🔐 Change Password", use_container_width=True)
+                
+                with col2:
+                    st.caption("💡 Use strong passwords with 8+ characters")
+                
+                if submit_password_change:
+                    if not old_password or not new_password or not confirm_password:
+                        st.error("❌ Please fill in all password fields")
+                    elif new_password != confirm_password:
+                        st.error("❌ New passwords do not match")
+                    elif len(new_password) < 8:
+                        st.error("❌ Password must be at least 8 characters long")
+                    elif new_password == old_password:
+                        st.error("❌ New password must be different from current password")
+                    else:
+                        # Attempt to change password
+                        current_username = st.session_state.get('username', '')
+                        if change_password(current_username, old_password, new_password):
+                            st.success("✅ Admin password changed successfully!")
+                            st.info("🔒 Your account is now more secure. Please remember your new password.")
+                            # Clear form by rerunning
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed to change password. Please verify your current password.")
 
 def main():
     """Main application with authentication"""

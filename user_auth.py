@@ -137,11 +137,19 @@ def increment_usage(username: str):
 
 def create_admin_account():
     """Creates default admin account if it doesn't exist"""
+    import os
     users = get_users()
     
     if "admin" not in users:
+        # Use environment variable for admin password, fallback to default in development
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        
+        # In production, require a secure admin password to be set
+        if os.getenv('STREAMLIT_ENV') == 'production' and admin_password == 'admin123':
+            print("WARNING: Using default admin password in production! Set ADMIN_PASSWORD environment variable.")
+        
         admin_user = {
-            "password": hash_password("admin123"),  # Default admin password
+            "password": hash_password(admin_password),
             "name": "System Administrator", 
             "email": "admin@psxtrading.com",
             "ip_address": "",
@@ -149,7 +157,8 @@ def create_admin_account():
             "user_type": "admin",
             "login_method": "password",
             "created_at": str(datetime.now()),
-            "last_login": ""
+            "last_login": "",
+            "password_changed": False  # Flag to indicate if default password is still being used
         }
         
         users["admin"] = admin_user
@@ -211,3 +220,23 @@ def update_user_type(username: str, user_type: str) -> bool:
         save_users(users)
         return True
     return False
+
+def change_password(username: str, old_password: str, new_password: str) -> bool:
+    """Change user password"""
+    users = get_users()
+    
+    if username not in users:
+        return False
+    
+    # Verify old password
+    stored_password = users[username].get("password")
+    if not stored_password or not verify_password(stored_password, old_password):
+        return False
+    
+    # Update password
+    users[username]["password"] = hash_password(new_password)
+    users[username]["password_changed"] = True
+    users[username]["last_password_change"] = str(datetime.now())
+    
+    save_users(users)
+    return True

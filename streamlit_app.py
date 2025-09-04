@@ -1068,6 +1068,258 @@ def render_live_trading_signals():
     
     # Add trading session info
     st.info("🕒 **Trading Session**: PSX operates 9:30 AM - 3:30 PM PKT | 📍 **Optimal Hours**: 10:00 AM - 3:00 PM for best liquidity")
+    
+    # Market-Wide Signal Scanner
+    st.markdown("---")
+    st.subheader("🔍 Market-Wide Signal Scanner")
+    
+    # Only show scanner if there are no actionable signals in watchlist
+    if buy_signals == 0 and sell_signals == 0:
+        st.warning("⚠️ **No actionable signals in your watchlist!** Let's scan the broader market for opportunities...")
+        
+        # Scanner controls
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            st.markdown("**Scanning 100+ PSX stocks for BUY/SELL signals...**")
+        
+        with col2:
+            scan_intensity = st.selectbox("Scan Type", ["Quick Scan (50)", "Deep Scan (100)", "Full Market (200)"], index=0)
+        
+        with col3:
+            min_confidence = st.slider("Min Confidence", 40, 90, 60, 5, help="Minimum confidence level for signals")
+        
+        if st.button("🚀 Scan Market Now", type="primary"):
+            # Determine scan size based on selection
+            if "Quick" in scan_intensity:
+                scan_limit = 50
+            elif "Deep" in scan_intensity:
+                scan_limit = 100
+            else:
+                scan_limit = 200
+            
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Get all symbols for scanning
+            all_symbols = get_cached_symbols()
+            if all_symbols:
+                # Prioritize liquid stocks for scanning
+                major_liquid_stocks = [
+                    'HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL',
+                    'TRG', 'SYSTEMS', 'POL', 'PPL', 'NESTLE', 'UNILEVER', 'COLG', 'ICI', 'BAHL',
+                    'BAFL', 'MEBL', 'JSBL', 'AKBL', 'FABL', 'EFERT', 'FATIMA', 'DGKC', 'MLCF',
+                    'FFBL', 'ATRL', 'SEARL', 'PIOC', 'KAPCO', 'HUBCO', 'FCCL', 'KEL', 'KTM',
+                    'LOTCHEM', 'MRNS', 'NRL', 'OGDC', 'OMC', 'PACE', 'PAEL', 'PASL', 'PRL',
+                    'SSGC', 'TELE', 'WTL', 'BNWM', 'CHCC', 'DOL', 'EPCL', 'FLYNG', 'GATM'
+                ]
+                
+                # Create scanning list with priority
+                scan_symbols = []
+                for stock in major_liquid_stocks[:scan_limit//2]:
+                    if stock in all_symbols:
+                        scan_symbols.append(stock)
+                
+                # Add remaining symbols to reach scan limit
+                remaining = [s for s in all_symbols if s not in scan_symbols]
+                scan_symbols.extend(remaining[:scan_limit - len(scan_symbols)])
+                scan_symbols = scan_symbols[:scan_limit]
+                
+                # Store results
+                buy_opportunities = []
+                sell_opportunities = []
+                
+                # Scan through symbols
+                for i, symbol in enumerate(scan_symbols):
+                    try:
+                        progress = (i + 1) / len(scan_symbols)
+                        progress_bar.progress(progress)
+                        status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)})")
+                        
+                        # Get market data
+                        market_data = get_cached_real_time_data(symbol)
+                        
+                        if market_data:
+                            # Get intraday data
+                            ticks_df = get_cached_intraday_ticks(symbol, 30)
+                            
+                            if not ticks_df.empty and len(ticks_df) >= 10:
+                                # Calculate indicators and signals
+                                ticks_df = system.calculate_technical_indicators(ticks_df)
+                                signal_data = system.generate_trading_signals(ticks_df, symbol)
+                                
+                                confidence = signal_data['confidence']
+                                signal_type = signal_data['signal']
+                                
+                                # Filter by confidence and signal type
+                                if confidence >= min_confidence:
+                                    if signal_type in ['BUY', 'STRONG_BUY']:
+                                        buy_opportunities.append({
+                                            'Symbol': symbol,
+                                            'Signal': signal_type,
+                                            'Confidence': f"{confidence:.1f}%",
+                                            'Price': f"{market_data['price']:.2f}",
+                                            'Entry': f"{signal_data['entry_price']:.2f}",
+                                            'Stop': f"{signal_data['stop_loss']:.2f}",
+                                            'Target': f"{signal_data['take_profit']:.2f}",
+                                            'Volume': f"{market_data.get('volume', 0):,}",
+                                            'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                        })
+                                    
+                                    elif signal_type in ['SELL', 'STRONG_SELL']:
+                                        sell_opportunities.append({
+                                            'Symbol': symbol,
+                                            'Signal': signal_type,
+                                            'Confidence': f"{confidence:.1f}%",
+                                            'Price': f"{market_data['price']:.2f}",
+                                            'Entry': f"{signal_data['entry_price']:.2f}",
+                                            'Stop': f"{signal_data['stop_loss']:.2f}",
+                                            'Target': f"{signal_data['take_profit']:.2f}",
+                                            'Volume': f"{market_data.get('volume', 0):,}",
+                                            'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                        })
+                    
+                    except Exception as e:
+                        continue
+                
+                # Clear progress indicators
+                progress_bar.empty()
+                status_text.empty()
+                
+                # Display results
+                st.markdown(f"### 🎯 **Scan Results** ({len(scan_symbols)} stocks analyzed)")
+                
+                # Summary metrics
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("🟢 BUY Opportunities", len(buy_opportunities))
+                
+                with col2:
+                    st.metric("🔴 SELL Opportunities", len(sell_opportunities))
+                
+                with col3:
+                    total_opportunities = len(buy_opportunities) + len(sell_opportunities)
+                    opportunity_rate = (total_opportunities / len(scan_symbols)) * 100
+                    st.metric("📊 Hit Rate", f"{opportunity_rate:.1f}%")
+                
+                with col4:
+                    st.metric("🔍 Scanned", f"{len(scan_symbols)} stocks")
+                
+                # Display opportunities in tabs
+                if buy_opportunities or sell_opportunities:
+                    tab1, tab2 = st.tabs([f"🟢 BUY Signals ({len(buy_opportunities)})", f"🔴 SELL Signals ({len(sell_opportunities)})"])
+                    
+                    with tab1:
+                        if buy_opportunities:
+                            st.success(f"Found {len(buy_opportunities)} BUY opportunities with ≥{min_confidence}% confidence!")
+                            
+                            # Sort by confidence (highest first)
+                            buy_opportunities.sort(key=lambda x: float(x['Confidence'].replace('%', '')), reverse=True)
+                            
+                            # Display as expandable cards for better readability
+                            for i, opp in enumerate(buy_opportunities[:10]):  # Show top 10
+                                with st.expander(f"🟢 {opp['Symbol']} - {opp['Signal']} ({opp['Confidence']})", expanded=(i < 3)):
+                                    col1, col2, col3 = st.columns(3)
+                                    
+                                    with col1:
+                                        st.markdown(f"""
+                                        **💰 Trade Setup:**
+                                        - Entry: {opp['Entry']} PKR
+                                        - Stop Loss: {opp['Stop']} PKR  
+                                        - Target: {opp['Target']} PKR
+                                        """)
+                                    
+                                    with col2:
+                                        st.markdown(f"""
+                                        **📊 Market Data:**
+                                        - Current: {opp['Price']} PKR
+                                        - Volume: {opp['Volume']}
+                                        - Confidence: {opp['Confidence']}
+                                        """)
+                                    
+                                    with col3:
+                                        risk_reward = abs(float(opp['Target']) - float(opp['Entry'])) / abs(float(opp['Entry']) - float(opp['Stop']))
+                                        st.markdown(f"""
+                                        **⚖️ Risk Analysis:**
+                                        - Risk/Reward: 1:{risk_reward:.1f}
+                                        - Signal: {opp['Signal']}
+                                        """)
+                                    
+                                    st.info(f"📋 **Analysis**: {opp['Reason']}")
+                            
+                            if len(buy_opportunities) > 10:
+                                st.info(f"Showing top 10 BUY opportunities. Total found: {len(buy_opportunities)}")
+                        else:
+                            st.info("No BUY signals found meeting your confidence criteria.")
+                    
+                    with tab2:
+                        if sell_opportunities:
+                            st.warning(f"Found {len(sell_opportunities)} SELL opportunities with ≥{min_confidence}% confidence!")
+                            
+                            # Sort by confidence (highest first)
+                            sell_opportunities.sort(key=lambda x: float(x['Confidence'].replace('%', '')), reverse=True)
+                            
+                            # Display as expandable cards
+                            for i, opp in enumerate(sell_opportunities[:10]):  # Show top 10
+                                with st.expander(f"🔴 {opp['Symbol']} - {opp['Signal']} ({opp['Confidence']})", expanded=(i < 3)):
+                                    col1, col2, col3 = st.columns(3)
+                                    
+                                    with col1:
+                                        st.markdown(f"""
+                                        **💰 Trade Setup:**
+                                        - Entry: {opp['Entry']} PKR
+                                        - Stop Loss: {opp['Stop']} PKR
+                                        - Target: {opp['Target']} PKR
+                                        """)
+                                    
+                                    with col2:
+                                        st.markdown(f"""
+                                        **📊 Market Data:**
+                                        - Current: {opp['Price']} PKR
+                                        - Volume: {opp['Volume']}
+                                        - Confidence: {opp['Confidence']}
+                                        """)
+                                    
+                                    with col3:
+                                        risk_reward = abs(float(opp['Target']) - float(opp['Entry'])) / abs(float(opp['Entry']) - float(opp['Stop']))
+                                        st.markdown(f"""
+                                        **⚖️ Risk Analysis:**
+                                        - Risk/Reward: 1:{risk_reward:.1f}
+                                        - Signal: {opp['Signal']}
+                                        """)
+                                    
+                                    st.info(f"📋 **Analysis**: {opp['Reason']}")
+                            
+                            if len(sell_opportunities) > 10:
+                                st.info(f"Showing top 10 SELL opportunities. Total found: {len(sell_opportunities)}")
+                        else:
+                            st.info("No SELL signals found meeting your confidence criteria.")
+                else:
+                    st.warning(f"No actionable signals found with ≥{min_confidence}% confidence. Try lowering the confidence threshold or selecting 'Full Market' scan.")
+                    
+                    # Suggestions for better results
+                    st.markdown("""
+                    **💡 Tips for Better Results:**
+                    - Lower confidence threshold to 50-55%
+                    - Try 'Full Market' scan to analyze more stocks
+                    - Check during active trading hours (10 AM - 3 PM)
+                    - Market conditions may be ranging (few directional signals)
+                    """)
+    
+    else:
+        st.success(f"✅ **Active signals detected!** Your watchlist has {buy_signals + sell_signals} actionable signals. Market scanner not needed.")
+        
+        if buy_signals > 0:
+            st.info(f"🟢 **{buy_signals} BUY signals** ready for action in your selected stocks above!")
+        
+        if sell_signals > 0:
+            st.info(f"🔴 **{sell_signals} SELL signals** ready for action in your selected stocks above!")
+        
+        # Option to scan anyway
+        if st.button("🔍 Scan Market Anyway", help="Find additional opportunities beyond your watchlist"):
+            st.info("Scroll up and use the market scanner when no signals are active.")
 
 def render_symbol_analysis():
     """Render detailed symbol analysis"""

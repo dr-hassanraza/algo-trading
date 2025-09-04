@@ -1214,11 +1214,11 @@ def render_header():
         </div>
         """, unsafe_allow_html=True)
 
-def safe_generate_signal(symbol, market_data, system):
-    """Safely generate trading signal with comprehensive error handling"""
+def safe_generate_signal(symbol, market_data, system, data_points=100):
+    """UNIFIED signal generation - ensures consistency across Live Signals and Symbol Analysis"""
     try:
-        # Get intraday ticks for analysis
-        ticks_df = get_cached_intraday_ticks(symbol, 50)
+        # Use consistent data points across ALL pages (100 is optimal balance)
+        ticks_df = get_cached_intraday_ticks(symbol, data_points)
         
         if not ticks_df.empty and len(ticks_df) >= 10:
             # Calculate indicators and generate signals
@@ -1246,6 +1246,11 @@ def safe_generate_signal(symbol, market_data, system):
             for field, default_value in defaults.items():
                 if field not in signal_data:
                     signal_data[field] = default_value
+            
+            # Add consistency tracking for debugging
+            signal_data['_unified_data_points'] = len(ticks_df)
+            signal_data['_generation_timestamp'] = datetime.now().isoformat()
+            signal_data['_data_source'] = f"{data_points}_ticks_unified"
             
             return signal_data
             
@@ -1719,44 +1724,39 @@ def render_live_trading_signals():
                         market_data = get_cached_real_time_data(symbol)
                         
                         if market_data:
-                            # Get intraday data
-                            ticks_df = get_cached_intraday_ticks(symbol, 30)
+                            # Use UNIFIED signal generation for consistency
+                            signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
                             
-                            if not ticks_df.empty and len(ticks_df) >= 10:
-                                # Calculate indicators and signals
-                                ticks_df = system.calculate_technical_indicators(ticks_df)
-                                signal_data = system.generate_trading_signals(ticks_df, symbol)
+                            confidence = signal_data['confidence']
+                            signal_type = signal_data['signal']
+                            
+                            # Filter by confidence and signal type
+                            if confidence >= min_confidence:
+                                if signal_type in ['BUY', 'STRONG_BUY']:
+                                    buy_opportunities.append({
+                                        'Symbol': symbol,
+                                        'Signal': signal_type,
+                                        'Confidence': f"{confidence:.1f}%",
+                                        'Price': f"{market_data['price']:.2f}",
+                                        'Entry': f"{signal_data['entry_price']:.2f}",
+                                        'Stop': f"{signal_data['stop_loss']:.2f}",
+                                        'Target': f"{signal_data['take_profit']:.2f}",
+                                        'Volume': f"{market_data.get('volume', 0):,}",
+                                        'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                    })
                                 
-                                confidence = signal_data['confidence']
-                                signal_type = signal_data['signal']
-                                
-                                # Filter by confidence and signal type
-                                if confidence >= min_confidence:
-                                    if signal_type in ['BUY', 'STRONG_BUY']:
-                                        buy_opportunities.append({
-                                            'Symbol': symbol,
-                                            'Signal': signal_type,
-                                            'Confidence': f"{confidence:.1f}%",
-                                            'Price': f"{market_data['price']:.2f}",
-                                            'Entry': f"{signal_data['entry_price']:.2f}",
-                                            'Stop': f"{signal_data['stop_loss']:.2f}",
-                                            'Target': f"{signal_data['take_profit']:.2f}",
-                                            'Volume': f"{market_data.get('volume', 0):,}",
-                                            'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
-                                        })
-                                    
-                                    elif signal_type in ['SELL', 'STRONG_SELL']:
-                                        sell_opportunities.append({
-                                            'Symbol': symbol,
-                                            'Signal': signal_type,
-                                            'Confidence': f"{confidence:.1f}%",
-                                            'Price': f"{market_data['price']:.2f}",
-                                            'Entry': f"{signal_data['entry_price']:.2f}",
-                                            'Stop': f"{signal_data['stop_loss']:.2f}",
-                                            'Target': f"{signal_data['take_profit']:.2f}",
-                                            'Volume': f"{market_data.get('volume', 0):,}",
-                                            'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
-                                        })
+                                elif signal_type in ['SELL', 'STRONG_SELL']:
+                                    sell_opportunities.append({
+                                        'Symbol': symbol,
+                                        'Signal': signal_type,
+                                        'Confidence': f"{confidence:.1f}%",
+                                        'Price': f"{market_data['price']:.2f}",
+                                        'Entry': f"{signal_data['entry_price']:.2f}",
+                                        'Stop': f"{signal_data['stop_loss']:.2f}",
+                                        'Target': f"{signal_data['take_profit']:.2f}",
+                                        'Volume': f"{market_data.get('volume', 0):,}",
+                                        'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                    })
                     
                     except Exception as e:
                         continue
@@ -1963,14 +1963,17 @@ def render_symbol_analysis():
     if selected_symbol:
         system = PSXAlgoTradingSystem()
         
-        # Get data
+        # Get data using UNIFIED signal generation (same as Live Signals)
         market_data = get_cached_real_time_data(selected_symbol)
-        ticks_df = get_cached_intraday_ticks(selected_symbol, 200)
         
-        if market_data and not ticks_df.empty:
-            # Calculate indicators
-            ticks_df = system.calculate_technical_indicators(ticks_df)
-            signal_data = system.generate_trading_signals(ticks_df, selected_symbol)
+        if market_data:
+            # Use unified signal generation for consistency
+            signal_data = safe_generate_signal(selected_symbol, market_data, system, data_points=100)
+            
+            # Also get ticks data for charts and analysis
+            ticks_df = get_cached_intraday_ticks(selected_symbol, 200)
+            if not ticks_df.empty:
+                ticks_df = system.calculate_technical_indicators(ticks_df)
             
             tab1, tab2, tab3, tab4 = st.tabs(["📊 Current Signal", "📈 Price Chart", "🎯 Performance", "📋 Details"])
             

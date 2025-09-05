@@ -250,7 +250,11 @@ class ParameterOptimizer:
         
         # Validate best parameters
         if best_params:
-            clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric, n_jobs=self.config.n_jobs)
+            # Create clusterer with compatibility handling
+            try:
+                clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric, n_jobs=self.config.n_jobs)
+            except TypeError:
+                clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric)
             labels = clusterer.fit_predict(X)
             best_validation = self.validator.validate_clustering(X, labels, clusterer)
         
@@ -285,7 +289,11 @@ class ParameterOptimizer:
         
         # Validate best parameters
         if best_params:
-            clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric, n_jobs=self.config.n_jobs)
+            # Create clusterer with compatibility handling
+            try:
+                clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric, n_jobs=self.config.n_jobs)
+            except TypeError:
+                clusterer = hdbscan.HDBSCAN(**best_params, metric=self.config.metric)
             labels = clusterer.fit_predict(X)
             best_validation = self.validator.validate_clustering(X, labels, clusterer)
         
@@ -406,12 +414,16 @@ class ClusteringEngine:
                 'cluster_selection_method': self.clustering_config.cluster_selection_method
             }
         
-        # Create and fit clusterer
-        self.clusterer = hdbscan.HDBSCAN(
-            **best_params,
-            metric=self.clustering_config.metric,
-            n_jobs=self.clustering_config.n_jobs
-        )
+        # Create and fit clusterer (remove n_jobs for compatibility)
+        clusterer_params = best_params.copy()
+        clusterer_params['metric'] = self.clustering_config.metric
+        
+        # Remove n_jobs if it causes compatibility issues
+        try:
+            self.clusterer = hdbscan.HDBSCAN(**clusterer_params, n_jobs=self.clustering_config.n_jobs)
+        except TypeError:
+            # Fallback without n_jobs parameter for older HDBSCAN versions
+            self.clusterer = hdbscan.HDBSCAN(**clusterer_params)
         
         self.current_labels = self.clusterer.fit_predict(features_processed)
         

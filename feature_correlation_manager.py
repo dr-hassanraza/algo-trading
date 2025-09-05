@@ -35,7 +35,7 @@ import joblib
 import scipy.stats as stats
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import pdist, squareform
-from scipy.special import mutual_info_classif
+# mutual_info_classif is not in scipy.special - we'll use sklearn version
 
 # Machine Learning
 from sklearn.feature_selection import (

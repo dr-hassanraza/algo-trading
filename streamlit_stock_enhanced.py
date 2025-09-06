@@ -63,28 +63,8 @@ def fetch_stock_data(symbols, days=365):
     """Fetch real stock data"""
     if not STOCK_DATA_AVAILABLE:
         # Return mock data if real fetcher not available
-        dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-        mock_data = []
-        
-        for symbol in symbols:
-            # Generate realistic stock price movements
-            base_price = np.random.uniform(50, 200)
-            returns = np.random.normal(0.001, 0.02, days)  # 0.1% daily return, 2% volatility
-            prices = base_price * np.exp(np.cumsum(returns))
-            volumes = np.random.randint(1000, 100000, days)
-            
-            for i, date in enumerate(dates):
-                mock_data.append({
-                    'symbol': symbol,
-                    'date': date,
-                    'Close': prices[i],
-                    'High': prices[i] * (1 + abs(np.random.normal(0, 0.01))),
-                    'Low': prices[i] * (1 - abs(np.random.normal(0, 0.01))),
-                    'Open': prices[i] * (1 + np.random.normal(0, 0.005)),
-                    'Volume': volumes[i]
-                })
-        
-        return pd.DataFrame(mock_data)
+        st.info("📝 Using sample data for demonstration (real data fetcher not available)")
+        return fetch_mock_data(symbols, days)
     
     else:
         # Use real data fetcher
@@ -93,6 +73,8 @@ def fetch_stock_data(symbols, days=365):
             fetcher = EnhancedDataFetcher()
             
             all_data = []
+            min_data_threshold = 10  # Minimum days of data required
+            
             for symbol in symbols:
                 try:
                     end_date = datetime.now().date()
@@ -102,18 +84,108 @@ def fetch_stock_data(symbols, days=365):
                     if not data.empty:
                         data['symbol'] = symbol
                         data['date'] = data.index
+                        
+                        # If real data has too few points, supplement with mock data
+                        if len(data) < min_data_threshold:
+                            st.warning(f"⚠️ {symbol}: Only {len(data)} days of real data available, supplementing with realistic sample data")
+                            
+                            # Generate additional mock data to fill the gap
+                            mock_dates = pd.date_range(start=start_date, end=end_date, freq='D')
+                            mock_dates = mock_dates[~mock_dates.isin(data['date'])]  # Exclude existing dates
+                            
+                            if len(mock_dates) > 0:
+                                # Use last real price as base for mock data
+                                base_price = data['Close'].iloc[-1] if not data.empty else np.random.uniform(50, 200)
+                                returns = np.random.normal(0.001, 0.02, len(mock_dates))
+                                
+                                mock_prices = []
+                                current_price = base_price
+                                for ret in returns:
+                                    current_price *= (1 + ret)
+                                    mock_prices.append(current_price)
+                                
+                                mock_volumes = np.random.randint(1000, 100000, len(mock_dates))
+                                
+                                mock_data = []
+                                for i, date in enumerate(mock_dates):
+                                    mock_data.append({
+                                        'symbol': symbol,
+                                        'date': date,
+                                        'Close': mock_prices[i],
+                                        'High': mock_prices[i] * (1 + abs(np.random.normal(0, 0.01))),
+                                        'Low': mock_prices[i] * (1 - abs(np.random.normal(0, 0.01))),
+                                        'Open': mock_prices[i] * (1 + np.random.normal(0, 0.005)),
+                                        'Volume': mock_volumes[i]
+                                    })
+                                
+                                mock_df = pd.DataFrame(mock_data)
+                                data = pd.concat([data, mock_df], ignore_index=True)
+                        
                         all_data.append(data)
-                except:
-                    continue
+                        
+                except Exception as ex:
+                    st.warning(f"⚠️ Failed to fetch {symbol}: {str(ex)[:100]}...")
+                    
+                    # Generate pure mock data for failed stocks
+                    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+                    base_price = np.random.uniform(50, 200)
+                    returns = np.random.normal(0.001, 0.02, days)
+                    prices = base_price * np.exp(np.cumsum(returns))
+                    volumes = np.random.randint(1000, 100000, days)
+                    
+                    mock_data = []
+                    for i, date in enumerate(dates):
+                        mock_data.append({
+                            'symbol': symbol,
+                            'date': date,
+                            'Close': prices[i],
+                            'High': prices[i] * (1 + abs(np.random.normal(0, 0.01))),
+                            'Low': prices[i] * (1 - abs(np.random.normal(0, 0.01))),
+                            'Open': prices[i] * (1 + np.random.normal(0, 0.005)),
+                            'Volume': volumes[i]
+                        })
+                    
+                    all_data.append(pd.DataFrame(mock_data))
             
             if all_data:
-                return pd.concat(all_data, ignore_index=True)
+                combined_data = pd.concat(all_data, ignore_index=True)
+                # Sort by symbol and date for consistent display
+                combined_data = combined_data.sort_values(['symbol', 'date']).reset_index(drop=True)
+                return combined_data
             else:
-                return pd.DataFrame()
+                # Fallback to complete mock data
+                st.info("📝 No real data available, using sample data for demonstration")
+                return fetch_mock_data(symbols, days)
                 
         except Exception as e:
             st.error(f"Error fetching real data: {e}")
-            return pd.DataFrame()
+            st.info("📝 Falling back to sample data for demonstration")
+            return fetch_mock_data(symbols, days)
+
+def fetch_mock_data(symbols, days):
+    """Generate mock data for all symbols"""
+    dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
+    mock_data = []
+    
+    for symbol in symbols:
+        # Generate realistic stock price movements
+        base_price = np.random.uniform(50, 200)
+        returns = np.random.normal(0.001, 0.02, days)  # 0.1% daily return, 2% volatility
+        prices = base_price * np.exp(np.cumsum(returns))
+        volumes = np.random.randint(1000, 100000, days)
+        
+        for i, date in enumerate(dates):
+            mock_data.append({
+                'symbol': symbol,
+                'date': date,
+                'Close': prices[i],
+                'High': prices[i] * (1 + abs(np.random.normal(0, 0.01))),
+                'Low': prices[i] * (1 - abs(np.random.normal(0, 0.01))),
+                'Open': prices[i] * (1 + np.random.normal(0, 0.005)),
+                'Volume': volumes[i]
+            })
+    
+    return pd.DataFrame(mock_data)
 
 def main():
     st.title("📈 Enhanced PSX Stock Analysis")
@@ -171,26 +243,59 @@ def show_stock_overview(data, symbols):
     
     st.header("📊 Stock Price Overview")
     
-    # Price chart
+    # Debug info
+    with st.expander("🔍 Data Summary (Click to expand)"):
+        st.write(f"**Total data points:** {len(data)}")
+        st.write(f"**Symbols in data:** {sorted(data['symbol'].unique())}")
+        st.write(f"**Data points per symbol:**")
+        symbol_counts = data['symbol'].value_counts().sort_index()
+        for symbol, count in symbol_counts.items():
+            st.write(f"- {symbol}: {count} days")
+        
+        st.write(f"**Date range:** {data['date'].min()} to {data['date'].max()}")
+    
+    # Price chart with improved visualization
     fig = go.Figure()
     
-    for symbol in symbols:
+    # Define colors for better distinction
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
+    
+    for i, symbol in enumerate(symbols):
         symbol_data = data[data['symbol'] == symbol].sort_values('date')
         if not symbol_data.empty:
+            color = colors[i % len(colors)]
             fig.add_trace(go.Scatter(
                 x=symbol_data['date'],
                 y=symbol_data['Close'],
-                mode='lines',
-                name=symbol,
-                line=dict(width=2)
+                mode='lines+markers',
+                name=f"{symbol} ({len(symbol_data)} points)",
+                line=dict(width=3, color=color),
+                marker=dict(size=4, color=color),
+                hovertemplate=f"<b>{symbol}</b><br>" +
+                             "Date: %{x}<br>" +
+                             "Price: %{y:.2f} PKR<br>" +
+                             "<extra></extra>"
             ))
     
     fig.update_layout(
-        title="Stock Price Movements",
+        title="Stock Price Movements - All Selected Stocks",
         xaxis_title="Date",
         yaxis_title="Price (PKR)",
-        hovermode='x unified'
+        hovermode='x unified',
+        height=600,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
+    
+    # Add grid and styling
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
     
     st.plotly_chart(fig, use_container_width=True)
     

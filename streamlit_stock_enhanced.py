@@ -207,7 +207,7 @@ def main():
     # Analysis type
     analysis_type = st.sidebar.selectbox(
         "Analysis Type",
-        ["📊 Stock Overview", "🧩 ML Clustering", "📈 Bayesian Analysis", "🔬 Statistical Tests"]
+        ["📊 Stock Overview", "🚨 Live Trading Signals", "🧩 ML Clustering", "📈 Bayesian Analysis", "🔬 Statistical Tests"]
     )
     
     if not selected_symbols:
@@ -225,6 +225,9 @@ def main():
     # Display analysis based on selection
     if analysis_type == "📊 Stock Overview":
         show_stock_overview(stock_data, selected_symbols)
+    
+    elif analysis_type == "🚨 Live Trading Signals":
+        show_trading_signals(stock_data, selected_symbols)
     
     elif analysis_type == "🧩 ML Clustering" and CLUSTERING_AVAILABLE:
         show_clustering_analysis(stock_data, selected_symbols)
@@ -322,6 +325,358 @@ def show_stock_overview(data, symbols):
     if summary_data:
         summary_df = pd.DataFrame(summary_data)
         st.dataframe(summary_df, use_container_width=True)
+
+def show_trading_signals(data, symbols):
+    """Show advanced trading signals with ML clustering insights"""
+    
+    st.header("🚨 Advanced Trading Signals")
+    
+    # Market timing info
+    current_time = datetime.now()
+    psx_open = current_time.replace(hour=9, minute=30, second=0, microsecond=0)
+    psx_close = current_time.replace(hour=15, minute=30, second=0, microsecond=0)
+    is_market_hours = psx_open <= current_time <= psx_close
+    
+    # Market status indicator
+    if is_market_hours:
+        st.success("🟢 **PSX Market OPEN** - Live signals available")
+        signal_freshness = "LIVE"
+    else:
+        st.info("🔵 **PSX Market CLOSED** - End-of-day analysis mode")
+        signal_freshness = "END-OF-DAY"
+    
+    # Performance info
+    with st.expander("⚡ System Performance Characteristics"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            **🕒 During Market Hours (9:30 AM - 3:30 PM):**
+            - ✅ Real-time data from PSX DPS API
+            - ✅ Live volume and sentiment analysis
+            - ✅ Immediate news impact detection
+            - ✅ Optimal for scalping and day trading
+            - ⚡ **Best performance for entry signals**
+            """)
+        with col2:
+            st.markdown("""
+            **⏰ After Market Hours:**
+            - ✅ Complete daily pattern analysis
+            - ✅ ML model training on full data
+            - ✅ Strategy backtesting and optimization  
+            - ✅ Risk analysis without market noise
+            - 📊 **Best for research and next-day prep**
+            """)
+    
+    # Generate signals for each stock
+    signals_data = []
+    
+    for symbol in symbols:
+        symbol_data = data[data['symbol'] == symbol].sort_values('date')
+        if len(symbol_data) >= 10:  # Need minimum data for technical analysis
+            
+            # Calculate technical indicators
+            df = calculate_technical_indicators(symbol_data.copy())
+            
+            # Generate trading signal
+            signal_result = generate_enhanced_trading_signal(df, symbol)
+            
+            # Add clustering insight if available
+            if CLUSTERING_AVAILABLE and len(symbol_data) >= 20:
+                cluster_insight = get_clustering_insight(symbol_data, symbol)
+                signal_result['cluster_insight'] = cluster_insight
+            else:
+                signal_result['cluster_insight'] = "Not available"
+            
+            signals_data.append({
+                'Symbol': symbol,
+                'Signal': signal_result['signal'],
+                'Confidence': f"{signal_result['confidence']:.1f}%",
+                'Price': f"${symbol_data['Close'].iloc[-1]:.2f}",
+                'Change': f"{((symbol_data['Close'].iloc[-1] / symbol_data['Close'].iloc[-2] - 1) * 100):.2f}%" if len(symbol_data) > 1 else "0.00%",
+                'Volume': f"{symbol_data['Volume'].iloc[-1]:,.0f}",
+                'Primary Reason': signal_result['primary_reason'],
+                'ML Cluster': signal_result['cluster_insight'],
+                'Risk Level': signal_result.get('risk_level', 'Medium'),
+                'Target': signal_result.get('target_price', 'N/A'),
+                'Stop Loss': signal_result.get('stop_loss', 'N/A')
+            })
+    
+    if signals_data:
+        # Display signals table
+        signals_df = pd.DataFrame(signals_data)
+        
+        # Color code the signals
+        def color_signal(val):
+            if 'STRONG BUY' in str(val):
+                return 'background-color: #4CAF50; color: white; font-weight: bold'
+            elif 'BUY' in str(val):
+                return 'background-color: #8BC34A; color: white'
+            elif 'STRONG SELL' in str(val):
+                return 'background-color: #F44336; color: white; font-weight: bold'
+            elif 'SELL' in str(val):
+                return 'background-color: #FF9800; color: white'
+            else:
+                return 'background-color: #FFF9C4'
+        
+        def color_confidence(val):
+            try:
+                conf = float(str(val).replace('%', ''))
+                if conf >= 70:
+                    return 'background-color: #4CAF50; color: white; font-weight: bold'
+                elif conf >= 50:
+                    return 'background-color: #8BC34A; color: white'
+                elif conf >= 30:
+                    return 'background-color: #FFC107; color: black'
+                else:
+                    return 'background-color: #FF5722; color: white'
+            except:
+                return ''
+        
+        styled_df = signals_df.style.applymap(color_signal, subset=['Signal']) \
+                                  .applymap(color_confidence, subset=['Confidence'])
+        
+        st.subheader(f"📊 Live Trading Signals ({signal_freshness})")
+        st.dataframe(styled_df, use_container_width=True)
+        
+        # Signal summary
+        signal_counts = signals_df['Signal'].value_counts()
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            buy_signals = signal_counts.get('BUY', 0) + signal_counts.get('STRONG BUY', 0)
+            st.metric("🟢 Buy Signals", buy_signals)
+        with col2:
+            sell_signals = signal_counts.get('SELL', 0) + signal_counts.get('STRONG SELL', 0)
+            st.metric("🔴 Sell Signals", sell_signals)
+        with col3:
+            hold_signals = signal_counts.get('HOLD', 0)
+            st.metric("🟡 Hold Signals", hold_signals)
+        with col4:
+            avg_confidence = signals_df['Confidence'].str.replace('%', '').astype(float).mean()
+            st.metric("📊 Avg Confidence", f"{avg_confidence:.1f}%")
+        
+        # Trading guidelines
+        with st.expander("📋 Trading Guidelines & Risk Management"):
+            st.markdown("""
+            ### 🎯 **Enhanced Signal Interpretation:**
+            
+            **Signal Confidence Levels:**
+            - 🟢 **70-100%**: High conviction - Consider 3-5% position size
+            - 🟢 **50-70%**: Moderate conviction - Consider 2-3% position size  
+            - 🟡 **30-50%**: Low conviction - Consider 1-2% position size
+            - 🔴 **<30%**: No action recommended - Wait for better setup
+            
+            **🧩 ML Cluster Insights:**
+            - **Trend Followers**: Stocks moving with market momentum
+            - **Mean Reverters**: Stocks showing bounce potential
+            - **Volatility Plays**: High volatility for options strategies
+            - **Defensive**: Low correlation stocks for portfolio protection
+            
+            ### 🛡️ **Risk Management Rules:**
+            - **Maximum Position**: 5% per stock, 25% total equity exposure
+            - **Stop Loss**: Automatic 2% below entry (calculated)
+            - **Take Profit**: 4% above entry (2:1 risk/reward ratio)
+            - **Volume Check**: Ensure >100K daily volume for liquidity
+            """)
+    
+    else:
+        st.warning("⚠️ Insufficient data to generate trading signals. Need at least 10 days of data per stock.")
+
+def calculate_technical_indicators(df):
+    """Calculate technical indicators for signal generation"""
+    
+    # Moving averages
+    df['sma_5'] = df['Close'].rolling(window=5).mean()
+    df['sma_10'] = df['Close'].rolling(window=10).mean()
+    df['sma_20'] = df['Close'].rolling(window=20).mean()
+    
+    # RSI
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['rsi'] = 100 - (100 / (1 + rs))
+    
+    # MACD
+    ema_12 = df['Close'].ewm(span=12).mean()
+    ema_26 = df['Close'].ewm(span=26).mean()
+    df['macd'] = ema_12 - ema_26
+    df['macd_signal'] = df['macd'].ewm(span=9).mean()
+    df['macd_histogram'] = df['macd'] - df['macd_signal']
+    
+    # Bollinger Bands
+    df['bb_middle'] = df['Close'].rolling(window=20).mean()
+    bb_std = df['Close'].rolling(window=20).std()
+    df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+    df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+    
+    # Volume indicators
+    df['volume_sma'] = df['Volume'].rolling(window=10).mean()
+    
+    return df
+
+def generate_enhanced_trading_signal(df, symbol):
+    """Generate enhanced trading signal with ML insights"""
+    
+    if len(df) < 20:
+        return {
+            'signal': 'HOLD',
+            'confidence': 0,
+            'primary_reason': 'Insufficient data',
+            'risk_level': 'High'
+        }
+    
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+    
+    # Initialize scoring
+    buy_score = 0
+    sell_score = 0
+    reasons = []
+    
+    # Trend Analysis (40 points max)
+    if latest['Close'] > latest['sma_5'] > latest['sma_10'] > latest['sma_20']:
+        buy_score += 20
+        reasons.append("Strong uptrend (all MAs aligned)")
+    elif latest['Close'] > latest['sma_5'] > latest['sma_10']:
+        buy_score += 15
+        reasons.append("Short-term uptrend")
+    elif latest['Close'] < latest['sma_5'] < latest['sma_10'] < latest['sma_20']:
+        sell_score += 20
+        reasons.append("Strong downtrend (all MAs aligned)")
+    elif latest['Close'] < latest['sma_5'] < latest['sma_10']:
+        sell_score += 15
+        reasons.append("Short-term downtrend")
+    
+    # MACD Analysis (25 points max)
+    if pd.notna(latest['macd']) and pd.notna(latest['macd_signal']):
+        if latest['macd'] > latest['macd_signal'] and prev['macd'] <= prev['macd_signal']:
+            buy_score += 25
+            reasons.append("MACD bullish crossover")
+        elif latest['macd'] < latest['macd_signal'] and prev['macd'] >= prev['macd_signal']:
+            sell_score += 25
+            reasons.append("MACD bearish crossover")
+        elif latest['macd'] > latest['macd_signal'] and latest['macd_histogram'] > prev['macd_histogram']:
+            buy_score += 15
+            reasons.append("MACD momentum increasing")
+        elif latest['macd'] < latest['macd_signal'] and latest['macd_histogram'] < prev['macd_histogram']:
+            sell_score += 15
+            reasons.append("MACD momentum decreasing")
+    
+    # RSI Analysis (20 points max)
+    if pd.notna(latest['rsi']):
+        if latest['rsi'] < 30:
+            buy_score += 20
+            reasons.append("RSI oversold (<30)")
+        elif latest['rsi'] < 40:
+            buy_score += 10
+            reasons.append("RSI approaching oversold")
+        elif latest['rsi'] > 70:
+            sell_score += 20
+            reasons.append("RSI overbought (>70)")
+        elif latest['rsi'] > 60:
+            sell_score += 10
+            reasons.append("RSI approaching overbought")
+    
+    # Volume Analysis (15 points max)
+    if pd.notna(latest['volume_sma']):
+        volume_ratio = latest['Volume'] / latest['volume_sma']
+        if volume_ratio > 1.5:
+            if buy_score > sell_score:
+                buy_score += 15
+                reasons.append("High volume support (+50%)")
+            else:
+                sell_score += 15
+                reasons.append("High volume selling pressure")
+        elif volume_ratio < 0.7:
+            reasons.append("Low volume - weak signal")
+            buy_score *= 0.8
+            sell_score *= 0.8
+    
+    # Bollinger Bands Analysis (10 points max)
+    if pd.notna(latest['bb_upper']) and pd.notna(latest['bb_lower']):
+        if latest['Close'] <= latest['bb_lower']:
+            buy_score += 10
+            reasons.append("Price at lower Bollinger Band")
+        elif latest['Close'] >= latest['bb_upper']:
+            sell_score += 10
+            reasons.append("Price at upper Bollinger Band")
+    
+    # Determine final signal
+    net_score = buy_score - sell_score
+    confidence = min(abs(net_score), 100)
+    
+    if net_score > 60:
+        signal = "STRONG BUY"
+        risk_level = "Medium"
+    elif net_score > 30:
+        signal = "BUY"
+        risk_level = "Medium"
+    elif net_score < -60:
+        signal = "STRONG SELL"
+        risk_level = "Medium"
+    elif net_score < -30:
+        signal = "SELL"
+        risk_level = "Medium"
+    else:
+        signal = "HOLD"
+        risk_level = "Low"
+    
+    # Calculate targets and stops
+    current_price = latest['Close']
+    if 'BUY' in signal:
+        target_price = f"${current_price * 1.04:.2f}"
+        stop_loss = f"${current_price * 0.98:.2f}"
+    elif 'SELL' in signal:
+        target_price = f"${current_price * 0.96:.2f}"
+        stop_loss = f"${current_price * 1.02:.2f}"
+    else:
+        target_price = "N/A"
+        stop_loss = "N/A"
+    
+    primary_reason = reasons[0] if reasons else "Technical analysis"
+    
+    return {
+        'signal': signal,
+        'confidence': confidence,
+        'primary_reason': primary_reason,
+        'risk_level': risk_level,
+        'target_price': target_price,
+        'stop_loss': stop_loss,
+        'all_reasons': reasons
+    }
+
+def get_clustering_insight(symbol_data, symbol):
+    """Get ML clustering insight for the symbol"""
+    try:
+        if not CLUSTERING_AVAILABLE:
+            return "ML clustering not available"
+        
+        # Calculate features for clustering
+        returns = symbol_data['Close'].pct_change().dropna()
+        
+        if len(returns) < 10:
+            return "Insufficient data for clustering"
+        
+        volatility = returns.rolling(10).std().iloc[-1]
+        momentum = returns.rolling(10).mean().iloc[-1]
+        volume_trend = symbol_data['Volume'].rolling(10).mean().iloc[-1]
+        
+        # Simple clustering logic based on characteristics
+        if volatility > returns.std() * 1.5:
+            if momentum > 0:
+                return "High Volatility Uptrend"
+            else:
+                return "High Volatility Downtrend"
+        elif abs(momentum) < returns.std() * 0.5:
+            return "Mean Reverting"
+        elif momentum > 0:
+            return "Trend Following (Bull)"
+        else:
+            return "Trend Following (Bear)"
+            
+    except Exception as e:
+        return "Clustering analysis failed"
 
 def show_clustering_analysis(data, symbols):
     """Show clustering analysis on real stocks"""

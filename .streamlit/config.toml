@@ -10,5 +10,3 @@ port = 8501
 
 [runner]
 magicEnabled = true
-installTracer = false
-fixMatplotlib = true

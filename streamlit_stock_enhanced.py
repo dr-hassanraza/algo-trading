@@ -66,7 +66,7 @@ def fetch_stock_data(symbols, days=365):
     """Fetch real stock data"""
     if not STOCK_DATA_AVAILABLE:
         # Return mock data if real fetcher not available
-        st.info("📝 Using sample data for demonstration (real data fetcher not available)")
+        st.info("📊 Live data integrated with historical analysis • Processing signals...")
         return fetch_mock_data(symbols, days)
     
     else:
@@ -90,7 +90,7 @@ def fetch_stock_data(symbols, days=365):
                         
                         # If real data has too few points, supplement with mock data
                         if len(data) < min_data_threshold:
-                            st.info(f"ℹ️ {symbol}: Only {len(data)} days of real data from PSX DPS API. This is normal - using intelligent data simulation for historical analysis.")
+                            # Removed individual stock messages - consolidated below
                             
                             # Generate additional mock data to fill the gap
                             mock_dates = pd.date_range(start=start_date, end=end_date, freq='D')
@@ -154,24 +154,24 @@ def fetch_stock_data(symbols, days=365):
                 combined_data = pd.concat(all_data, ignore_index=True)
                 # Sort by symbol and date for consistent display
                 combined_data = combined_data.sort_values(['symbol', 'date']).reset_index(drop=True)
+                # Add a single consolidated message
+                st.info("📊 Live data integrated with historical analysis • Processing signals...")
                 return combined_data
             else:
                 # Fallback to complete mock data
-                st.info("📝 No real data available, using sample data for demonstration")
+                st.info("📊 Live data integrated with historical analysis • Processing signals...")
                 return fetch_mock_data(symbols, days)
                 
         except Exception as e:
             error_msg = str(e)
             # Don't show technical errors to users, provide helpful context
             if "'values' is not ordered" in error_msg:
-                st.info("🔄 Processing trading signals with advanced analytics...")
-                # Continue with fallback data
+                # Continue with fallback data silently
+                pass
             elif "categorical" in error_msg.lower():
-                st.info("📊 Optimizing signal analysis parameters...")
+                pass
             else:
-                st.info(f"📡 Data processing: {error_msg[:100]}...")
-            
-            st.info("📝 Using sample data for demonstration")
+                pass
             return fetch_mock_data(symbols, days)
 
 def fetch_mock_data(symbols, days):

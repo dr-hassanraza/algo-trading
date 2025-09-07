@@ -346,51 +346,171 @@ def main():
         st.error(f"❌ {analysis_type} not available - missing ML components")
 
 def show_stock_overview(data, symbols):
-    """Show basic stock overview"""
+    """Advanced stock overview with candlestick analysis and professional insights"""
     
-    st.header("📊 Stock Price Overview")
+    st.header("📊 Advanced Stock Analysis & Insights")
     
-    # Debug info
-    with st.expander("🔍 Data Summary (Click to expand)"):
-        st.write(f"**Total data points:** {len(data)}")
-        st.write(f"**Symbols in data:** {sorted(data['symbol'].unique())}")
-        st.write(f"**Data points per symbol:**")
-        symbol_counts = data['symbol'].value_counts().sort_index()
-        for symbol, count in symbol_counts.items():
-            st.write(f"- {symbol}: {count} days")
-        
-        st.write(f"**Date range:** {data['date'].min()} to {data['date'].max()}")
+    # Chart type selector
+    chart_type = st.radio(
+        "📈 Chart Type",
+        ["📊 Candlestick Analysis", "📈 Line Chart Comparison", "📊 Volume Analysis"],
+        horizontal=True
+    )
     
-    # Price chart with improved visualization
+    if chart_type == "📊 Candlestick Analysis":
+        show_candlestick_analysis(data, symbols)
+    elif chart_type == "📈 Line Chart Comparison":
+        show_line_chart_comparison(data, symbols)
+    elif chart_type == "📊 Volume Analysis":
+        show_volume_analysis(data, symbols)
+    
+    # Professional Performance Summary
+    st.header("🎯 Professional Performance Analytics")
+    show_advanced_performance_summary(data, symbols)
+    
+    # Market Insights Dashboard
+    st.header("🔍 Market Insights & Trading Intelligence")
+    show_market_insights(data, symbols)
+
+def show_candlestick_analysis(data, symbols):
+    """Advanced candlestick analysis with technical indicators"""
+    
+    # Stock selector for detailed candlestick view
+    selected_stock = st.selectbox("🎯 Select Stock for Detailed Candlestick Analysis", symbols)
+    
+    symbol_data = data[data['symbol'] == selected_stock].sort_values('date')
+    if symbol_data.empty:
+        st.warning(f"No data available for {selected_stock}")
+        return
+    
+    # Calculate technical indicators
+    df_tech = calculate_technical_indicators(symbol_data.copy())
+    
+    # Create candlestick chart with indicators
     fig = go.Figure()
     
-    # Define colors for better distinction
+    # Add candlestick
+    fig.add_trace(go.Candlestick(
+        x=df_tech['date'],
+        open=df_tech['Open'],
+        high=df_tech['High'],
+        low=df_tech['Low'],
+        close=df_tech['Close'],
+        name=f"{selected_stock} Candlesticks",
+        increasing_line_color='#26a69a',
+        decreasing_line_color='#ef5350'
+    ))
+    
+    # Add moving averages if available
+    if 'sma_5' in df_tech.columns and not df_tech['sma_5'].isna().all():
+        fig.add_trace(go.Scatter(
+            x=df_tech['date'],
+            y=df_tech['sma_5'],
+            mode='lines',
+            name='SMA 5',
+            line=dict(color='orange', width=1.5),
+            opacity=0.8
+        ))
+    
+    if 'sma_20' in df_tech.columns and not df_tech['sma_20'].isna().all():
+        fig.add_trace(go.Scatter(
+            x=df_tech['date'],
+            y=df_tech['sma_20'],
+            mode='lines',
+            name='SMA 20',
+            line=dict(color='blue', width=2),
+            opacity=0.7
+        ))
+    
+    # Add Bollinger Bands if available
+    if 'bb_upper' in df_tech.columns and not df_tech['bb_upper'].isna().all():
+        fig.add_trace(go.Scatter(
+            x=df_tech['date'],
+            y=df_tech['bb_upper'],
+            mode='lines',
+            name='BB Upper',
+            line=dict(color='gray', width=1, dash='dash'),
+            opacity=0.5
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=df_tech['date'],
+            y=df_tech['bb_lower'],
+            mode='lines',
+            name='BB Lower',
+            line=dict(color='gray', width=1, dash='dash'),
+            fill='tonexty',
+            opacity=0.1
+        ))
+    
+    fig.update_layout(
+        title=f"📊 {selected_stock} - Candlestick Analysis with Technical Indicators",
+        yaxis_title="Price (PKR)",
+        xaxis_title="Date",
+        height=600,
+        showlegend=True,
+        xaxis_rangeslider_visible=False,
+        template='plotly_white'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Candlestick pattern analysis
+    show_candlestick_patterns(df_tech, selected_stock)
+    
+    # Technical indicators summary
+    show_technical_indicators_summary(df_tech, selected_stock)
+
+def show_line_chart_comparison(data, symbols):
+    """Enhanced line chart comparison with performance overlay"""
+    
+    fig = go.Figure()
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
     
     for i, symbol in enumerate(symbols):
         symbol_data = data[data['symbol'] == symbol].sort_values('date')
         if not symbol_data.empty:
             color = colors[i % len(colors)]
+            
+            # Calculate normalized performance (percentage from first day)
+            first_price = symbol_data['Close'].iloc[0]
+            normalized_performance = ((symbol_data['Close'] / first_price) - 1) * 100
+            
             fig.add_trace(go.Scatter(
                 x=symbol_data['date'],
                 y=symbol_data['Close'],
                 mode='lines+markers',
-                name=f"{symbol} ({len(symbol_data)} points)",
+                name=f"{symbol}",
                 line=dict(width=3, color=color),
                 marker=dict(size=4, color=color),
                 hovertemplate=f"<b>{symbol}</b><br>" +
                              "Date: %{x}<br>" +
                              "Price: %{y:.2f} PKR<br>" +
-                             "<extra></extra>"
+                             "<extra></extra>",
+                yaxis='y'
+            ))
+            
+            # Add performance overlay
+            fig.add_trace(go.Scatter(
+                x=symbol_data['date'],
+                y=normalized_performance,
+                mode='lines',
+                name=f"{symbol} Performance %",
+                line=dict(width=2, color=color, dash='dot'),
+                opacity=0.6,
+                yaxis='y2',
+                visible='legendonly'
             ))
     
     fig.update_layout(
-        title="Stock Price Movements - All Selected Stocks",
+        title="📈 Multi-Stock Price Comparison & Performance",
         xaxis_title="Date",
-        yaxis_title="Price (PKR)",
-        hovermode='x unified',
+        yaxis=dict(title="Price (PKR)", side='left'),
+        yaxis2=dict(title="Performance (%)", side='right', overlaying='y'),
         height=600,
         showlegend=True,
+        hovermode='x unified',
+        template='plotly_white',
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -400,35 +520,527 @@ def show_stock_overview(data, symbols):
         )
     )
     
-    # Add grid and styling
-    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray', gridcolor_minor='whitesmoke')
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
     
     st.plotly_chart(fig, use_container_width=True)
+
+def show_volume_analysis(data, symbols):
+    """Professional volume analysis with price-volume correlation"""
     
-    # Summary statistics
-    st.subheader("📈 Performance Summary")
+    selected_stock = st.selectbox("📊 Select Stock for Volume Analysis", symbols)
     
-    summary_data = []
+    symbol_data = data[data['symbol'] == selected_stock].sort_values('date')
+    if symbol_data.empty:
+        st.warning(f"No data available for {selected_stock}")
+        return
+    
+    # Create subplot with price and volume
+    from plotly.subplots import make_subplots
+    
+    fig = make_subplots(
+        rows=2, cols=1,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.05,
+        subplot_titles=[f"{selected_stock} Price Action", "Volume Analysis"],
+        shared_xaxes=True
+    )
+    
+    # Price candlesticks
+    fig.add_trace(go.Candlestick(
+        x=symbol_data['date'],
+        open=symbol_data['Open'],
+        high=symbol_data['High'],
+        low=symbol_data['Low'],
+        close=symbol_data['Close'],
+        name="Price",
+        increasing_line_color='#26a69a',
+        decreasing_line_color='#ef5350'
+    ), row=1, col=1)
+    
+    # Volume bars with color coding
+    volume_colors = []
+    for i in range(len(symbol_data)):
+        if i == 0:
+            volume_colors.append('#26a69a')
+        else:
+            current_close = symbol_data.iloc[i]['Close']
+            prev_close = symbol_data.iloc[i-1]['Close']
+            if current_close >= prev_close:
+                volume_colors.append('#26a69a')  # Green for up days
+            else:
+                volume_colors.append('#ef5350')  # Red for down days
+    
+    fig.add_trace(go.Bar(
+        x=symbol_data['date'],
+        y=symbol_data['Volume'],
+        name="Volume",
+        marker_color=volume_colors,
+        opacity=0.7
+    ), row=2, col=1)
+    
+    # Add volume moving average
+    volume_ma = symbol_data['Volume'].rolling(window=20).mean()
+    fig.add_trace(go.Scatter(
+        x=symbol_data['date'],
+        y=volume_ma,
+        mode='lines',
+        name='Volume MA(20)',
+        line=dict(color='orange', width=2),
+        opacity=0.8
+    ), row=2, col=1)
+    
+    fig.update_layout(
+        title=f"📊 {selected_stock} - Price & Volume Correlation Analysis",
+        height=700,
+        showlegend=True,
+        xaxis_rangeslider_visible=False,
+        template='plotly_white'
+    )
+    
+    fig.update_yaxes(title_text="Price (PKR)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Volume insights
+    show_volume_insights(symbol_data, selected_stock)
+
+def show_advanced_performance_summary(data, symbols):
+    """Professional performance analytics with advanced metrics"""
+    
+    performance_data = []
+    
     for symbol in symbols:
         symbol_data = data[data['symbol'] == symbol].sort_values('date')
         if len(symbol_data) > 1:
+            # Basic metrics
             first_price = symbol_data['Close'].iloc[0]
             last_price = symbol_data['Close'].iloc[-1]
             returns = symbol_data['Close'].pct_change().dropna()
             
-            summary_data.append({
+            # Advanced metrics
+            total_return = ((last_price / first_price) - 1) * 100
+            volatility = returns.std() * np.sqrt(252) * 100  # Annualized volatility
+            
+            # Sharpe ratio (assuming 8% risk-free rate for Pakistan)
+            risk_free_rate = 0.08 / 252  # Daily risk-free rate
+            excess_returns = returns - risk_free_rate
+            sharpe_ratio = excess_returns.mean() / returns.std() * np.sqrt(252) if returns.std() != 0 else 0
+            
+            # Maximum drawdown
+            cumulative = (1 + returns).cumprod()
+            rolling_max = cumulative.expanding().max()
+            drawdown = (cumulative - rolling_max) / rolling_max
+            max_drawdown = drawdown.min() * 100
+            
+            # Price momentum (last 5 days vs previous 20 days)
+            if len(symbol_data) >= 25:
+                recent_avg = symbol_data['Close'].tail(5).mean()
+                prev_avg = symbol_data['Close'].tail(25).head(20).mean()
+                momentum = ((recent_avg / prev_avg) - 1) * 100
+            else:
+                momentum = 0
+            
+            # Support and Resistance levels
+            high_52w = symbol_data['High'].max()
+            low_52w = symbol_data['Low'].min()
+            current_price = last_price
+            
+            # Position relative to 52-week range
+            price_position = ((current_price - low_52w) / (high_52w - low_52w)) * 100 if high_52w != low_52w else 50
+            
+            performance_data.append({
                 'Symbol': symbol,
-                'Start Price': f"{first_price:.2f}",
-                'End Price': f"{last_price:.2f}",
-                'Total Return': f"{((last_price/first_price-1)*100):.2f}%",
-                'Daily Vol': f"{(returns.std()*100):.2f}%",
-                'Avg Volume': f"{symbol_data['Volume'].mean():.0f}"
+                'Current Price': f"{last_price:.2f} PKR",
+                'Total Return': f"{total_return:.2f}%",
+                'Volatility (Ann.)': f"{volatility:.2f}%",
+                'Sharpe Ratio': f"{sharpe_ratio:.3f}",
+                'Max Drawdown': f"{max_drawdown:.2f}%",
+                'Momentum (5d vs 20d)': f"{momentum:.2f}%",
+                '52W High': f"{high_52w:.2f}",
+                '52W Low': f"{low_52w:.2f}",
+                'Position in Range': f"{price_position:.1f}%",
+                'Avg Volume': f"{symbol_data['Volume'].mean():.0f}K"
             })
     
-    if summary_data:
-        summary_df = pd.DataFrame(summary_data)
-        st.dataframe(summary_df, use_container_width=True)
+    if performance_data:
+        df = pd.DataFrame(performance_data)
+        
+        # Style the dataframe with color coding
+        def color_performance(val):
+            if isinstance(val, str) and '%' in val:
+                num_val = float(val.replace('%', ''))
+                if num_val > 0:
+                    return 'background-color: #d4edda; color: #155724'  # Green
+                elif num_val < 0:
+                    return 'background-color: #f8d7da; color: #721c24'  # Red
+            return ''
+        
+        styled_df = df.style.applymap(color_performance, subset=['Total Return', 'Max Drawdown', 'Momentum (5d vs 20d)'])
+        
+        st.dataframe(styled_df, use_container_width=True)
+        
+        # Performance insights
+        st.subheader("🎯 Key Performance Insights")
+        
+        # Find best and worst performers
+        total_returns = [float(d['Total Return'].replace('%', '')) for d in performance_data]
+        best_performer_idx = np.argmax(total_returns)
+        worst_performer_idx = np.argmin(total_returns)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                "🏆 Best Performer",
+                performance_data[best_performer_idx]['Symbol'],
+                f"{performance_data[best_performer_idx]['Total Return']}"
+            )
+        
+        with col2:
+            st.metric(
+                "📉 Worst Performer", 
+                performance_data[worst_performer_idx]['Symbol'],
+                f"{performance_data[worst_performer_idx]['Total Return']}"
+            )
+        
+        with col3:
+            avg_return = np.mean(total_returns)
+            st.metric(
+                "📊 Portfolio Average",
+                f"{avg_return:.2f}%",
+                f"Volatility: {np.mean([float(d['Volatility (Ann.)'].replace('%', '')) for d in performance_data]):.1f}%"
+            )
+
+def show_market_insights(data, symbols):
+    """Advanced market insights and trading intelligence"""
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🎯 Trading Signals Summary")
+        
+        signals_summary = []
+        for symbol in symbols:
+            symbol_data = data[data['symbol'] == symbol].sort_values('date')
+            if len(symbol_data) >= 20:
+                df_tech = calculate_technical_indicators(symbol_data.copy())
+                signal_result = generate_enhanced_trading_signal(df_tech, symbol)
+                
+                signals_summary.append({
+                    'Symbol': symbol,
+                    'Signal': signal_result['signal'],
+                    'Confidence': f"{signal_result['confidence']:.0f}%",
+                    'Primary Reason': signal_result['primary_reason'][:30] + "..." if len(signal_result['primary_reason']) > 30 else signal_result['primary_reason']
+                })
+        
+        if signals_summary:
+            st.dataframe(pd.DataFrame(signals_summary), use_container_width=True)
+    
+    with col2:
+        st.subheader("📊 Market Correlation Matrix")
+        
+        # Create correlation matrix if we have multiple stocks
+        if len(symbols) > 1:
+            correlation_data = {}
+            for symbol in symbols:
+                symbol_data = data[data['symbol'] == symbol].sort_values('date')
+                if not symbol_data.empty:
+                    returns = symbol_data['Close'].pct_change().dropna()
+                    correlation_data[symbol] = returns
+            
+            if len(correlation_data) > 1:
+                # Align all series to same dates
+                corr_df = pd.DataFrame(correlation_data).dropna()
+                if not corr_df.empty:
+                    correlation_matrix = corr_df.corr()
+                    
+                    # Create heatmap
+                    fig_corr = go.Figure(data=go.Heatmap(
+                        z=correlation_matrix.values,
+                        x=correlation_matrix.columns,
+                        y=correlation_matrix.columns,
+                        colorscale='RdYlBu',
+                        zmid=0,
+                        text=correlation_matrix.round(3).values,
+                        texttemplate="%{text}",
+                        textfont={"size": 12},
+                        hovertemplate="<b>%{y} vs %{x}</b><br>Correlation: %{z:.3f}<extra></extra>"
+                    ))
+                    
+                    fig_corr.update_layout(
+                        title="Stock Return Correlations",
+                        height=400,
+                        template='plotly_white'
+                    )
+                    
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                else:
+                    st.info("Insufficient overlapping data for correlation analysis")
+            else:
+                st.info("Need at least 2 stocks for correlation analysis")
+        else:
+            st.info("Select multiple stocks to see correlations")
+    
+    # Market regime analysis
+    st.subheader("🌊 Market Regime Analysis")
+    
+    regime_analysis = []
+    for symbol in symbols:
+        symbol_data = data[data['symbol'] == symbol].sort_values('date')
+        if len(symbol_data) >= 30:
+            # Calculate regime indicators
+            returns = symbol_data['Close'].pct_change().dropna()
+            
+            # Trend strength
+            sma_20 = symbol_data['Close'].rolling(20).mean()
+            trend_strength = "Bullish" if symbol_data['Close'].iloc[-1] > sma_20.iloc[-1] else "Bearish"
+            
+            # Volatility regime
+            vol_20 = returns.rolling(20).std()
+            current_vol = vol_20.iloc[-1] if not vol_20.empty else 0
+            avg_vol = vol_20.mean() if not vol_20.empty else 0
+            
+            vol_regime = "High Vol" if current_vol > avg_vol * 1.2 else "Low Vol" if current_vol < avg_vol * 0.8 else "Normal Vol"
+            
+            # RSI for momentum
+            df_tech = calculate_technical_indicators(symbol_data.copy())
+            current_rsi = df_tech['rsi'].iloc[-1] if 'rsi' in df_tech.columns and not df_tech['rsi'].isna().all() else 50
+            
+            momentum_regime = "Overbought" if current_rsi > 70 else "Oversold" if current_rsi < 30 else "Neutral"
+            
+            regime_analysis.append({
+                'Symbol': symbol,
+                'Trend': trend_strength,
+                'Volatility': vol_regime,
+                'Momentum': momentum_regime,
+                'RSI': f"{current_rsi:.1f}" if current_rsi else "N/A"
+            })
+    
+    if regime_analysis:
+        regime_df = pd.DataFrame(regime_analysis)
+        
+        # Color code the regime analysis
+        def color_regime(val):
+            if val == "Bullish":
+                return 'background-color: #d4edda; color: #155724'
+            elif val == "Bearish":
+                return 'background-color: #f8d7da; color: #721c24'
+            elif val == "Overbought":
+                return 'background-color: #fff3cd; color: #856404'
+            elif val == "Oversold":
+                return 'background-color: #cce5ff; color: #004085'
+            elif val == "High Vol":
+                return 'background-color: #f8d7da; color: #721c24'
+            return ''
+        
+        styled_regime = regime_df.style.applymap(color_regime, subset=['Trend', 'Volatility', 'Momentum'])
+        st.dataframe(styled_regime, use_container_width=True)
+
+def show_candlestick_patterns(df, symbol):
+    """Identify and display candlestick patterns"""
+    
+    if len(df) < 3:
+        return
+    
+    st.subheader(f"🕯️ Candlestick Patterns - {symbol}")
+    
+    patterns_found = []
+    
+    # Simple pattern recognition
+    for i in range(2, len(df)):
+        current = df.iloc[i]
+        prev = df.iloc[i-1]
+        prev2 = df.iloc[i-2]
+        
+        # Doji pattern
+        if abs(current['Close'] - current['Open']) <= (current['High'] - current['Low']) * 0.1:
+            patterns_found.append({
+                'Date': current['date'],
+                'Pattern': 'Doji',
+                'Signal': 'Indecision',
+                'Strength': 'Medium'
+            })
+        
+        # Hammer pattern
+        if (current['Low'] < min(current['Open'], current['Close'])) and \
+           (current['High'] - max(current['Open'], current['Close'])) <= (max(current['Open'], current['Close']) - current['Low']) * 0.3:
+            patterns_found.append({
+                'Date': current['date'],
+                'Pattern': 'Hammer',
+                'Signal': 'Bullish Reversal',
+                'Strength': 'Strong'
+            })
+        
+        # Shooting Star pattern
+        if (current['High'] > max(current['Open'], current['Close'])) and \
+           (min(current['Open'], current['Close']) - current['Low']) <= (current['High'] - max(current['Open'], current['Close'])) * 0.3:
+            patterns_found.append({
+                'Date': current['date'],
+                'Pattern': 'Shooting Star',
+                'Signal': 'Bearish Reversal',
+                'Strength': 'Strong'
+            })
+    
+    if patterns_found:
+        # Show only the last 5 patterns
+        recent_patterns = patterns_found[-5:]
+        patterns_df = pd.DataFrame(recent_patterns)
+        
+        def color_pattern_signal(val):
+            if 'Bullish' in val:
+                return 'background-color: #d4edda; color: #155724'
+            elif 'Bearish' in val:
+                return 'background-color: #f8d7da; color: #721c24'
+            return ''
+        
+        styled_patterns = patterns_df.style.applymap(color_pattern_signal, subset=['Signal'])
+        st.dataframe(styled_patterns, use_container_width=True)
+    else:
+        st.info("No significant candlestick patterns detected in recent data")
+
+def show_technical_indicators_summary(df, symbol):
+    """Show technical indicators summary"""
+    
+    st.subheader(f"📊 Technical Indicators - {symbol}")
+    
+    if df.empty:
+        st.warning("Insufficient data for technical analysis")
+        return
+    
+    col1, col2, col3 = st.columns(3)
+    
+    latest = df.iloc[-1]
+    
+    with col1:
+        st.markdown("**📈 Trend Indicators**")
+        
+        if 'sma_5' in df.columns and not pd.isna(latest['sma_5']):
+            sma5_signal = "🟢 Above" if latest['Close'] > latest['sma_5'] else "🔴 Below"
+            st.write(f"SMA(5): {sma5_signal}")
+        
+        if 'sma_20' in df.columns and not pd.isna(latest['sma_20']):
+            sma20_signal = "🟢 Above" if latest['Close'] > latest['sma_20'] else "🔴 Below"
+            st.write(f"SMA(20): {sma20_signal}")
+        
+        if 'bb_upper' in df.columns and 'bb_lower' in df.columns:
+            if not pd.isna(latest['bb_upper']) and not pd.isna(latest['bb_lower']):
+                if latest['Close'] >= latest['bb_upper']:
+                    bb_signal = "🔴 Overbought"
+                elif latest['Close'] <= latest['bb_lower']:
+                    bb_signal = "🟢 Oversold"
+                else:
+                    bb_signal = "🟡 Neutral"
+                st.write(f"Bollinger: {bb_signal}")
+    
+    with col2:
+        st.markdown("**⚡ Momentum Indicators**")
+        
+        if 'rsi' in df.columns and not pd.isna(latest['rsi']):
+            rsi_val = latest['rsi']
+            if rsi_val >= 70:
+                rsi_signal = f"🔴 Overbought ({rsi_val:.1f})"
+            elif rsi_val <= 30:
+                rsi_signal = f"🟢 Oversold ({rsi_val:.1f})"
+            else:
+                rsi_signal = f"🟡 Neutral ({rsi_val:.1f})"
+            st.write(f"RSI: {rsi_signal}")
+        
+        if 'macd' in df.columns and 'macd_signal' in df.columns:
+            if not pd.isna(latest['macd']) and not pd.isna(latest['macd_signal']):
+                if latest['macd'] > latest['macd_signal']:
+                    macd_signal = "🟢 Bullish"
+                else:
+                    macd_signal = "🔴 Bearish"
+                st.write(f"MACD: {macd_signal}")
+    
+    with col3:
+        st.markdown("**📊 Volume Analysis**")
+        
+        if 'volume_sma' in df.columns and not pd.isna(latest['volume_sma']):
+            vol_ratio = latest['Volume'] / latest['volume_sma']
+            if vol_ratio >= 1.5:
+                vol_signal = f"🟢 High ({vol_ratio:.1f}x)"
+            elif vol_ratio <= 0.7:
+                vol_signal = f"🔴 Low ({vol_ratio:.1f}x)"
+            else:
+                vol_signal = f"🟡 Normal ({vol_ratio:.1f}x)"
+            st.write(f"Volume: {vol_signal}")
+        
+        # Price action
+        if len(df) > 1:
+            price_change = ((latest['Close'] / df.iloc[-2]['Close']) - 1) * 100
+            price_signal = f"{'🟢' if price_change > 0 else '🔴'} {price_change:+.2f}%"
+            st.write(f"Daily Change: {price_signal}")
+
+def show_volume_insights(symbol_data, symbol):
+    """Show volume analysis insights"""
+    
+    st.subheader(f"📊 Volume Intelligence - {symbol}")
+    
+    # Volume statistics
+    avg_volume = symbol_data['Volume'].mean()
+    recent_volume = symbol_data['Volume'].tail(5).mean()
+    volume_trend = ((recent_volume / avg_volume) - 1) * 100
+    
+    # Price-volume correlation
+    price_changes = symbol_data['Close'].pct_change()
+    volume_changes = symbol_data['Volume'].pct_change()
+    pv_correlation = price_changes.corr(volume_changes)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "📊 Avg Daily Volume",
+            f"{avg_volume:,.0f}",
+            f"Recent: {volume_trend:+.1f}%"
+        )
+    
+    with col2:
+        st.metric(
+            "🔗 Price-Volume Correlation",
+            f"{pv_correlation:.3f}" if not pd.isna(pv_correlation) else "N/A",
+            "Strong" if abs(pv_correlation) > 0.5 else "Weak" if not pd.isna(pv_correlation) else ""
+        )
+    
+    with col3:
+        highest_volume_day = symbol_data.loc[symbol_data['Volume'].idxmax()]
+        st.metric(
+            "🚀 Highest Volume",
+            f"{highest_volume_day['Volume']:,.0f}",
+            f"on {highest_volume_day['date'].strftime('%m-%d')}"
+        )
+    
+    # Volume insights
+    st.markdown("**🎯 Volume Insights:**")
+    
+    insights = []
+    
+    if volume_trend > 20:
+        insights.append("🟢 **Volume Surge**: Recent volume 20%+ above average - indicating strong interest")
+    elif volume_trend < -20:
+        insights.append("🔴 **Volume Decline**: Recent volume 20% below average - indicating waning interest")
+    
+    if not pd.isna(pv_correlation):
+        if pv_correlation > 0.5:
+            insights.append("🟢 **Positive Price-Volume Correlation**: Price increases accompanied by volume increases")
+        elif pv_correlation < -0.5:
+            insights.append("🔴 **Negative Price-Volume Correlation**: Price increases on low volume (bearish divergence)")
+    
+    # Find volume spikes
+    volume_threshold = avg_volume * 2
+    volume_spikes = symbol_data[symbol_data['Volume'] > volume_threshold]
+    
+    if not volume_spikes.empty:
+        insights.append(f"⚡ **Volume Spikes Detected**: {len(volume_spikes)} days with 2x+ average volume")
+    
+    if insights:
+        for insight in insights:
+            st.markdown(f"- {insight}")
+    else:
+        st.info("Volume patterns appear normal with no significant anomalies detected")
 
 def show_trading_signals(data, symbols):
     """Show advanced trading signals with ML clustering insights"""

@@ -3116,23 +3116,18 @@ def main():
     try:
         if page == "🚨 Live Signals":
             render_live_trading_signals()
-            render_disclaimer()
             
         elif page == "🔍 Symbol Analysis":
             render_symbol_analysis()
-            render_disclaimer()
             
         elif page == "🧠 Algorithm Overview":
             render_algorithm_overview()
-            render_disclaimer()
             
         elif page == "🔧 System Status":
             render_system_status()
-            render_disclaimer()
             
         elif page == "👑 Admin Panel":
             render_admin_panel()
-            render_disclaimer()
             
     except Exception as e:
         st.error("🚨 **Page Loading Error**")

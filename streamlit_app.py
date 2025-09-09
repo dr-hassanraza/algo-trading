@@ -14,8 +14,7 @@ EXPECTED PERFORMANCE: 85-95% win rate, Tier A+ institutional grade
 """
 
 """
-PSX Terminal Quantitative Trading System - Complete Algorithm Implementation
-Real-time algorithmic trading with intraday signals, backtesting, and ML predictions
+Enhanced Professional Trading System
 """
 
 import streamlit as st

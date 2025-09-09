@@ -61,6 +61,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Disclaimer Function
+def render_disclaimer():
+    """Render educational disclaimer on all pages"""
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; background-color: #fff3cd; padding: 15px; border-radius: 10px; border-left: 4px solid #ffc107; margin: 20px 0;'>
+        <p style='color: #856404; font-weight: bold; margin: 0; font-size: 16px;'>
+            ⚠️ Educational and demo purposes - Not financial advice
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Authentication System
 def render_login_page():
     """Render enhanced login/registration page"""
@@ -320,6 +332,9 @@ def render_login_page():
         </p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Add disclaimer to login page
+    render_disclaimer()
 
 def render_logout():
     """Render logout functionality in sidebar with session info"""
@@ -3101,18 +3116,23 @@ def main():
     try:
         if page == "🚨 Live Signals":
             render_live_trading_signals()
+            render_disclaimer()
             
         elif page == "🔍 Symbol Analysis":
             render_symbol_analysis()
+            render_disclaimer()
             
         elif page == "🧠 Algorithm Overview":
             render_algorithm_overview()
+            render_disclaimer()
             
         elif page == "🔧 System Status":
             render_system_status()
+            render_disclaimer()
             
         elif page == "👑 Admin Panel":
             render_admin_panel()
+            render_disclaimer()
             
     except Exception as e:
         st.error("🚨 **Page Loading Error**")
@@ -3132,7 +3152,8 @@ def main():
         # Don't logout on page errors - just show error
         return
     
-    # Footer
+    # Footer with Disclaimer
+    render_disclaimer()
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666;'>

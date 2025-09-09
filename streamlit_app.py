@@ -769,33 +769,38 @@ class PSXAlgoTradingSystem:
                 trend = "SIDEWAYS"
                 trend_strength = 0
             
-            # === STEP 2: RSI SIGNAL (Primary Entry Signal) ===
-            # Use proven 30/70 levels instead of complex multi-level system
+            # === STEP 2: RSI SIGNAL (Primary Entry Signal) - More Aggressive ===
             rsi = latest.get('rsi', 50)
             
-            if rsi <= 30 and trend in ["BULLISH", "MILDLY_BULLISH"]:
-                # RSI oversold + bullish trend = HIGH PROBABILITY BUY
+            # Strong RSI signals (regardless of trend for extreme levels)
+            if rsi <= 25:
+                signal_score += 4
+                confidence += 40
+                reasons.append("RSI extremely oversold (≤25)")
+            elif rsi >= 75:
+                signal_score -= 4
+                confidence += 40
+                reasons.append("RSI extremely overbought (≥75)")
+            
+            # Normal RSI signals (with trend confirmation)
+            elif rsi <= 30 and trend in ["BULLISH", "MILDLY_BULLISH", "SIDEWAYS"]:
                 signal_score += 3
                 confidence += 35
-                reasons.append("RSI oversold (≤30) in uptrend - High probability reversal")
-                
-            elif rsi >= 70 and trend in ["BEARISH", "MILDLY_BEARISH"]:
-                # RSI overbought + bearish trend = HIGH PROBABILITY SELL  
+                reasons.append("RSI oversold (≤30)")
+            elif rsi >= 70 and trend in ["BEARISH", "MILDLY_BEARISH", "SIDEWAYS"]:
                 signal_score -= 3
                 confidence += 35
-                reasons.append("RSI overbought (≥70) in downtrend - High probability reversal")
-                
-            elif rsi <= 25:
-                # Extremely oversold - buy regardless of trend (but lower confidence)
+                reasons.append("RSI overbought (≥70)")
+            
+            # Moderate RSI signals (wider range)
+            elif rsi <= 35 and trend in ["BULLISH", "MILDLY_BULLISH"]:
                 signal_score += 2
                 confidence += 25
-                reasons.append("RSI extremely oversold (≤25)")
-                
-            elif rsi >= 75:
-                # Extremely overbought - sell regardless of trend
+                reasons.append("RSI moderately oversold (≤35) in uptrend")
+            elif rsi >= 65 and trend in ["BEARISH", "MILDLY_BEARISH"]:
                 signal_score -= 2
                 confidence += 25
-                reasons.append("RSI extremely overbought (≥75)")
+                reasons.append("RSI moderately overbought (≥65) in downtrend")
             
             # === STEP 3: MACD CONFIRMATION (Secondary Signal) ===
             macd = latest.get('macd', 0)
@@ -828,15 +833,15 @@ class PSXAlgoTradingSystem:
                 confidence += 15
                 reasons.append("Strong bearish trend confirmation")
             
-            # === STEP 5: FINAL SIGNAL DETERMINATION ===
+            # === STEP 5: FINAL SIGNAL DETERMINATION (More Aggressive Thresholds) ===
             # Simplified logic - no conflicting signals
-            if signal_score >= 4 and confidence >= 60:
+            if signal_score >= 3 and confidence >= 50:  # Lowered from 4/60
                 signal_type = "STRONG_BUY"
-            elif signal_score >= 2 and confidence >= 40:
+            elif signal_score >= 1 and confidence >= 30:  # Lowered from 2/40
                 signal_type = "BUY"
-            elif signal_score <= -4 and confidence >= 60:
+            elif signal_score <= -3 and confidence >= 50:  # Raised from -4/60
                 signal_type = "STRONG_SELL"
-            elif signal_score <= -2 and confidence >= 40:
+            elif signal_score <= -1 and confidence >= 30:  # Raised from -2/40
                 signal_type = "SELL"
             else:
                 signal_type = "HOLD"

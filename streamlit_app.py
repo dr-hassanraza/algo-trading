@@ -130,11 +130,11 @@ def render_login_page():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("📧 Login with Gmail", use_container_width=True, type="secondary"):
+            if st.button("📧 Login with Gmail", use_container_width=True, type="secondary", key="gmail_login_btn"):
                 st.session_state['show_gmail_login'] = True
         
         with col2:
-            if st.button("💼 Login with LinkedIn", use_container_width=True, type="secondary"):
+            if st.button("💼 Login with LinkedIn", use_container_width=True, type="secondary", key="linkedin_login_btn"):
                 st.session_state['show_linkedin_login'] = True
         
         # Gmail Login Modal
@@ -145,7 +145,7 @@ def render_login_page():
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("✅ Authenticate Gmail", use_container_width=True):
+                if st.button("✅ Authenticate Gmail", use_container_width=True, key="gmail_auth_btn"):
                     if gmail_email and gmail_name and "@gmail.com" in gmail_email:
                         if AUTH_AVAILABLE:
                             username = authenticate_social_user(gmail_email, gmail_name, "gmail")
@@ -162,7 +162,7 @@ def render_login_page():
                         st.error("❌ Please enter valid Gmail address and name")
             
             with col2:
-                if st.button("❌ Cancel", use_container_width=True):
+                if st.button("❌ Cancel", use_container_width=True, key="gmail_cancel_btn"):
                     st.session_state['show_gmail_login'] = False
                     st.rerun()
         
@@ -175,7 +175,7 @@ def render_login_page():
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("✅ Authenticate LinkedIn", use_container_width=True):
+                if st.button("✅ Authenticate LinkedIn", use_container_width=True, key="linkedin_auth_btn"):
                     if linkedin_email and linkedin_name:
                         if AUTH_AVAILABLE:
                             display_name = f"{linkedin_name} ({linkedin_company})" if linkedin_company else linkedin_name
@@ -193,7 +193,7 @@ def render_login_page():
                         st.error("❌ Please enter valid email and name")
             
             with col2:
-                if st.button("❌ Cancel", use_container_width=True):
+                if st.button("❌ Cancel", use_container_width=True, key="linkedin_cancel_btn"):
                     st.session_state['show_linkedin_login'] = False
                     st.rerun()
         
@@ -266,7 +266,7 @@ def render_login_page():
     # Guest access option
     st.markdown("---")
     st.markdown("### 👤 Guest Access")
-    if st.button("🚀 Continue as Guest", use_container_width=True):
+    if st.button("🚀 Continue as Guest", use_container_width=True, key="guest_login_btn"):
         st.session_state['authenticated'] = True
         st.session_state['username'] = 'guest'
         st.success("✅ Accessing as guest user...")
@@ -1596,15 +1596,15 @@ def render_live_trading_signals():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("🏦 Banking Focus", help="Major banks and financial institutions"):
+            if st.button("🏦 Banking Focus", help="Major banks and financial institutions", key="banking_focus_btn"):
                 st.session_state.selected_stocks = ['HBL', 'UBL', 'NBP', 'MCB', 'ABL', 'BAFL', 'AKBL', 'MEBL', 'JSBL', 'BAHL', 'FABL', 'BOK'][:12]
         
         with col2:
-            if st.button("🏭 Industrial Mix", help="Mix of industrial and manufacturing stocks"):
+            if st.button("🏭 Industrial Mix", help="Mix of industrial and manufacturing stocks", key="industrial_mix_btn"):
                 st.session_state.selected_stocks = ['FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'PPL', 'EFERT', 'FATIMA', 'COLG', 'NESTLE', 'UNILEVER', 'ICI'][:12]
         
         with col3:
-            if st.button("💼 Blue Chip", help="Top market cap and most liquid stocks"):
+            if st.button("💼 Blue Chip", help="Top market cap and most liquid stocks", key="blue_chip_btn"):
                 st.session_state.selected_stocks = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 'TRG', 'SYSTEMS']
     
     with tab2:
@@ -1695,13 +1695,13 @@ def render_live_trading_signals():
     # Control buttons
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🔄 Reset to Default"):
+        if st.button("🔄 Reset to Default", key="reset_default_btn"):
             st.session_state.selected_stocks = [s for s in default_major_tickers if s in symbols][:12]
             st.success("Reset to default selection")
             st.rerun()
     
     with col2:
-        if st.button("🎲 Random Selection"):
+        if st.button("🎲 Random Selection", key="random_selection_btn"):
             import random
             available_random = [s for s in symbols if s not in st.session_state.get('selected_stocks', [])]
             random_picks = random.sample(available_random, min(12-len(st.session_state.get('selected_stocks', [])), len(available_random)))
@@ -1710,7 +1710,7 @@ def render_live_trading_signals():
             st.rerun()
     
     with col3:
-        if st.button("🗑️ Clear All"):
+        if st.button("🗑️ Clear All", key="clear_all_btn"):
             st.session_state.selected_stocks = []
             st.success("Cleared all selections")
             st.rerun()
@@ -1739,7 +1739,7 @@ def render_live_trading_signals():
     with col1:
         st.caption("🔄 Auto-refresh active | ⚡ PSX DPS Official API | 🛡️ Robust fallback system")
     with col2:
-        if st.button("🎯 Change Selection", key="change_selection_btn"):
+        if st.button("🎯 Change Selection", key="change_selection_main_btn"):
             st.info("Scroll up to modify your stock selection")
     
     # Create 4x3 grid for 12 stocks
@@ -1891,7 +1891,7 @@ def render_live_trading_signals():
         with col3:
             min_confidence = st.slider("Min Confidence", 40, 90, 60, 5, help="Minimum confidence level for signals")
         
-        if st.button("🚀 Scan Market Now", type="primary"):
+        if st.button("🚀 Scan Market Now", type="primary", key="scan_market_btn"):
             # Determine scan size based on selection
             if "Quick" in scan_intensity:
                 scan_limit = 50
@@ -2115,7 +2115,7 @@ def render_live_trading_signals():
             st.info(f"🔴 **{sell_signals} SELL signals** ready for action in your selected stocks above!")
         
         # Option to scan anyway
-        if st.button("🔍 Scan Market Anyway", help="Find additional opportunities beyond your watchlist"):
+        if st.button("🔍 Scan Market Anyway", help="Find additional opportunities beyond your watchlist", key="scan_anyway_btn"):
             st.info("Scroll up and use the market scanner when no signals are active.")
 
 def render_symbol_analysis():
@@ -2175,7 +2175,7 @@ def render_symbol_analysis():
             )
     
     with col2:
-        if st.button("🔄 Refresh Analysis", type="primary"):
+        if st.button("🔄 Refresh Analysis", type="primary", key="refresh_analysis_btn"):
             st.cache_data.clear()
             st.rerun()
     

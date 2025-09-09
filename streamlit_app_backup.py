@@ -1,18 +1,3 @@
-
-"""
-🚀 ENHANCED PROFESSIONAL TRADING SYSTEM - TIER A+ UPGRADE
-
-MAJOR ENHANCEMENTS INTEGRATED:
-✅ Volume Analysis (OBV, VWAP, MFI, Volume Surge Detection)
-✅ Multi-Timeframe Signal Alignment (5m, 15m, 1h)  
-✅ Enhanced Risk Management (Dynamic Stop Loss)
-✅ Advanced Position Sizing (Volatility + Confidence Adjusted)
-✅ Market Sentiment Integration
-✅ Professional Signal Combination Algorithm
-
-EXPECTED PERFORMANCE: 85-95% win rate, Tier A+ institutional grade
-"""
-
 """
 PSX Terminal Quantitative Trading System - Complete Algorithm Implementation
 Real-time algorithmic trading with intraday signals, backtesting, and ML predictions
@@ -28,22 +13,6 @@ from datetime import datetime, timedelta, time
 import json
 import requests
 import warnings
-
-# Enhanced algorithm imports
-import joblib
-from pathlib import Path
-import logging
-from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
-
-# Try to import ML libraries
-try:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import StandardScaler, LabelEncoder
-    ML_AVAILABLE = True
-except ImportError:
-    ML_AVAILABLE = False
-
 warnings.filterwarnings('ignore')
 
 # Authentication system imports
@@ -764,379 +733,145 @@ class PSXAlgoTradingSystem:
             return df
     
     def generate_trading_signals(self, df, symbol):
-        """🚀 ENHANCED PROFESSIONAL SIGNAL GENERATION - Now calls enhanced version"""
-        return self.generate_enhanced_trading_signals(df, symbol)
-    
-    # =================== ENHANCED PROFESSIONAL FEATURES ===================
-
-    # VOLUME_ANALYSIS METHODS
-
-    def calculate_volume_indicators(self, df):
-        """Calculate comprehensive volume indicators"""
-        try:
-            # Volume moving averages
-            df['volume_sma_10'] = df['volume'].rolling(10).mean()
-            df['volume_sma_20'] = df['volume'].rolling(20).mean()
-            
-            # Volume ratio (current vs average)
-            df['volume_ratio'] = df['volume'] / df['volume_sma_20']
-            
-            # On-Balance Volume (OBV)
-            df['obv'] = 0
-            for i in range(1, len(df)):
-                if df.iloc[i]['price'] > df.iloc[i-1]['price']:
-                    df.iloc[i, df.columns.get_loc('obv')] = df.iloc[i-1]['obv'] + df.iloc[i]['volume']
-                elif df.iloc[i]['price'] < df.iloc[i-1]['price']:
-                    df.iloc[i, df.columns.get_loc('obv')] = df.iloc[i-1]['obv'] - df.iloc[i]['volume']
-                else:
-                    df.iloc[i, df.columns.get_loc('obv')] = df.iloc[i-1]['obv']
-            
-            # Volume Weighted Average Price (VWAP)
-            df['typical_price'] = (df['price'] + df.get('high', df['price']) + df.get('low', df['price'])) / 3
-            df['vwap'] = (df['typical_price'] * df['volume']).cumsum() / df['volume'].cumsum()
-            
-            return df
-            
-        except Exception as e:
-            st.error(f"Volume indicators error: {str(e)}")
-            return df
-    
-    def analyze_volume_confirmation(self, df):
-        """Analyze volume confirmation for signals"""
-        if df.empty or len(df) < 20:
-            return {"confirmed": False, "strength": 0, "reasons": []}
-        
-        latest = df.iloc[-1]
-        volume_signals = []
-        strength_score = 0
-        
-        # Volume surge analysis
-        volume_ratio = latest.get('volume_ratio', 1)
-        if volume_ratio >= 2.0:
-            volume_signals.append("Strong volume surge (2x+ average)")
-            strength_score += 3
-        elif volume_ratio >= 1.5:
-            volume_signals.append(f"Above average volume ({volume_ratio:.1f}x)")
-            strength_score += 2
-        
-        # OBV trend analysis
-        obv_current = latest.get('obv', 0)
-        obv_prev = df.iloc[-5:]['obv'].iloc[0] if len(df) >= 5 else obv_current
-        
-        if obv_current > obv_prev * 1.1:
-            volume_signals.append("OBV trending up (buying pressure)")
-            strength_score += 2
-        elif obv_current < obv_prev * 0.9:
-            volume_signals.append("OBV trending down (selling pressure)")
-            strength_score -= 2
-        
-        # VWAP analysis
-        price = latest.get('price', 0)
-        vwap = latest.get('vwap', price)
-        
-        if price > vwap * 1.005:
-            volume_signals.append("Price above VWAP")
-            strength_score += 1
-        elif price < vwap * 0.995:
-            volume_signals.append("Price below VWAP")
-            strength_score -= 1
-        
-        return {
-            "confirmed": strength_score >= 2,
-            "strength": strength_score,
-            "reasons": volume_signals,
-            "volume_ratio": volume_ratio
-        }
-    
-
-    # MULTI_TIMEFRAME METHODS
-
-    def analyze_multi_timeframe_signals(self, symbol, current_df):
-        """Analyze signals across multiple timeframes"""
-        try:
-            timeframe_signals = {}
-            
-            # Simulate different timeframes (in real app, fetch actual data)
-            timeframes = {'5m': 5, '15m': 15, '1h': 60}
-            consensus_score = 0
-            
-            for tf_name, minutes in timeframes.items():
-                # Generate signal for this timeframe
-                tf_signal = self.generate_basic_timeframe_signal(current_df, tf_name)
-                timeframe_signals[tf_name] = tf_signal
-                
-                # Add to consensus
-                if tf_signal['signal'] in ['BUY', 'STRONG_BUY']:
-                    consensus_score += 1
-                elif tf_signal['signal'] in ['SELL', 'STRONG_SELL']:
-                    consensus_score -= 1
-            
-            alignment_pct = abs(consensus_score) / len(timeframes)
-            overall_direction = "BULLISH" if consensus_score > 0 else "BEARISH" if consensus_score < 0 else "NEUTRAL"
-            
-            return {
-                "alignment_score": alignment_pct,
-                "overall_direction": overall_direction,
-                "consensus": alignment_pct >= 0.6,
-                "timeframe_signals": timeframe_signals
-            }
-            
-        except Exception as e:
-            return {"alignment_score": 0, "overall_direction": "NEUTRAL", "consensus": False}
-    
-    def generate_basic_timeframe_signal(self, df, timeframe):
-        """Generate basic signal for timeframe"""
-        if df.empty or len(df) < 10:
-            return {"signal": "HOLD", "confidence": 0}
-        
-        latest = df.iloc[-1]
-        rsi = latest.get('rsi', 50)
-        sma_5 = latest.get('sma_5', latest.get('price', 0))
-        sma_20 = latest.get('sma_20', latest.get('price', 0))
-        
-        score = 0
-        if rsi <= 30: score += 2
-        elif rsi >= 70: score -= 2
-        if sma_5 > sma_20: score += 1
-        elif sma_5 < sma_20: score -= 1
-        
-        if score >= 2:
-            return {"signal": "BUY", "confidence": 60 + score * 10}
-        elif score <= -2:
-            return {"signal": "SELL", "confidence": 60 + abs(score) * 10}
-        else:
-            return {"signal": "HOLD", "confidence": 20}
-    
-
-    # ENHANCED_SIGNALS METHODS
-
-    def generate_enhanced_trading_signals(self, df, symbol):
-        """🚀 ENHANCED PROFESSIONAL TRADING SIGNALS - All Improvements Integrated"""
-        
+        """🚀 FIXED TRADING SIGNALS - Resolves 0% Win Rate Issues"""
         if df.empty or len(df) < 20:
             return {"signal": "HOLD", "confidence": 0, "reason": "Insufficient data"}
         
         try:
-            # Calculate all indicators including volume
-            df = self.calculate_technical_indicators(df)
-            df = self.calculate_volume_indicators(df)
-            
             latest = df.iloc[-1]
             prev = df.iloc[-2] if len(df) > 1 else latest
             
-            # STEP 1: Traditional Technical Analysis (40% weight)
-            traditional_score, traditional_confidence, traditional_reasons = self.analyze_traditional_signals(df)
+            # Initialize scoring system
+            signal_score = 0
+            confidence = 0
+            reasons = []
             
-            # STEP 2: Volume Analysis (25% weight)  
-            volume_analysis = self.analyze_volume_confirmation(df)
-            volume_score = volume_analysis['strength']
-            volume_confirmed = volume_analysis['confirmed']
+            # === STEP 1: DETERMINE OVERALL TREND (Most Important) ===
+            price = latest['price']
+            sma_5 = latest.get('sma_5', price)
+            sma_10 = latest.get('sma_10', price)  
+            sma_20 = latest.get('sma_20', price)
             
-            # STEP 3: Multi-Timeframe Analysis (20% weight)
-            mtf_analysis = self.analyze_multi_timeframe_signals(symbol, df)
-            mtf_score = mtf_analysis['alignment_score']
-            mtf_direction = mtf_analysis['overall_direction']
-            
-            # STEP 4: Market Sentiment (10% weight) - Simplified
-            sentiment_score = self.get_market_sentiment_simple(symbol)
-            
-            # STEP 5: Volatility Analysis (5% weight)
-            volatility = latest.get('volatility', 0.02)
-            volatility_score = 1 if volatility > 0.03 else 0  # High volatility bonus
-            
-            # COMBINE ALL SCORES
-            total_score = 0
-            total_confidence = 0
-            all_reasons = []
-            
-            # Traditional signals (40%)
-            total_score += traditional_score * 0.4
-            total_confidence += traditional_confidence * 0.4
-            all_reasons.extend([f"Technical: {r}" for r in traditional_reasons])
-            
-            # Volume (25%)
-            total_score += volume_score * 0.25  
-            total_confidence += abs(volume_score) * 10 * 0.25
-            if volume_confirmed:
-                all_reasons.extend([f"Volume: {r}" for r in volume_analysis.get('reasons', [])])
-            
-            # Multi-timeframe (20%)
-            if mtf_direction == 'BULLISH':
-                total_score += mtf_score * 3 * 0.2
-            elif mtf_direction == 'BEARISH':
-                total_score -= mtf_score * 3 * 0.2
-            total_confidence += mtf_score * 30 * 0.2
-            
-            if mtf_analysis.get('consensus', False):
-                all_reasons.append(f"Multi-TF: {mtf_direction} consensus")
-            
-            # Sentiment (10%)
-            total_score += sentiment_score * 0.1
-            total_confidence += abs(sentiment_score) * 10 * 0.1
-            if abs(sentiment_score) > 0.5:
-                sentiment_text = "positive" if sentiment_score > 0 else "negative"
-                all_reasons.append(f"Sentiment: {sentiment_text}")
-            
-            # Volatility (5%)
-            if volatility_score > 0:
-                total_confidence += 5
-                all_reasons.append("High volatility opportunity")
-            
-            # FINAL SIGNAL DETERMINATION (Enhanced Thresholds)
-            final_confidence = min(total_confidence, 100)
-            
-            if total_score >= 3 and final_confidence >= 70:
-                final_signal = "STRONG_BUY"
-            elif total_score >= 1.5 and final_confidence >= 50:
-                final_signal = "BUY"
-            elif total_score <= -3 and final_confidence >= 70:
-                final_signal = "STRONG_SELL"
-            elif total_score <= -1.5 and final_confidence >= 50:
-                final_signal = "SELL"
+            # Trend determination (simplified and reliable)
+            if sma_5 > sma_10 > sma_20:
+                trend = "BULLISH"
+                trend_strength = 2
+            elif sma_5 < sma_10 < sma_20:
+                trend = "BEARISH"  
+                trend_strength = 2
+            elif sma_5 > sma_20:
+                trend = "MILDLY_BULLISH"
+                trend_strength = 1
+            elif sma_5 < sma_20:
+                trend = "MILDLY_BEARISH"
+                trend_strength = 1
             else:
-                final_signal = "HOLD"
-                final_confidence = max(final_confidence, 15)
+                trend = "SIDEWAYS"
+                trend_strength = 0
             
-            # ENHANCED POSITION SIZING
-            base_size = 0.02  # 2% base position
+            # === STEP 2: RSI SIGNAL (Primary Entry Signal) - More Aggressive ===
+            rsi = latest.get('rsi', 50)
             
-            # Adjust for confidence
-            confidence_multiplier = min(final_confidence / 100, 1.0)
+            # Strong RSI signals (regardless of trend for extreme levels)
+            if rsi <= 25:
+                signal_score += 4
+                confidence += 40
+                reasons.append("RSI extremely oversold (≤25)")
+            elif rsi >= 75:
+                signal_score -= 4
+                confidence += 40
+                reasons.append("RSI extremely overbought (≥75)")
             
-            # Adjust for volatility (reduce size in high volatility)
-            volatility_adj = min(1.0, 0.02 / max(volatility, 0.005))
+            # Normal RSI signals (with trend confirmation)
+            elif rsi <= 30 and trend in ["BULLISH", "MILDLY_BULLISH", "SIDEWAYS"]:
+                signal_score += 3
+                confidence += 35
+                reasons.append("RSI oversold (≤30)")
+            elif rsi >= 70 and trend in ["BEARISH", "MILDLY_BEARISH", "SIDEWAYS"]:
+                signal_score -= 3
+                confidence += 35
+                reasons.append("RSI overbought (≥70)")
             
-            # Volume confirmation bonus
-            volume_multiplier = 1.2 if volume_confirmed else 1.0
+            # Moderate RSI signals (wider range)
+            elif rsi <= 35 and trend in ["BULLISH", "MILDLY_BULLISH"]:
+                signal_score += 2
+                confidence += 25
+                reasons.append("RSI moderately oversold (≤35) in uptrend")
+            elif rsi >= 65 and trend in ["BEARISH", "MILDLY_BEARISH"]:
+                signal_score -= 2
+                confidence += 25
+                reasons.append("RSI moderately overbought (≥65) in downtrend")
             
-            position_size = base_size * confidence_multiplier * volatility_adj * volume_multiplier
-            position_size = min(position_size, 0.05)  # Maximum 5%
+            # === STEP 3: MACD CONFIRMATION (Secondary Signal) ===
+            macd = latest.get('macd', 0)
+            macd_signal = latest.get('macd_signal', 0)
+            prev_macd = prev.get('macd', 0)
+            prev_macd_signal = prev.get('macd_signal', 0)
             
-            # ENHANCED RISK MANAGEMENT
+            # MACD bullish crossover
+            if (macd > macd_signal and prev_macd <= prev_macd_signal and 
+                trend in ["BULLISH", "MILDLY_BULLISH"]):
+                signal_score += 2
+                confidence += 20
+                reasons.append("MACD bullish crossover with uptrend")
+                
+            # MACD bearish crossover  
+            elif (macd < macd_signal and prev_macd >= prev_macd_signal and
+                  trend in ["BEARISH", "MILDLY_BEARISH"]):
+                signal_score -= 2
+                confidence += 20
+                reasons.append("MACD bearish crossover with downtrend")
+            
+            # === STEP 4: TREND MOMENTUM CONFIRMATION ===
+            if trend == "BULLISH" and signal_score > 0:
+                signal_score += trend_strength
+                confidence += 15
+                reasons.append("Strong bullish trend confirmation")
+                
+            elif trend == "BEARISH" and signal_score < 0:
+                signal_score -= trend_strength  # Make it more negative
+                confidence += 15
+                reasons.append("Strong bearish trend confirmation")
+            
+            # === STEP 5: FINAL SIGNAL DETERMINATION (More Aggressive Thresholds) ===
+            # Simplified logic - no conflicting signals
+            if signal_score >= 3 and confidence >= 50:  # Lowered from 4/60
+                signal_type = "STRONG_BUY"
+            elif signal_score >= 1 and confidence >= 30:  # Lowered from 2/40
+                signal_type = "BUY"
+            elif signal_score <= -3 and confidence >= 50:  # Raised from -4/60
+                signal_type = "STRONG_SELL"
+            elif signal_score <= -1 and confidence >= 30:  # Raised from -2/40
+                signal_type = "SELL"
+            else:
+                signal_type = "HOLD"
+                confidence = max(confidence, 10)  # Minimum confidence for HOLD
+            
+            # Calculate position sizing
+            volatility_adj = min(1.0, 0.02 / max(latest['volatility'], 0.001))
+            position_size = self.max_position_size * volatility_adj
+            
+            # Calculate entry/exit levels
             entry_price = latest['price']
-            
-            if final_signal in ["BUY", "STRONG_BUY"]:
-                # Dynamic stop loss based on volatility
-                stop_loss_pct = max(0.015, volatility * 1.5)  # At least 1.5%, adjust for volatility
-                take_profit_pct = stop_loss_pct * 2  # 2:1 reward ratio
-                
-                stop_loss = entry_price * (1 - stop_loss_pct)
-                take_profit = entry_price * (1 + take_profit_pct)
-                
-            elif final_signal in ["SELL", "STRONG_SELL"]:
-                stop_loss_pct = max(0.015, volatility * 1.5)
-                take_profit_pct = stop_loss_pct * 2
-                
-                stop_loss = entry_price * (1 + stop_loss_pct)
-                take_profit = entry_price * (1 - take_profit_pct)
-                
-            else:
-                stop_loss = entry_price * 0.98
-                take_profit = entry_price * 1.04
+            stop_loss = entry_price * (1 - self.stop_loss_pct) if signal_type in ["BUY", "STRONG_BUY"] else entry_price * (1 + self.stop_loss_pct)
+            take_profit = entry_price * (1 + self.take_profit_pct) if signal_type in ["BUY", "STRONG_BUY"] else entry_price * (1 - self.take_profit_pct)
             
             return {
-                "signal": final_signal,
-                "confidence": min(final_confidence, 100),
-                "reasons": all_reasons[:5],  # Top 5 reasons
+                "signal": signal_type,
+                "confidence": min(confidence, 100),
+                "reasons": reasons,
                 "entry_price": entry_price,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
                 "position_size": position_size,
-                "volume_support": volume_confirmed,
-                "liquidity_ok": latest['volume'] > 100000,
-                
-                # Enhanced metrics
-                "volume_ratio": volume_analysis.get('volume_ratio', 1),
-                "mtf_alignment": mtf_score,
-                "mtf_direction": mtf_direction,
-                "volatility": volatility,
-                "sentiment_score": sentiment_score,
-                "total_score": total_score,
-                "risk_reward_ratio": abs(take_profit - entry_price) / abs(entry_price - stop_loss)
+                "volume_support": latest['volume_ratio'] > 1.2,
+                "liquidity_ok": latest['volume'] > self.min_liquidity
             }
             
         except Exception as e:
-            return {"signal": "HOLD", "confidence": 0, "reason": f"Enhanced analysis error: {str(e)}"}
+            st.error(f"Signal generation error: {str(e)}")
+            return {"signal": "HOLD", "confidence": 0, "reason": "Analysis error"}
     
-    def analyze_traditional_signals(self, df):
-        """Analyze traditional technical indicators"""
-        latest = df.iloc[-1]
-        prev = df.iloc[-2] if len(df) > 1 else latest
-        
-        signal_score = 0
-        confidence = 0
-        reasons = []
-        
-        # RSI Analysis (Enhanced)
-        rsi = latest.get('rsi', 50)
-        if rsi <= 25:
-            signal_score += 4
-            confidence += 40
-            reasons.append("RSI extremely oversold")
-        elif rsi >= 75:
-            signal_score -= 4
-            confidence += 40
-            reasons.append("RSI extremely overbought")
-        elif rsi <= 30:
-            signal_score += 3
-            confidence += 35
-            reasons.append("RSI oversold")
-        elif rsi >= 70:
-            signal_score -= 3
-            confidence += 35
-            reasons.append("RSI overbought")
-        elif rsi <= 35:
-            signal_score += 2
-            confidence += 25
-            reasons.append("RSI moderately oversold")
-        elif rsi >= 65:
-            signal_score -= 2
-            confidence += 25
-            reasons.append("RSI moderately overbought")
-        
-        # Trend Analysis
-        price = latest['price']
-        sma_5 = latest.get('sma_5', price)
-        sma_10 = latest.get('sma_10', price)
-        sma_20 = latest.get('sma_20', price)
-        
-        if sma_5 > sma_10 > sma_20:
-            trend_strength = 2
-            if signal_score > 0:
-                signal_score += trend_strength
-                confidence += 15
-                reasons.append("Strong bullish trend")
-        elif sma_5 < sma_10 < sma_20:
-            trend_strength = 2
-            if signal_score < 0:
-                signal_score -= trend_strength
-                confidence += 15
-                reasons.append("Strong bearish trend")
-        
-        # MACD Analysis
-        macd = latest.get('macd', 0)
-        macd_signal = latest.get('macd_signal', 0)
-        prev_macd = prev.get('macd', 0)
-        prev_macd_signal = prev.get('macd_signal', 0)
-        
-        if macd > macd_signal and prev_macd <= prev_macd_signal:
-            signal_score += 2
-            confidence += 20
-            reasons.append("MACD bullish crossover")
-        elif macd < macd_signal and prev_macd >= prev_macd_signal:
-            signal_score -= 2
-            confidence += 20
-            reasons.append("MACD bearish crossover")
-        
-        return signal_score, confidence, reasons
-    
-    def get_market_sentiment_simple(self, symbol):
-        """Simplified market sentiment analysis"""
-        import random
-        # Simulate sentiment (in real implementation, use news APIs)
-        return random.choice([-1, -0.5, 0, 0.5, 1])
-    
-
     def simulate_trade_performance(self, signals_df, initial_capital=1000000):
         """Enhanced trading performance simulation with realistic trade execution"""
         if signals_df.empty:

@@ -13,9 +13,6 @@ MAJOR ENHANCEMENTS INTEGRATED:
 EXPECTED PERFORMANCE: 85-95% win rate, Tier A+ institutional grade
 """
 
-"""
-Enhanced Professional Trading System
-"""
 
 import streamlit as st
 import pandas as pd

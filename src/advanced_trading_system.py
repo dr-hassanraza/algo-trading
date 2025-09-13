@@ -938,6 +938,43 @@ class AdvancedTradingSystem:
         except Exception as e:
             logger.error(f"❌ ATR calculation error: {str(e)}")
             return 0.01
+    
+    # =================== UTILITY METHODS ===================
+    
+    def stop_data_feed(self):
+        """Stop the real-time data feed"""
+        self.is_running = False
+        logger.info("🛑 Data feed stopped")
+    
+    def get_system_status(self) -> Dict:
+        """Get comprehensive system status"""
+        return {
+            'is_running': self.is_running,
+            'lstm_model_ready': self.lstm_model is not None,
+            'meta_model_ready': self.meta_model is not None,
+            'sentiment_model_ready': self.sentiment_model is not None,
+            'advanced_ml_available': ADVANCED_ML_AVAILABLE,
+            'nlp_available': NLP_AVAILABLE,
+            'market_data_available': MARKET_DATA_AVAILABLE,
+            'data_queue_size': self.data_queue.qsize(),
+            'news_queue_size': self.news_queue.qsize(),
+            'config': self.config
+        }
+    
+    async def get_psx_l2_data(self, symbol: str) -> Optional[Dict]:
+        """Get Level 2 data for PSX stocks (enhanced)"""
+        try:
+            # This would connect to PSX APIs for order book data
+            # For now, return mock data structure
+            return {
+                'symbol': symbol,
+                'bids': [[100.0, 1000], [99.95, 500], [99.90, 750]],
+                'asks': [[100.05, 800], [100.10, 600], [100.15, 400]],
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"❌ PSX L2 data error: {str(e)}")
+            return None
 
 # Factory function for creating the advanced system
 def create_advanced_trading_system() -> AdvancedTradingSystem:

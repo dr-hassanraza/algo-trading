@@ -2052,12 +2052,101 @@ def render_symbol_analysis():
             tab1, tab2, tab3, tab4 = st.tabs(["📊 Current Signal", "📈 Price Chart", "🎯 Performance", "📋 Details"])
             
             with tab1:
-                # ... (Current Signal tab remains the same)
-                st.write("Current Signal tab content...")
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    signal_type = signal_data['signal']
+                    confidence = signal_data['confidence']
+                    
+                    st.markdown(f"""
+                    <div class="algo-card">
+                        <h3>Current Signal</h3>
+                        <h2>{signal_type}</h2>
+                        <p>Confidence: {confidence:.1f}%</p>
+                        <h4>{market_data['price']:.2f} PKR</h4>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="performance-card">
+                        <h4>Trade Levels</h4>
+                        <p><strong>Entry:</strong> {signal_data['entry_price']:.2f}</p>
+                        <p><strong>Stop Loss:</strong> {signal_data['stop_loss']:.2f}</p>
+                        <p><strong>Take Profit:</strong> {signal_data['take_profit']:.2f}</p>
+                        <p><strong>Risk/Reward:</strong> 1:2</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="algo-card">
+                        <h4>Position Info</h4>
+                        <p><strong>Size:</strong> {signal_data['position_size']:.2%}</p>
+                        <p><strong>Volume:</strong> {'✅ Good' if signal_data['volume_support'] else '❌ Low'}</p>
+                        <p><strong>Liquidity:</strong> {'✅ OK' if signal_data['liquidity_ok'] else '❌ Poor'}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Signal reasoning
+                st.subheader("🧠 Signal Analysis")
+                for reason in signal_data.get('reasons', []):
+                    st.write(f"• {reason}")
 
             with tab2:
-                # ... (Price Chart tab remains the same)
-                st.write("Price Chart tab content...")
+                # Price and volume charts
+                try:
+                    fig = make_subplots(
+                        rows=3, cols=1,
+                        shared_xaxes=True,
+                        vertical_spacing=0.05,
+                        subplot_titles=['Price & Moving Averages', 'Volume Analysis', 'Technical Indicators'],
+                        row_heights=[0.5, 0.25, 0.25]
+                    )
+                    
+                    # Generate sample chart data
+                    dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+                    prices = [market_data['price'] * (1 + random.uniform(-0.05, 0.05)) for _ in range(30)]
+                    volumes = [random.randint(10000, 100000) for _ in range(30)]
+                    
+                    # Price chart
+                    fig.add_trace(
+                        go.Candlestick(
+                            x=dates,
+                            open=[p * random.uniform(0.99, 1.01) for p in prices],
+                            high=[p * random.uniform(1.01, 1.03) for p in prices],
+                            low=[p * random.uniform(0.97, 0.99) for p in prices],
+                            close=prices,
+                            name=symbol
+                        ), row=1, col=1
+                    )
+                    
+                    # Volume chart
+                    fig.add_trace(
+                        go.Bar(
+                            x=dates,
+                            y=volumes,
+                            name="Volume",
+                            marker_color='lightblue'
+                        ), row=2, col=1
+                    )
+                    
+                    # Technical indicators
+                    fig.add_trace(
+                        go.Scatter(
+                            x=dates,
+                            y=[random.uniform(30, 70) for _ in range(30)],
+                            name="RSI",
+                            line=dict(color='purple')
+                        ), row=3, col=1
+                    )
+                    
+                    fig.update_layout(height=600, showlegend=True)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                except Exception as e:
+                    st.error(f"Chart generation error: {e}")
+                    st.info("Chart functionality will be restored in the next update.")
 
             with tab3:
                 st.subheader("🚀 Advanced Backtesting & Strategy Optimization")

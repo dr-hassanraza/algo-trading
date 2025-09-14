@@ -115,6 +115,10 @@ class AdvancedTradingSystem:
         # PSX Symbols - Complete list for institutional trading
         self.psx_symbols = self._initialize_psx_symbols()
         
+        # Recheck ML availability on initialization
+        self.ml_available = self._check_ml_availability()
+        self.nlp_available = self._check_nlp_availability()
+        
         # Configuration
         self.config = {
             'primary_model_confidence_threshold': 0.60,
@@ -130,22 +134,62 @@ class AdvancedTradingSystem:
         self._initialize_models()
         self._initialize_data_sources()
     
+    def _check_ml_availability(self) -> bool:
+        """Check if ML libraries are available at runtime"""
+        try:
+            import tensorflow as tf
+            from tensorflow.keras.models import Sequential
+            from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+            import lightgbm as lgb
+            logger.info("✅ Advanced ML libraries detected and available")
+            return True
+        except ImportError as e:
+            logger.info(f"ℹ️ Advanced ML libraries not available: {e}")
+            return False
+    
+    def _check_nlp_availability(self) -> bool:
+        """Check if NLP libraries are available at runtime"""
+        try:
+            from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+            import nltk
+            logger.info("✅ NLP libraries detected and available")
+            return True
+        except ImportError as e:
+            logger.info(f"ℹ️ NLP libraries not available: {e}")
+            return False
+    
     def _initialize_models(self):
         """Initialize ML models"""
         try:
-            if ADVANCED_ML_AVAILABLE:
+            if self.ml_available:
                 self._build_lstm_primary_model()
                 self._build_lightgbm_meta_model()
                 logger.info("✅ Advanced ML models initialized")
             else:
-                logger.warning("⚠️ Advanced ML not available, using simplified models")
+                logger.info("ℹ️ Advanced ML not available, using simplified models")
                 
-            if NLP_AVAILABLE:
+            if self.nlp_available:
                 self._initialize_sentiment_model()
                 logger.info("✅ NLP sentiment model initialized")
+            else:
+                logger.info("ℹ️ NLP not available, using basic sentiment analysis")
                 
         except Exception as e:
             logger.error(f"❌ Model initialization error: {str(e)}")
+    
+    def force_reinitialize_models(self):
+        """Force reinitialize models (useful after installing new libraries)"""
+        logger.info("🔄 Force reinitializing ML models...")
+        self.ml_available = self._check_ml_availability()
+        self.nlp_available = self._check_nlp_availability()
+        self._initialize_models()
+        return {
+            'ml_available': self.ml_available,
+            'nlp_available': self.nlp_available,
+            'lstm_ready': self.lstm_model is not None,
+            'meta_ready': self.meta_model is not None,
+            'sentiment_ready': self.sentiment_model is not None
+        }
     
     def _initialize_data_sources(self):
         """Initialize real-time data sources"""
@@ -632,8 +676,14 @@ class AdvancedTradingSystem:
     def _build_lstm_primary_model(self):
         """Build LSTM model for directional prediction"""
         try:
-            if not ADVANCED_ML_AVAILABLE:
+            if not self.ml_available:
                 return
+            
+            # Import at runtime
+            import tensorflow as tf
+            from tensorflow.keras.models import Sequential
+            from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+            from tensorflow.keras.optimizers import Adam
             
             # LSTM architecture for time series prediction
             model = Sequential([
@@ -669,6 +719,11 @@ class AdvancedTradingSystem:
     def _build_lightgbm_meta_model(self):
         """Build LightGBM meta-model for trade approval"""
         try:
+            if not self.ml_available:
+                return
+                
+            # Import at runtime
+            import lightgbm as lgb
             # Meta-model parameters optimized for financial data
             params = {
                 'objective': 'binary',
@@ -1092,8 +1147,8 @@ class AdvancedTradingSystem:
             'lstm_model_ready': self.lstm_model is not None,
             'meta_model_ready': self.meta_model is not None,
             'sentiment_model_ready': self.sentiment_model is not None,
-            'advanced_ml_available': ADVANCED_ML_AVAILABLE,
-            'nlp_available': NLP_AVAILABLE,
+            'advanced_ml_available': self.ml_available,
+            'nlp_available': self.nlp_available,
             'market_data_available': MARKET_DATA_AVAILABLE,
             'data_queue_size': self.data_queue.qsize(),
             'news_queue_size': self.news_queue.qsize(),

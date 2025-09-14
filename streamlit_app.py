@@ -2347,13 +2347,30 @@ def render_advanced_institutional_system():
         system = st.session_state.advanced_system
         status = system.get_system_status()
         
-        # Add manual refresh option
-        col_refresh1, col_refresh2 = st.columns([3, 1])
+        # Add manual refresh and model initialization options
+        col_refresh1, col_refresh2, col_refresh3 = st.columns([2, 1, 1])
         with col_refresh2:
             if st.button("🔄 Refresh System", help="Reinitialize the advanced trading system"):
                 if 'advanced_system' in st.session_state:
                     del st.session_state.advanced_system
                 st.rerun()
+        
+        with col_refresh3:
+            if st.button("🧠 Initialize ML", help="Initialize LSTM and Meta models"):
+                try:
+                    result = system.force_reinitialize_models()
+                    if result['ml_available']:
+                        st.success("✅ ML libraries detected!")
+                        if result['lstm_ready']:
+                            st.success("✅ LSTM model initialized!")
+                        if result['meta_ready']:
+                            st.success("✅ Meta model initialized!")
+                    else:
+                        st.info("ℹ️ ML libraries not available. Install with: pip install tensorflow lightgbm")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ ML initialization failed: {e}")
+                    st.info("Try installing: pip install tensorflow lightgbm transformers")
         
         col1, col2, col3, col4 = st.columns(4)
         

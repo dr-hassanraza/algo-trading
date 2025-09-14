@@ -40,8 +40,10 @@ try:
     from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     import lightgbm as lgb
     ADVANCED_ML_AVAILABLE = True
+    ML_AVAILABLE = True
 except ImportError:
     ADVANCED_ML_AVAILABLE = False
+    ML_AVAILABLE = False
     # Note: Warning will be shown in UI when needed, not on import
 
 # NLP for sentiment analysis
@@ -193,8 +195,8 @@ class AdvancedTradingSystem:
         return {
             'ml_available': self.ml_available,
             'nlp_available': self.nlp_available,
-            'lstm_ready': self.lstm_model is not None,
-            'meta_ready': self.meta_model is not None,
+            'lstm_ready': 'lstm' in self.models and self.models['lstm'] is not None,
+            'meta_ready': 'meta' in self.models and self.models['meta'] is not None,
             'sentiment_ready': self.sentiment_model is not None
         }
     

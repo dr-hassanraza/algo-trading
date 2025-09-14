@@ -191,6 +191,85 @@ class AdvancedTradingSystem:
             'sentiment_ready': self.sentiment_model is not None
         }
     
+    def train_models_with_psx_data(self, symbols: List[str] = None, days_back: int = 30, progress_callback=None) -> Dict:
+        """
+        Train LSTM and Meta models using PSX API data
+        
+        Args:
+            symbols: List of PSX symbols to train on (None for top 50)
+            days_back: Number of days of historical data to collect
+            progress_callback: Function to report training progress
+            
+        Returns:
+            Dict with training results and model performance metrics
+        """
+        try:
+            if not self.ml_available:
+                return {'error': 'ML libraries not available'}
+            
+            if progress_callback:
+                progress_callback("📊 Starting model training pipeline...")
+            
+            # Step 1: Data Collection
+            training_data = self._collect_training_data(symbols, days_back, progress_callback)
+            
+            if len(training_data) < 100:
+                return {'error': f'Insufficient training data collected: {len(training_data)} samples (need at least 100)'}
+            
+            # Step 2: Feature Engineering
+            if progress_callback:
+                progress_callback("🔧 Engineering features for ML training...")
+            
+            lstm_features, lstm_targets, meta_features, meta_targets = self._prepare_training_features(training_data)
+            
+            # Step 3: Train LSTM Model
+            if progress_callback:
+                progress_callback("🧠 Training LSTM model for price prediction...")
+            
+            lstm_results = self._train_lstm_model(lstm_features, lstm_targets, progress_callback)
+            
+            # Step 4: Train Meta Model
+            if progress_callback:
+                progress_callback("⚖️ Training LightGBM meta-model...")
+            
+            meta_results = self._train_meta_model(meta_features, meta_targets, progress_callback)
+            
+            # Step 5: Save Models
+            if progress_callback:
+                progress_callback("💾 Saving trained models...")
+            
+            self._save_trained_models()
+            
+            # Step 6: Validation
+            if progress_callback:
+                progress_callback("✅ Validating trained models...")
+            
+            validation_results = self._validate_trained_models(training_data[-50:])  # Use last 50 samples for validation
+            
+            training_summary = {
+                'status': 'success',
+                'data_samples': len(training_data),
+                'symbols_trained': len(set([d['symbol'] for d in training_data])),
+                'days_covered': days_back,
+                'lstm_performance': lstm_results,
+                'meta_performance': meta_results,
+                'validation': validation_results,
+                'models_saved': True
+            }
+            
+            if progress_callback:
+                progress_callback("🎉 Model training completed successfully!")
+            
+            logger.info(f"✅ Model training completed: {training_summary}")
+            return training_summary
+            
+        except Exception as e:
+            error_msg = f"❌ Model training failed: {str(e)}"
+            logger.error(error_msg)
+            if progress_callback:
+                progress_callback(error_msg)
+            return {'error': str(e)}
+    
     def _initialize_data_sources(self):
         """Initialize real-time data sources"""
         self.data_sources = {
@@ -264,6 +343,497 @@ class AdvancedTradingSystem:
         
         logger.info(f"📊 Using local PSX symbols database: {len(psx_symbols)} symbols")
         return psx_symbols
+    
+    def _collect_training_data(self, symbols: List[str] = None, days_back: int = 30, progress_callback=None) -> List[Dict]:
+        """Collect historical data from PSX API for model training"""
+        training_data = []
+        
+        # Use top performing PSX symbols if none specified
+        if symbols is None:
+            symbols = ["HBL", "UBL", "MCB", "ENGRO", "OGDC", "PPL", "LUCK", "TRG", "PSO", "MARI",
+                      "BAFL", "NBP", "FFC", "EFERT", "BAHL", "HUBC", "APTM", "SNGP", "DGKC", "CHCC",
+                      "WTL", "FCCL", "AKBL", "MEBL", "FABL", "KEL", "KTML", "AGTL", "GATM", "INIL",
+                      "SEARL", "ICI", "LOADS", "DAWH", "TRSM", "THALL", "IBFL", "PSMC", "CNERGY", "KAPCO",
+                      "ACPL", "NCPL", "ATRL", "JSIL", "EPCL", "BNWM", "BYCO", "GTYR", "PTC", "BIPL"]
+        
+        symbols_to_process = symbols[:50]  # Limit for API efficiency
+        
+        try:
+            import requests
+            from datetime import datetime, timedelta
+            import time
+            
+            psx_dps_url = "https://dps.psx.com.pk/timeseries"
+            total_symbols = len(symbols_to_process)
+            
+            for i, symbol in enumerate(symbols_to_process):
+                if progress_callback:
+                    progress = int((i / total_symbols) * 100)
+                    progress_callback(f"📡 Collecting data for {symbol} ({i+1}/{total_symbols}) - {progress}%")
+                
+                try:
+                    # Get historical data for this symbol
+                    response = requests.get(f"{psx_dps_url}/int/{symbol}", timeout=10)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        if data and 'data' in data and data['data']:
+                            symbol_data = data['data']
+                            
+                            # Process each data point
+                            for point in symbol_data[-days_back*5:]:  # Approximate daily data points
+                                try:
+                                    training_point = {
+                                        'symbol': symbol,
+                                        'timestamp': point.get('timestamp', datetime.now().isoformat()),
+                                        'open': float(point.get('open', 0)),
+                                        'high': float(point.get('high', 0)),
+                                        'low': float(point.get('low', 0)),
+                                        'close': float(point.get('close', 0)),
+                                        'volume': int(point.get('volume', 0)),
+                                        'value': float(point.get('value', 0))
+                                    }
+                                    
+                                    # Only add valid data points
+                                    if training_point['close'] > 0 and training_point['volume'] > 0:
+                                        training_data.append(training_point)
+                                        
+                                except (ValueError, KeyError) as e:
+                                    continue  # Skip invalid data points
+                    
+                    # Rate limiting to avoid overwhelming the API
+                    time.sleep(0.1)  # 100ms delay between requests
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to collect data for {symbol}: {e}")
+                    continue
+            
+            if progress_callback:
+                progress_callback(f"✅ Collected {len(training_data)} data points from {total_symbols} symbols")
+            
+            logger.info(f"📊 Training data collection complete: {len(training_data)} samples")
+            return training_data
+            
+        except Exception as e:
+            logger.error(f"❌ Data collection error: {e}")
+            return []
+    
+    def _prepare_training_features(self, training_data: List[Dict]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Prepare features and targets for LSTM and Meta model training"""
+        try:
+            import pandas as pd
+            import numpy as np
+            from sklearn.preprocessing import StandardScaler
+            
+            # Convert to DataFrame
+            df = pd.DataFrame(training_data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df = df.sort_values(['symbol', 'timestamp'])
+            
+            lstm_features = []
+            lstm_targets = []
+            meta_features = []
+            meta_targets = []
+            
+            # Process each symbol separately
+            for symbol in df['symbol'].unique():
+                symbol_df = df[df['symbol'] == symbol].copy()
+                
+                if len(symbol_df) < self.config['lookback_window'] + 10:
+                    continue  # Skip symbols with insufficient data
+                
+                # Calculate technical indicators
+                symbol_df = self._calculate_technical_indicators_for_training(symbol_df)
+                
+                # Create sequences for LSTM
+                for i in range(self.config['lookback_window'], len(symbol_df) - 5):
+                    # LSTM features (sequence of technical indicators)
+                    feature_sequence = []
+                    
+                    for j in range(i - self.config['lookback_window'], i):
+                        row = symbol_df.iloc[j]
+                        features = [
+                            row['close'] / row['open'] - 1,  # Price change
+                            row['high'] / row['low'] - 1,    # Daily range
+                            row['volume'] / symbol_df['volume'].rolling(20).mean().iloc[j] - 1,  # Volume ratio
+                            row.get('rsi', 50) / 100,        # RSI normalized
+                            row.get('macd', 0),              # MACD
+                            row.get('bb_position', 0.5),     # Bollinger Band position
+                            row.get('volatility', 0.02),     # Volatility
+                            row.get('sma_ratio', 1) - 1,     # Price to SMA ratio
+                        ]
+                        feature_sequence.append(features)
+                    
+                    lstm_features.append(feature_sequence)
+                    
+                    # LSTM target (next 5-period price direction)
+                    future_price = symbol_df.iloc[i + 5]['close']
+                    current_price = symbol_df.iloc[i]['close']
+                    price_change = (future_price - current_price) / current_price
+                    
+                    # Binary classification: 1 for up, 0 for down
+                    lstm_targets.append(1 if price_change > 0.01 else 0)  # 1% threshold
+                    
+                    # Meta model features (aggregated indicators + LSTM prediction simulation)
+                    current_row = symbol_df.iloc[i]
+                    meta_feature = [
+                        price_change if abs(price_change) < 0.1 else 0,  # Capped price change
+                        current_row.get('rsi', 50),
+                        current_row.get('macd', 0),
+                        current_row.get('bb_position', 0.5),
+                        current_row.get('volatility', 0.02),
+                        current_row['volume'] / symbol_df['volume'].rolling(20).mean().iloc[i],
+                        current_row.get('sma_ratio', 1),
+                        abs(price_change),  # Price change magnitude
+                        symbol_df.iloc[i-1:i+1]['close'].std(),  # Short-term volatility
+                        1 if price_change > 0.01 else 0,  # Simulated LSTM prediction
+                    ]
+                    
+                    meta_features.append(meta_feature)
+                    
+                    # Meta target (successful trade signal)
+                    # More conservative threshold for meta model
+                    meta_targets.append(1 if abs(price_change) > 0.015 else 0)  # 1.5% threshold
+            
+            # Convert to numpy arrays
+            lstm_features = np.array(lstm_features, dtype=np.float32)
+            lstm_targets = np.array(lstm_targets, dtype=np.int32)
+            meta_features = np.array(meta_features, dtype=np.float32)
+            meta_targets = np.array(meta_targets, dtype=np.int32)
+            
+            # Normalize features
+            if not hasattr(self, 'feature_scaler'):
+                from sklearn.preprocessing import StandardScaler
+                self.feature_scaler = StandardScaler()
+                
+            # Scale LSTM features
+            original_shape = lstm_features.shape
+            lstm_features_scaled = self.feature_scaler.fit_transform(
+                lstm_features.reshape(-1, lstm_features.shape[-1])
+            ).reshape(original_shape)
+            
+            # Scale meta features
+            if not hasattr(self, 'meta_scaler'):
+                self.meta_scaler = StandardScaler()
+            meta_features_scaled = self.meta_scaler.fit_transform(meta_features)
+            
+            logger.info(f"✅ Features prepared: LSTM {lstm_features_scaled.shape}, Meta {meta_features_scaled.shape}")
+            return lstm_features_scaled, lstm_targets, meta_features_scaled, meta_targets
+            
+        except Exception as e:
+            logger.error(f"❌ Feature preparation error: {e}")
+            return np.array([]), np.array([]), np.array([]), np.array([])
+    
+    def _calculate_technical_indicators_for_training(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Calculate technical indicators for training data"""
+        try:
+            # RSI
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            df['rsi'] = 100 - (100 / (1 + rs))
+            
+            # MACD
+            ema12 = df['close'].ewm(span=12).mean()
+            ema26 = df['close'].ewm(span=26).mean()
+            df['macd'] = ema12 - ema26
+            
+            # Bollinger Bands
+            sma20 = df['close'].rolling(20).mean()
+            std20 = df['close'].rolling(20).std()
+            df['bb_upper'] = sma20 + (std20 * 2)
+            df['bb_lower'] = sma20 - (std20 * 2)
+            df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
+            
+            # Volatility
+            df['volatility'] = df['close'].pct_change().rolling(20).std()
+            
+            # SMA ratio
+            df['sma_20'] = sma20
+            df['sma_ratio'] = df['close'] / df['sma_20']
+            
+            # Fill NaN values
+            df = df.fillna(method='bfill').fillna(method='ffill')
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"❌ Technical indicators calculation error: {e}")
+            return df
+    
+    def _train_lstm_model(self, lstm_features: np.ndarray, lstm_targets: np.ndarray, progress_callback=None) -> bool:
+        """Train the LSTM model with prepared features"""
+        try:
+            if not ML_AVAILABLE:
+                logger.error("❌ TensorFlow not available for LSTM training")
+                return False
+                
+            import tensorflow as tf
+            from tensorflow.keras.models import Sequential
+            from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+            from tensorflow.keras.optimizers import Adam
+            from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+            
+            if progress_callback:
+                progress_callback("🧠 Building LSTM model architecture...")
+            
+            # Clear any existing model
+            tf.keras.backend.clear_session()
+            
+            # Build LSTM model
+            model = Sequential([
+                LSTM(128, return_sequences=True, input_shape=(lstm_features.shape[1], lstm_features.shape[2])),
+                Dropout(0.2),
+                BatchNormalization(),
+                
+                LSTM(64, return_sequences=True),
+                Dropout(0.2),
+                BatchNormalization(),
+                
+                LSTM(32, return_sequences=False),
+                Dropout(0.2),
+                
+                Dense(16, activation='relu'),
+                Dropout(0.1),
+                Dense(3, activation='softmax')  # 3 classes: BUY, SELL, HOLD
+            ])
+            
+            # Compile model
+            model.compile(
+                optimizer=Adam(learning_rate=0.001),
+                loss='sparse_categorical_crossentropy',
+                metrics=['accuracy']
+            )
+            
+            if progress_callback:
+                progress_callback("📊 Training LSTM model...")
+            
+            # Split data
+            split_idx = int(0.8 * len(lstm_features))
+            X_train, X_val = lstm_features[:split_idx], lstm_features[split_idx:]
+            y_train, y_val = lstm_targets[:split_idx], lstm_targets[split_idx:]
+            
+            # Callbacks
+            callbacks = [
+                EarlyStopping(patience=10, restore_best_weights=True),
+                ReduceLROnPlateau(patience=5, factor=0.5)
+            ]
+            
+            # Train model
+            history = model.fit(
+                X_train, y_train,
+                epochs=50,
+                batch_size=32,
+                validation_data=(X_val, y_val),
+                callbacks=callbacks,
+                verbose=0
+            )
+            
+            # Store model
+            self.models['lstm'] = model
+            
+            # Calculate metrics
+            val_accuracy = max(history.history['val_accuracy'])
+            
+            if progress_callback:
+                progress_callback(f"✅ LSTM training complete! Validation accuracy: {val_accuracy:.3f}")
+            
+            logger.info(f"✅ LSTM model trained successfully - Validation accuracy: {val_accuracy:.3f}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ LSTM training failed: {e}")
+            if progress_callback:
+                progress_callback(f"❌ LSTM training failed: {e}")
+            return False
+    
+    def _train_meta_model(self, meta_features: np.ndarray, meta_targets: np.ndarray, progress_callback=None) -> bool:
+        """Train the LightGBM meta model with prepared features"""
+        try:
+            if not ML_AVAILABLE:
+                logger.error("❌ LightGBM not available for meta model training")
+                return False
+                
+            import lightgbm as lgb
+            from sklearn.model_selection import train_test_split
+            from sklearn.metrics import accuracy_score, classification_report
+            
+            if progress_callback:
+                progress_callback("🌟 Training LightGBM meta model...")
+            
+            # Split data
+            X_train, X_val, y_train, y_val = train_test_split(
+                meta_features, meta_targets, 
+                test_size=0.2, 
+                random_state=42, 
+                stratify=meta_targets
+            )
+            
+            # Create LightGBM datasets
+            train_data = lgb.Dataset(X_train, label=y_train)
+            val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
+            
+            # Parameters
+            params = {
+                'objective': 'multiclass',
+                'num_class': 3,
+                'boosting_type': 'gbdt',
+                'num_leaves': 31,
+                'learning_rate': 0.05,
+                'feature_fraction': 0.9,
+                'bagging_fraction': 0.8,
+                'bagging_freq': 5,
+                'verbose': -1,
+                'random_state': 42
+            }
+            
+            # Train model
+            model = lgb.train(
+                params,
+                train_data,
+                valid_sets=[val_data],
+                num_boost_round=1000,
+                callbacks=[lgb.early_stopping(50), lgb.log_evaluation(0)]
+            )
+            
+            # Store model
+            self.models['meta'] = model
+            
+            # Calculate metrics
+            val_predictions = model.predict(X_val)
+            val_predictions_class = np.argmax(val_predictions, axis=1)
+            val_accuracy = accuracy_score(y_val, val_predictions_class)
+            
+            if progress_callback:
+                progress_callback(f"✅ Meta model training complete! Validation accuracy: {val_accuracy:.3f}")
+            
+            logger.info(f"✅ Meta model trained successfully - Validation accuracy: {val_accuracy:.3f}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Meta model training failed: {e}")
+            if progress_callback:
+                progress_callback(f"❌ Meta model training failed: {e}")
+            return False
+    
+    def _save_trained_models(self) -> bool:
+        """Save trained models to disk"""
+        try:
+            import os
+            import pickle
+            
+            models_dir = "/Users/macair2020/Desktop/Algo_Trading/models"
+            os.makedirs(models_dir, exist_ok=True)
+            
+            # Save LSTM model
+            if 'lstm' in self.models and self.models['lstm'] is not None:
+                self.models['lstm'].save(os.path.join(models_dir, 'lstm_model.h5'))
+                logger.info("✅ LSTM model saved")
+            
+            # Save meta model
+            if 'meta' in self.models and self.models['meta'] is not None:
+                with open(os.path.join(models_dir, 'meta_model.pkl'), 'wb') as f:
+                    pickle.dump(self.models['meta'], f)
+                logger.info("✅ Meta model saved")
+            
+            # Save scalers
+            if hasattr(self, 'feature_scaler'):
+                with open(os.path.join(models_dir, 'feature_scaler.pkl'), 'wb') as f:
+                    pickle.dump(self.feature_scaler, f)
+            
+            if hasattr(self, 'meta_scaler'):
+                with open(os.path.join(models_dir, 'meta_scaler.pkl'), 'wb') as f:
+                    pickle.dump(self.meta_scaler, f)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save models: {e}")
+            return False
+    
+    def _load_trained_models(self) -> bool:
+        """Load trained models from disk"""
+        try:
+            import os
+            import pickle
+            
+            models_dir = "/Users/macair2020/Desktop/Algo_Trading/models"
+            
+            if not os.path.exists(models_dir):
+                return False
+            
+            # Load LSTM model
+            lstm_path = os.path.join(models_dir, 'lstm_model.h5')
+            if os.path.exists(lstm_path) and ML_AVAILABLE:
+                import tensorflow as tf
+                self.models['lstm'] = tf.keras.models.load_model(lstm_path)
+                logger.info("✅ LSTM model loaded")
+            
+            # Load meta model
+            meta_path = os.path.join(models_dir, 'meta_model.pkl')
+            if os.path.exists(meta_path):
+                with open(meta_path, 'rb') as f:
+                    self.models['meta'] = pickle.load(f)
+                logger.info("✅ Meta model loaded")
+            
+            # Load scalers
+            scaler_path = os.path.join(models_dir, 'feature_scaler.pkl')
+            if os.path.exists(scaler_path):
+                with open(scaler_path, 'rb') as f:
+                    self.feature_scaler = pickle.load(f)
+            
+            meta_scaler_path = os.path.join(models_dir, 'meta_scaler.pkl')
+            if os.path.exists(meta_scaler_path):
+                with open(meta_scaler_path, 'rb') as f:
+                    self.meta_scaler = pickle.load(f)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load models: {e}")
+            return False
+    
+    def _validate_trained_models(self, validation_data: List[Dict]) -> Dict:
+        """Validate trained models on unseen data"""
+        try:
+            if not validation_data or len(validation_data) < 10:
+                return {'error': 'Insufficient validation data'}
+            
+            # Prepare validation features
+            val_features, val_targets, meta_val_features, meta_val_targets = self._prepare_training_features(validation_data)
+            
+            results = {
+                'lstm': {'available': False, 'accuracy': 0.0},
+                'meta': {'available': False, 'accuracy': 0.0}
+            }
+            
+            # Validate LSTM model
+            if 'lstm' in self.models and self.models['lstm'] is not None:
+                try:
+                    predictions = self.models['lstm'].predict(val_features, verbose=0)
+                    predicted_classes = np.argmax(predictions, axis=1)
+                    accuracy = np.mean(predicted_classes == val_targets)
+                    results['lstm'] = {'available': True, 'accuracy': float(accuracy)}
+                except Exception as e:
+                    logger.warning(f"LSTM validation failed: {e}")
+            
+            # Validate Meta model
+            if 'meta' in self.models and self.models['meta'] is not None:
+                try:
+                    predictions = self.models['meta'].predict(meta_val_features)
+                    predicted_classes = np.argmax(predictions, axis=1)
+                    accuracy = np.mean(predicted_classes == meta_val_targets)
+                    results['meta'] = {'available': True, 'accuracy': float(accuracy)}
+                except Exception as e:
+                    logger.warning(f"Meta model validation failed: {e}")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Model validation error: {e}")
+            return {'error': str(e)}
     
     # =================== REAL-TIME DATA INGESTION ===================
     

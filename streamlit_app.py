@@ -2386,12 +2386,96 @@ def render_advanced_institutional_system():
                     except Exception as e:
                         st.error(f"❌ ML initialization failed: {e}")
                         st.info("Or install: pip install tensorflow lightgbm transformers")
-            else:
-                if st.button("🔄 Update System", help="Update to latest system version"):
-                    if 'advanced_system' in st.session_state:
-                        del st.session_state.advanced_system
-                    st.info("🔄 Updating system with latest methods...")
-                    st.rerun()
+        
+        # Model Training Section
+        if has_ml_init and system.ml_available:
+            st.write("### 🎓 Model Training")
+            
+            col_train1, col_train2, col_train3 = st.columns([2, 1, 1])
+            
+            with col_train1:
+                # Training parameters
+                with st.expander("⚙️ Training Configuration", expanded=False):
+                    train_days = st.slider("Training Days", min_value=7, max_value=60, value=30, 
+                                         help="Number of days of historical data to use for training")
+                    train_symbols = st.selectbox("Symbol Selection", 
+                                                ["Top 50 PSX Stocks", "All PSX Stocks", "Custom Selection"],
+                                                help="Choose which symbols to train on")
+                    
+                    if train_symbols == "Custom Selection":
+                        custom_symbols = st.text_area("Enter Symbols (comma-separated)", 
+                                                    placeholder="NESTLE, UBL, TRG, PIOC, OGDC")
+            
+            with col_train2:
+                # Start training button
+                if st.button("🚀 Train Models", type="primary", help="Train LSTM and Meta models using PSX data"):
+                    symbols_to_use = None
+                    if train_symbols == "Custom Selection" and 'custom_symbols' in locals():
+                        if custom_symbols.strip():
+                            symbols_to_use = [s.strip().upper() for s in custom_symbols.split(',') if s.strip()]
+                    
+                    # Create progress containers
+                    progress_container = st.container()
+                    with progress_container:
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        def update_progress(message):
+                            """Update progress display"""
+                            status_text.text(message)
+                            # Simple progress based on key stages
+                            if "Starting" in message:
+                                progress_bar.progress(0.1)
+                            elif "Collecting" in message:
+                                progress_bar.progress(0.3)
+                            elif "Engineering" in message:
+                                progress_bar.progress(0.4)
+                            elif "Training LSTM" in message:
+                                progress_bar.progress(0.6)
+                            elif "Training LightGBM" in message:
+                                progress_bar.progress(0.8)
+                            elif "Saving" in message:
+                                progress_bar.progress(0.9)
+                            elif "completed" in message:
+                                progress_bar.progress(1.0)
+                        
+                        # Start training
+                        with st.spinner("Training models..."):
+                            result = system.train_models_with_psx_data(
+                                symbols=symbols_to_use, 
+                                days_back=train_days,
+                                progress_callback=update_progress
+                            )
+                            
+                            if result.get('status') == 'success':
+                                st.success("🎉 Model training completed successfully!")
+                                st.json(result)
+                                
+                                # Force refresh the system to load new models
+                                if 'advanced_system' in st.session_state:
+                                    del st.session_state.advanced_system
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Training failed: {result.get('error', 'Unknown error')}")
+            
+            with col_train3:
+                # Load pre-trained models button
+                if st.button("📁 Load Models", help="Load previously trained models from disk"):
+                    with st.spinner("Loading models..."):
+                        if system._load_trained_models():
+                            st.success("✅ Models loaded successfully!")
+                            # Force refresh to update model status
+                            if 'advanced_system' in st.session_state:
+                                del st.session_state.advanced_system
+                            st.rerun()
+                        else:
+                            st.info("ℹ️ No saved models found or loading failed")
+        else:
+            if st.button("🔄 Update System", help="Update to latest system version"):
+                if 'advanced_system' in st.session_state:
+                    del st.session_state.advanced_system
+                st.info("🔄 Updating system with latest methods...")
+                st.rerun()
         
         col1, col2, col3, col4 = st.columns(4)
         

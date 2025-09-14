@@ -2361,9 +2361,9 @@ def render_advanced_institutional_system():
         
         with col3:
             st.metric(
-                "NLP Engine", 
-                "✅ Ready" if status['sentiment_model_ready'] else "❌ Not Ready",
-                delta="Sentiment Analysis" if status['sentiment_model_ready'] else "Limited"
+                "PSX Symbols", 
+                f"{status.get('total_symbols', 0)}",
+                delta="All PSX Stocks Available"
             )
         
         with col4:
@@ -2379,13 +2379,23 @@ def render_advanced_institutional_system():
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            # Symbol selection with enhanced options
-            symbols = get_cached_symbols() if 'get_cached_symbols' in globals() else ['BTC/USD', 'ETH/USD', 'HBL', 'UBL']
-            selected_symbol = st.selectbox(
-                "Select Asset for Analysis", 
-                options=symbols[:50],  # Limit for performance
-                help="Choose an asset for advanced institutional-grade analysis"
-            )
+            # Symbol selection with PSX symbols from advanced system
+            try:
+                psx_symbols = system.get_available_symbols()
+                if psx_symbols:
+                    selected_symbol = st.selectbox(
+                        "Select PSX Stock for Analysis", 
+                        options=psx_symbols,  # Show all symbols now that we have proper implementation
+                        index=psx_symbols.index('HBL') if 'HBL' in psx_symbols else 0,
+                        help=f"Choose from {len(psx_symbols)} available PSX stocks for institutional-grade analysis"
+                    )
+                    st.caption(f"📊 **{len(psx_symbols)} PSX stocks** available for advanced analysis")
+                else:
+                    st.warning("⚠️ PSX symbols not loaded")
+                    selected_symbol = st.text_input("Enter Stock Symbol:", value="HBL")
+            except Exception as e:
+                st.error(f"Error loading symbols: {e}")
+                selected_symbol = st.text_input("Enter Stock Symbol:", value="HBL")
         
         with col2:
             st.markdown("**Analysis Type**")

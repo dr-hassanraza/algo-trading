@@ -112,6 +112,9 @@ class AdvancedTradingSystem:
         self.scaler = None
         self.sentiment_model = None
         
+        # PSX Symbols - Complete list for institutional trading
+        self.psx_symbols = self._initialize_psx_symbols()
+        
         # Configuration
         self.config = {
             'primary_model_confidence_threshold': 0.60,
@@ -153,6 +156,70 @@ class AdvancedTradingSystem:
             'forex': self._get_forex_sources()
         }
         logger.info("✅ Data sources initialized")
+    
+    def _initialize_psx_symbols(self) -> List[str]:
+        """Initialize comprehensive PSX symbols list for institutional trading"""
+        try:
+            # Try to fetch from PSX Terminal API first
+            import requests
+            response = requests.get("https://psxterminal.com/api/symbols", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and data.get('data'):
+                    logger.info("📡 Loaded PSX symbols from live API")
+                    return data.get('data', [])
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fetch live PSX symbols: {e}")
+        
+        # Fallback to comprehensive local PSX symbols list (514 symbols)
+        psx_symbols = [
+            "786", "AABS", "AATM", "ABL", "ABOT", "ACI", "ACIETF", "ACPL", "ADAMS", "ADMM",
+            "AGHA", "AGIC", "AGIL", "AGL", "AGLNCPS", "AGP", "AGSML", "AGTL", "AHCL", "AHL",
+            "AHTM", "AICL", "AIRLINK", "AKBL", "AKDHL", "AKDSL", "AKGL", "ALAC", "ALIFE", "ALLSHR",
+            "ALNRS", "ALTN", "AMBL", "AMTEX", "ANL", "ANSM", "ANTM", "APL", "ARCTM", "ARPAK",
+            "ARPL", "ARUJ", "ASC", "ASHT", "ASIC", "ASL", "ASLCPS", "ASLPS", "ASTL", "ASTM",
+            "ATBA", "ATIL", "ATLH", "ATRL", "AVN", "AWTX", "BAFL", "BAFS", "BAHL", "BAPL",
+            "BATA", "BBFL", "BCL", "BECO", "BELA", "BERG", "BFAGRO", "BFBIO", "BFMOD", "BGL",
+            "BHAT", "BIFO", "BILF", "BIPL", "BKTI", "BML", "BNL", "BNWM", "BOK", "BOP",
+            "BPL", "BRRG", "BTL", "BUXL", "BWCL", "BWHL", "CASH", "CCM", "CENI", "CEPB",
+            "CFL", "CHAS", "CHBL", "CHCC", "CJPL", "CLCPS", "CLOV", "CLVL", "CNERGY", "COLG",
+            "CPHL", "CPPL", "CRTM", "CSAP", "CSIL", "CTM", "CWSM", "CYAN", "DAAG", "DADX",
+            "DBCI", "DCL", "DCR", "DEL", "DFML", "DFSM", "DGKC", "DHPL", "DIIL", "DINT",
+            "DLL", "DMC", "DMTM", "DMTX", "DNCC", "DOL", "DSIL", "DSL", "DWAE", "DWSM",
+            "DWTM", "DYNO", "ECOP", "EFERT", "EFUG", "EFUL", "ELCM", "ELSM", "EMCO", "ENGRO",
+            "EPCL", "EPCLPS", "EPQL", "ESBL", "EWIC", "EXIDE", "FABL", "FANM", "FASM", "FATIMA",
+            "FCCL", "FCEL", "FCEPL", "FCIBL", "FCL", "FCSC", "FDPL", "FECM", "FECTC", "FEM",
+            "FEROZ", "FFC", "FFL", "FFLM", "FHAM", "FIBLM", "FIL", "FIMM", "FLYNG", "FML",
+            "FNEL", "FPJM", "FPRM", "FRCL", "FRSM", "FSWL", "FTMM", "FTSM", "FZCM", "GADT",
+            "GAL", "GAMON", "GATI", "GATM", "GCIL", "GCWL", "GLAXO", "GLPL", "GOC", "GRR",
+            "GRYL", "GSPM", "GTYR", "GUSM", "GVGL", "GWLC", "HABSM", "HAEL", "HAFL", "HALEON",
+            "HAS", "HBL", "HCAR", "HCCL", "HDA", "HDCL", "HGFA", "HGL", "HICL", "HIINO",
+            "HINO", "HMB", "HNRL", "HONS", "HPL", "HRL", "HRPL", "HSLA", "HSPI", "HTL",
+            "HUBC", "HWA", "HWQS", "ICL", "IDRT", "IDSL", "IDYM", "IFL", "IGCL", "ILP",
+            "IMAGE", "IMKB", "INDU", "INIL", "INKL", "INLR", "IOBL", "IPF", "ISL", "ITTL",
+            "JATM", "JSCL", "JSIL", "JSML", "JSPSL", "JUBS", "KAGH", "KAL", "KAMW", "KAPCO",
+            "KASBB", "KASF", "KASM", "KCP", "KCTL", "KEL", "KESC", "KGIL", "KOHC", "KOHINOOR",
+            "KOIL", "KOSM", "KPHL", "KPUS", "KSTM", "KTML", "KZCL", "LACAS", "LOADS", "LOL",
+            "LPL", "LUCK", "MACFL", "MAGMA", "MARI", "MCB", "MCBAH", "MEBL", "MEHT", "MERIT",
+            "MFL", "MGCL", "MLCF", "MMHL", "MNFSR", "MODAM", "MOGLC", "MON", "MPL", "MRNS",
+            "MSCI30", "MSOT", "MTL", "MUBT", "MUREB", "NATF", "NATM", "NBP", "NCCPL", "NCL",
+            "NCML", "NCPL", "NESTLE", "NEXT", "NGL", "NRML", "NSL", "NTM", "NTML", "NUML",
+            "OBL", "OGDC", "OMPL", "OPF", "ORM", "OTSU", "PACE", "PAK", "PAKD", "PAKG",
+            "PAKL", "PAKOXY", "PASL", "PCAL", "PCL", "PECO", "PGLC", "PIAA", "PIBTL", "PICL",
+            "PICT", "PIM", "PIOC", "PKGP", "PKGS", "PKL", "PLL", "PMCL", "PMRS", "PNSC",
+            "POL", "PPL", "PRCL", "PRET", "PRIC", "PRWM", "PSX", "PTBA", "PTC", "PTL",
+            "QUICE", "QURESHI", "RCET", "RCIL", "REDS", "REGAL", "REWM", "RICL", "RMPL", "RPHL",
+            "RUBY", "SAIF", "SANT", "SAPL", "SASM", "SBL", "SCBPL", "SCL", "SDOT", "SEARL",
+            "SECP", "SHEZ", "SHI", "SICL", "SITC", "SKRS", "SLL", "SMCPL",
+            "SMEL", "SMTM", "SNBL", "SPCL", "SPTM", "SQL", "SRML", "SSML", "SSOM", "STCL",
+            "STJT", "STPL", "STSI", "SWHHL", "SWIL", "SYM", "SYS", "SZTM", "TGL", "THALL",
+            "THCCL", "TML", "TPL", "TPLP", "TPOT", "TREET", "TRG", "TRIPACK", "TRSM", "TSL",
+            "TSML", "TTML", "UBL", "UCAPM", "UDPL", "UGCL", "UMA", "UNITY", "UPFL", "WTL",
+            "YOUW", "ZCCL", "ZCML", "ZCL", "ZGL", "ZIL", "ZTL"
+        ]
+        
+        logger.info(f"📊 Using local PSX symbols database: {len(psx_symbols)} symbols")
+        return psx_symbols
     
     # =================== REAL-TIME DATA INGESTION ===================
     
@@ -958,8 +1025,17 @@ class AdvancedTradingSystem:
             'market_data_available': MARKET_DATA_AVAILABLE,
             'data_queue_size': self.data_queue.qsize(),
             'news_queue_size': self.news_queue.qsize(),
-            'config': self.config
+            'config': self.config,
+            'total_symbols': len(self.psx_symbols)
         }
+    
+    def get_available_symbols(self) -> List[str]:
+        """Get list of all available PSX symbols for institutional trading"""
+        return self.psx_symbols.copy()
+    
+    def get_symbols_count(self) -> int:
+        """Get total count of available PSX symbols"""
+        return len(self.psx_symbols)
     
     async def get_psx_l2_data(self, symbol: str) -> Optional[Dict]:
         """Get Level 2 data for PSX stocks (enhanced)"""

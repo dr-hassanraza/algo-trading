@@ -1,0 +1,3 @@
+symbol,date,buy_next_day,trend_ma44_up,close_gt_ma44,bb_pctB_midzone,green_candle_body40,bb_mid_slope_up,near_ma44,close,ma44,bb_pctB,ma44_slope10,bbmid_slope5
+UBL.KAR,2025-08-18,0,False,True,True,True,True,True,377.89,366.9547727272727,0.7112907261994131,-3.100295454545454,0.5616999999999962
+MCB.KAR,2025-08-18,0,True,True,True,False,True,False,349.45,331.3661363636364,0.4581804152603708,1.7564090909090964,0.5798000000000002

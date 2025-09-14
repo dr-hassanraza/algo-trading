@@ -2331,11 +2331,12 @@ def render_advanced_institutional_system():
     st.markdown("### 📋 System Status")
     
     try:
-        # Initialize advanced system
-        if 'advanced_system' not in st.session_state:
+        # Initialize advanced system (force refresh if method missing)
+        if 'advanced_system' not in st.session_state or not hasattr(st.session_state.get('advanced_system'), 'generate_advanced_signal_sync'):
             with st.spinner("🔄 Initializing advanced trading system..."):
                 try:
                     st.session_state.advanced_system = create_advanced_trading_system()
+                    st.success("✅ Advanced trading system initialized with latest methods")
                 except Exception as e:
                     st.error(f"❌ Failed to initialize advanced system: {str(e)}")
                     st.info("💡 This may be due to missing dependencies. Check ADVANCED_SETUP.md for installation guide.")
@@ -2343,6 +2344,14 @@ def render_advanced_institutional_system():
         
         system = st.session_state.advanced_system
         status = system.get_system_status()
+        
+        # Add manual refresh option
+        col_refresh1, col_refresh2 = st.columns([3, 1])
+        with col_refresh2:
+            if st.button("🔄 Refresh System", help="Reinitialize the advanced trading system"):
+                if 'advanced_system' in st.session_state:
+                    del st.session_state.advanced_system
+                st.rerun()
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -2409,6 +2418,13 @@ def render_advanced_institutional_system():
         if st.button("🚀 Generate Advanced Signal", type="primary"):
             with st.spinner("🔄 Running institutional-grade analysis..."):
                 try:
+                    # Check if method exists
+                    if not hasattr(system, 'generate_advanced_signal_sync'):
+                        st.error("❌ Method 'generate_advanced_signal_sync' not found. Please click 'Refresh System' button above.")
+                        available_methods = [method for method in dir(system) if not method.startswith('_') and 'signal' in method.lower()]
+                        st.info(f"Available signal methods: {available_methods}")
+                        return
+                    
                     # Generate advanced signal (using synchronous wrapper for Streamlit compatibility)
                     signal = system.generate_advanced_signal_sync(selected_symbol)
                 except Exception as e:
@@ -2416,10 +2432,14 @@ def render_advanced_institutional_system():
                     st.info("💡 Using fallback signal generation method...")
                     # Fallback to basic signal
                     try:
-                        signal = system._create_default_signal(selected_symbol)
-                    except:
-                        # Final fallback
-                        signal = system._create_default_signal_sync(selected_symbol)
+                        if hasattr(system, '_create_default_signal'):
+                            signal = system._create_default_signal(selected_symbol)
+                        else:
+                            signal = system._create_default_signal_sync(selected_symbol)
+                    except Exception as e2:
+                        st.error(f"❌ Fallback also failed: {str(e2)}")
+                        st.info("🔄 Please try clicking the 'Refresh System' button above.")
+                        return
                 
                 # Display comprehensive signal analysis
                 st.markdown("#### 🎯 Advanced Signal Results")

@@ -107,8 +107,9 @@ class AdvancedTradingSystem:
         self.executor = ThreadPoolExecutor(max_workers=4)
         
         # Model storage
-        self.lstm_model = None
-        self.meta_model = None
+        self.models = {}  # Dictionary to store trained models
+        self.lstm_model = None  # Legacy field (deprecated)
+        self.meta_model = None  # Legacy field (deprecated)
         self.scaler = None
         self.sentiment_model = None
         
@@ -161,10 +162,16 @@ class AdvancedTradingSystem:
     def _initialize_models(self):
         """Initialize ML models"""
         try:
+            # Try to load pre-trained models first
+            models_loaded = self._load_trained_models()
+            
             if self.ml_available:
-                self._build_lstm_primary_model()
-                self._build_lightgbm_meta_model()
-                logger.info("✅ Advanced ML models initialized")
+                if models_loaded:
+                    logger.info("✅ Pre-trained models loaded successfully")
+                else:
+                    self._build_lstm_primary_model()
+                    self._build_lightgbm_meta_model()
+                    logger.info("✅ Advanced ML models initialized (not trained)")
             else:
                 logger.info("ℹ️ Advanced ML not available, using simplified models")
                 
@@ -1714,8 +1721,8 @@ class AdvancedTradingSystem:
         """Get comprehensive system status"""
         return {
             'is_running': self.is_running,
-            'lstm_model_ready': self.lstm_model is not None,
-            'meta_model_ready': self.meta_model is not None,
+            'lstm_model_ready': 'lstm' in self.models and self.models['lstm'] is not None,
+            'meta_model_ready': 'meta' in self.models and self.models['meta'] is not None,
             'sentiment_model_ready': self.sentiment_model is not None,
             'advanced_ml_available': self.ml_available,
             'nlp_available': self.nlp_available,

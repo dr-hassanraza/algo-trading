@@ -68,6 +68,17 @@ try:
 except ImportError:
     AUTH_AVAILABLE = False
 
+# Secure OAuth2 authentication imports
+try:
+    from src.oauth_auth import get_oauth_manager
+    from src.oauth_components import (
+        render_oauth2_login_section, check_oauth2_authentication, 
+        oauth2_login_sidebar, render_oauth2_user_info
+    )
+    OAUTH2_AVAILABLE = True
+except ImportError:
+    OAUTH2_AVAILABLE = False
+
 # Page configuration
 st.set_page_config(
     page_title="PSX Algo Trading System",
@@ -152,77 +163,61 @@ def render_login_page():
         st.markdown("## 🔑 **Welcome Back**")
         st.markdown("*Choose your preferred login method to access your trading dashboard*")
         
-        # Social Login section using native components
-        st.info("### 🌐 **Quick Social Login**\nSign in instantly with your existing accounts")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📧 Login with Gmail", use_container_width=True, type="secondary", key="gmail_login_btn"):
-                st.session_state['show_gmail_login'] = True
-        
-        with col2:
-            if st.button("💼 Login with LinkedIn", use_container_width=True, type="secondary", key="linkedin_login_btn"):
-                st.session_state['show_linkedin_login'] = True
-        
-        # Gmail Login Modal
-        if st.session_state.get('show_gmail_login', False):
-            st.markdown("#### 📧 Gmail Authentication")
-            gmail_email = st.text_input("Gmail Address", placeholder="yourname@gmail.com")
-            gmail_name = st.text_input("Full Name", placeholder="Your Full Name")
+        # Secure OAuth2 Social Login
+        if OAUTH2_AVAILABLE:
+            render_oauth2_login_section("🔐 Secure Social Login")
+        else:
+            st.warning("⚠️ **Secure OAuth2 login is not configured.** Check OAUTH_SETUP.md for setup instructions.")
+            
+            # Show setup instructions
+            st.info("### 🌐 **Social Login (Setup Required)**\nSecure authentication with your existing accounts")
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("✅ Authenticate Gmail", use_container_width=True, key="gmail_auth_btn"):
-                    if gmail_email and gmail_name and "@gmail.com" in gmail_email:
-                        if AUTH_AVAILABLE:
-                            username = authenticate_social_user(gmail_email, gmail_name, "gmail")
-                            if username:
-                                st.session_state['authenticated'] = True
-                                st.session_state['username'] = username
-                                st.session_state['login_method'] = 'gmail'
-                                st.session_state['login_time'] = datetime.now().isoformat()
-                                st.success("✅ Gmail login successful! Redirecting...")
-                                st.rerun()
-                        else:
-                            st.error("❌ Authentication system not available")
-                    else:
-                        st.error("❌ Please enter valid Gmail address and name")
+                st.markdown("""
+                **🔍 Google Login**
+                - Requires OAuth2 setup
+                - See OAUTH_SETUP.md
+                - Secure & encrypted
+                """)
             
             with col2:
-                if st.button("❌ Cancel", use_container_width=True, key="gmail_cancel_btn"):
-                    st.session_state['show_gmail_login'] = False
-                    st.rerun()
-        
-        # LinkedIn Login Modal
-        if st.session_state.get('show_linkedin_login', False):
-            st.markdown("#### 💼 LinkedIn Authentication")
-            linkedin_email = st.text_input("LinkedIn Email", placeholder="yourname@company.com")
-            linkedin_name = st.text_input("Professional Name", placeholder="Your Professional Name")
-            linkedin_company = st.text_input("Company (Optional)", placeholder="Your Company")
+                st.markdown("""
+                **💼 LinkedIn Login**
+                - Requires OAuth2 setup  
+                - See OAUTH_SETUP.md
+                - Professional authentication
+                """)
             
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✅ Authenticate LinkedIn", use_container_width=True, key="linkedin_auth_btn"):
-                    if linkedin_email and linkedin_name:
-                        if AUTH_AVAILABLE:
-                            display_name = f"{linkedin_name} ({linkedin_company})" if linkedin_company else linkedin_name
-                            username = authenticate_social_user(linkedin_email, display_name, "linkedin")
-                            if username:
-                                st.session_state['authenticated'] = True
-                                st.session_state['username'] = username
-                                st.session_state['login_method'] = 'linkedin'
-                                st.session_state['login_time'] = datetime.now().isoformat()
-                                st.success("✅ LinkedIn login successful! Redirecting...")
-                                st.rerun()
-                        else:
-                            st.error("❌ Authentication system not available")
-                    else:
-                        st.error("❌ Please enter valid email and name")
-            
-            with col2:
-                if st.button("❌ Cancel", use_container_width=True, key="linkedin_cancel_btn"):
-                    st.session_state['show_linkedin_login'] = False
-                    st.rerun()
+            if st.button("📖 View Setup Instructions", key="show_oauth_setup"):
+                st.markdown("""
+                ### 🛠️ Quick OAuth2 Setup
+                
+                **Step 1:** Get OAuth2 credentials
+                - Google: [Google Cloud Console](https://console.cloud.google.com/)
+                - LinkedIn: [LinkedIn Developer Portal](https://www.linkedin.com/developers/)
+                
+                **Step 2:** Create `.streamlit/secrets.toml`
+                ```toml
+                [google]
+                client_id = "your-google-client-id"
+                client_secret = "your-google-client-secret"
+                
+                [linkedin]  
+                client_id = "your-linkedin-client-id"
+                client_secret = "your-linkedin-client-secret"
+                
+                [auth]
+                secret_key = "your-jwt-secret-key"
+                ```
+                
+                **Step 3:** Install dependencies
+                ```bash
+                pip install PyJWT requests-oauthlib
+                ```
+                
+                📖 **Complete guide:** See `OAUTH_SETUP.md`
+                """)
         
         # Traditional login section using native components
         st.markdown("---")
@@ -392,8 +387,20 @@ def render_logout():
             st.rerun()
 
 def check_authentication():
-    """Check if user is authenticated with session validation"""
-    # Check basic authentication
+    """Enhanced authentication check with OAuth2 and session validation"""
+    
+    # First check OAuth2 authentication if available
+    if OAUTH2_AVAILABLE:
+        try:
+            oauth_authenticated = check_oauth2_authentication()
+            if oauth_authenticated:
+                return True
+        except Exception as e:
+            # Log error but continue to fallback authentication
+            import logging
+            logging.error(f"OAuth2 authentication error: {e}")
+    
+    # Fallback to traditional authentication
     if not st.session_state.get('authenticated', False):
         return False
     

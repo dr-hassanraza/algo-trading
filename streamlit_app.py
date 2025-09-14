@@ -2333,8 +2333,14 @@ def render_advanced_institutional_system():
     st.markdown("### 📋 System Status")
     
     try:
-        # Initialize advanced system (force refresh if method missing)
-        if 'advanced_system' not in st.session_state or not hasattr(st.session_state.get('advanced_system'), 'generate_advanced_signal_sync'):
+        # Initialize advanced system (force refresh if methods missing)
+        needs_refresh = (
+            'advanced_system' not in st.session_state or 
+            not hasattr(st.session_state.get('advanced_system'), 'generate_advanced_signal_sync') or
+            not hasattr(st.session_state.get('advanced_system'), 'force_reinitialize_models')
+        )
+        
+        if needs_refresh:
             with st.spinner("🔄 Initializing advanced trading system..."):
                 try:
                     st.session_state.advanced_system = create_advanced_trading_system()
@@ -2347,6 +2353,14 @@ def render_advanced_institutional_system():
         system = st.session_state.advanced_system
         status = system.get_system_status()
         
+        # Check system capabilities
+        has_ml_init = hasattr(system, 'force_reinitialize_models')
+        has_signal_sync = hasattr(system, 'generate_advanced_signal_sync')
+        
+        # Show system capabilities status
+        if not has_ml_init or not has_signal_sync:
+            st.info(f"ℹ️ System capabilities: ML Init: {'✅' if has_ml_init else '❌'}, Signal Sync: {'✅' if has_signal_sync else '❌'}")
+        
         # Add manual refresh and model initialization options
         col_refresh1, col_refresh2, col_refresh3 = st.columns([2, 1, 1])
         with col_refresh2:
@@ -2356,21 +2370,28 @@ def render_advanced_institutional_system():
                 st.rerun()
         
         with col_refresh3:
-            if st.button("🧠 Initialize ML", help="Initialize LSTM and Meta models"):
-                try:
-                    result = system.force_reinitialize_models()
-                    if result['ml_available']:
-                        st.success("✅ ML libraries detected!")
-                        if result['lstm_ready']:
-                            st.success("✅ LSTM model initialized!")
-                        if result['meta_ready']:
-                            st.success("✅ Meta model initialized!")
-                    else:
-                        st.info("ℹ️ ML libraries not available. Install with: pip install tensorflow lightgbm")
+            if has_ml_init:
+                if st.button("🧠 Initialize ML", help="Initialize LSTM and Meta models"):
+                    try:
+                        result = system.force_reinitialize_models()
+                        if result['ml_available']:
+                            st.success("✅ ML libraries detected!")
+                            if result['lstm_ready']:
+                                st.success("✅ LSTM model initialized!")
+                            if result['meta_ready']:
+                                st.success("✅ Meta model initialized!")
+                        else:
+                            st.info("ℹ️ ML libraries not available. Install with: pip install tensorflow lightgbm")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ ML initialization failed: {e}")
+                        st.info("Or install: pip install tensorflow lightgbm transformers")
+            else:
+                if st.button("🔄 Update System", help="Update to latest system version"):
+                    if 'advanced_system' in st.session_state:
+                        del st.session_state.advanced_system
+                    st.info("🔄 Updating system with latest methods...")
                     st.rerun()
-                except Exception as e:
-                    st.error(f"❌ ML initialization failed: {e}")
-                    st.info("Try installing: pip install tensorflow lightgbm transformers")
         
         col1, col2, col3, col4 = st.columns(4)
         

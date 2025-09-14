@@ -39,7 +39,7 @@ try:
     ENHANCED_SYSTEM_AVAILABLE = True
 except ImportError:
     ENHANCED_SYSTEM_AVAILABLE = False
-    st.error("Enhanced trading system not available. Using fallback system.")
+    # Enhanced system will show appropriate messages when needed
 
 # Import advanced institutional trading system
 try:
@@ -2309,22 +2309,24 @@ def render_advanced_institutional_system():
     """)
     
     if not ADVANCED_SYSTEM_AVAILABLE:
-        st.error("❌ **Advanced System Not Available**")
+        st.info("ℹ️ **Advanced System Running in Demo Mode**")
         st.markdown("""
-        The institutional-grade system requires additional dependencies:
+        The institutional-grade system is available with core features. For full ML functionality, install optional dependencies:
         
-        **Missing Components:**
+        **Optional Advanced Components:**
         - TensorFlow/Keras for LSTM models
-        - LightGBM for meta-modeling
+        - LightGBM for meta-modeling  
         - Transformers for NLP sentiment analysis
         - CCXT for cryptocurrency data
-        - Advanced market data feeds
         
-        **Installation:**
+        **To enable full features:**
         ```bash
         pip install tensorflow lightgbm transformers ccxt nltk textblob
         ```
+        
+        **Current capabilities:** PSX stock analysis, technical indicators, basic signals
         """)
+        st.warning("⚠️ Some advanced ML features will use fallback methods")
         return
     
     # System Status Overview

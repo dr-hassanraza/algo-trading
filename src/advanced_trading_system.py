@@ -42,7 +42,7 @@ try:
     ADVANCED_ML_AVAILABLE = True
 except ImportError:
     ADVANCED_ML_AVAILABLE = False
-    st.warning("⚠️ Advanced ML libraries not available. Install tensorflow and lightgbm for full functionality.")
+    # Note: Warning will be shown in UI when needed, not on import
 
 # NLP for sentiment analysis
 try:

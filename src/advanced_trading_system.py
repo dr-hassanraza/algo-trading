@@ -823,6 +823,78 @@ class AdvancedTradingSystem:
             logger.error(f"❌ Advanced signal generation error: {str(e)}")
             return self._create_default_signal(symbol)
     
+    def generate_advanced_signal_sync(self, symbol: str, lookback_minutes: int = 60) -> TradingSignal:
+        """Synchronous wrapper for advanced signal generation (Streamlit compatible)"""
+        try:
+            # Run async method in a new event loop
+            import asyncio
+            if hasattr(asyncio, '_get_running_loop') and asyncio._get_running_loop():
+                # If already in an async context, create new thread
+                import threading
+                import concurrent.futures
+                
+                def run_async():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(self.generate_advanced_signal(symbol, lookback_minutes))
+                    finally:
+                        loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    return future.result(timeout=30)  # 30 second timeout
+            else:
+                # Safe to use asyncio.run
+                return asyncio.run(self.generate_advanced_signal(symbol, lookback_minutes))
+                
+        except Exception as e:
+            logger.error(f"❌ Sync signal generation error: {str(e)}")
+            # Fallback to synchronous method
+            return self._create_default_signal_sync(symbol)
+    
+    def _create_default_signal_sync(self, symbol: str) -> TradingSignal:
+        """Create a default signal synchronously for fallback"""
+        try:
+            return TradingSignal(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                primary_signal="HOLD",
+                primary_confidence=0.5,
+                meta_approval=False,
+                meta_confidence=0.3,
+                final_probability=0.4,
+                position_size=0.01,
+                entry_price=100.0,
+                stop_loss=98.0,
+                take_profit=104.0,
+                exit_conditions=["Default exit conditions", "Manual review required"],
+                features={
+                    'status': 'fallback_signal',
+                    'reason': 'System initialization or error',
+                    'market_regime': 'Unknown'
+                }
+            )
+        except Exception as e:
+            logger.error(f"❌ Default signal creation error: {str(e)}")
+            # Final fallback - create minimal signal
+            from dataclasses import dataclass
+            return TradingSignal(
+                symbol=symbol,
+                timestamp=datetime.now(),
+                primary_signal="HOLD",
+                primary_confidence=0.5,
+                meta_approval=False,
+                meta_confidence=0.3,
+                final_probability=0.4,
+                position_size=0.01,
+                entry_price=100.0,
+                stop_loss=98.0,
+                take_profit=104.0,
+                exit_conditions=["Error fallback"],
+                features={}
+            )
+    
     def _get_primary_prediction(self, lstm_features: np.ndarray) -> Tuple[str, float]:
         """Get prediction from primary LSTM model"""
         try:

@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, time
 import json
 import requests
 import warnings
+import asyncio
 
 # Enhanced algorithm imports
 import joblib
@@ -2408,13 +2409,17 @@ def render_advanced_institutional_system():
         if st.button("🚀 Generate Advanced Signal", type="primary"):
             with st.spinner("🔄 Running institutional-grade analysis..."):
                 try:
-                    # Generate advanced signal
-                    signal = asyncio.run(system.generate_advanced_signal(selected_symbol))
+                    # Generate advanced signal (using synchronous wrapper for Streamlit compatibility)
+                    signal = system.generate_advanced_signal_sync(selected_symbol)
                 except Exception as e:
                     st.error(f"❌ Signal generation failed: {str(e)}")
                     st.info("💡 Using fallback signal generation method...")
                     # Fallback to basic signal
-                    signal = system._create_default_signal(selected_symbol)
+                    try:
+                        signal = system._create_default_signal(selected_symbol)
+                    except:
+                        # Final fallback
+                        signal = system._create_default_signal_sync(selected_symbol)
                 
                 # Display comprehensive signal analysis
                 st.markdown("#### 🎯 Advanced Signal Results")

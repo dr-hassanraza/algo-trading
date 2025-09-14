@@ -161,67 +161,11 @@ def render_login_page():
     with tab1:
         # Login header
         st.markdown("## 🔑 **Welcome Back**")
-        st.markdown("*Choose your preferred login method to access your trading dashboard*")
+        st.markdown("*Login to access your professional trading dashboard*")
         
-        # Secure OAuth2 Social Login
-        if OAUTH2_AVAILABLE:
-            render_oauth2_login_section("🔐 Secure Social Login")
-        else:
-            st.warning("⚠️ **Secure OAuth2 login is not configured.** Check OAUTH_SETUP.md for setup instructions.")
-            
-            # Show setup instructions
-            st.info("### 🌐 **Social Login (Setup Required)**\nSecure authentication with your existing accounts")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("""
-                **🔍 Google Login**
-                - Requires OAuth2 setup
-                - See OAUTH_SETUP.md
-                - Secure & encrypted
-                """)
-            
-            with col2:
-                st.markdown("""
-                **💼 LinkedIn Login**
-                - Requires OAuth2 setup  
-                - See OAUTH_SETUP.md
-                - Professional authentication
-                """)
-            
-            if st.button("📖 View Setup Instructions", key="show_oauth_setup"):
-                st.markdown("""
-                ### 🛠️ Quick OAuth2 Setup
-                
-                **Step 1:** Get OAuth2 credentials
-                - Google: [Google Cloud Console](https://console.cloud.google.com/)
-                - LinkedIn: [LinkedIn Developer Portal](https://www.linkedin.com/developers/)
-                
-                **Step 2:** Create `.streamlit/secrets.toml`
-                ```toml
-                [google]
-                client_id = "your-google-client-id"
-                client_secret = "your-google-client-secret"
-                
-                [linkedin]  
-                client_id = "your-linkedin-client-id"
-                client_secret = "your-linkedin-client-secret"
-                
-                [auth]
-                secret_key = "your-jwt-secret-key"
-                ```
-                
-                **Step 3:** Install dependencies
-                ```bash
-                pip install PyJWT requests-oauthlib
-                ```
-                
-                📖 **Complete guide:** See `OAUTH_SETUP.md`
-                """)
-        
-        # Traditional login section using native components
+        # Login section
         st.markdown("---")
-        st.warning("### 🔑 **Traditional Login**\nUse your username and password for secure access")
+        st.info("### 🔑 **Secure Login**\nUse your username and password for secure access")
         
         with st.form("login_form"):
             username = st.text_input("Username or Email")

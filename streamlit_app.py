@@ -25,6 +25,8 @@ import json
 import requests
 import warnings
 import asyncio
+import pickle
+import os
 
 # Enhanced algorithm imports
 import joblib
@@ -1040,13 +1042,14 @@ class PSXAlgoTradingSystemFallback:
             final_confidence = (ml_confidence * 0.5) + (traditional_confidence * 0.5)
             final_confidence = min(final_confidence, 100)
 
-            if total_score >= 3.5 and final_confidence >= 65:
+            # ADJUSTED THRESHOLDS - More realistic for live trading
+            if total_score >= 2.5 and final_confidence >= 60:
                 final_signal = "STRONG_BUY"
-            elif total_score >= 1.8 and final_confidence >= 50:
+            elif total_score >= 0.8 and final_confidence >= 40:
                 final_signal = "BUY"
-            elif total_score <= -3.5 and final_confidence >= 65:
+            elif total_score <= -2.5 and final_confidence >= 60:
                 final_signal = "STRONG_SELL"
-            elif total_score <= -1.8 and final_confidence >= 50:
+            elif total_score <= -0.8 and final_confidence >= 40:
                 final_signal = "SELL"
             else:
                 final_signal = "HOLD"
@@ -1094,12 +1097,16 @@ class PSXAlgoTradingSystemFallback:
         confidence = 0
         reasons = []
         
-        # RSI Analysis
+        # RSI Analysis - More sensitive thresholds
         rsi = latest.get('rsi', 50)
-        if rsi <= 30:
+        if rsi <= 35:
             signal_score += 3; confidence += 35; reasons.append("RSI oversold")
-        elif rsi >= 70:
+        elif rsi <= 45:
+            signal_score += 1; confidence += 15; reasons.append("RSI mild oversold")
+        elif rsi >= 65:
             signal_score -= 3; confidence += 35; reasons.append("RSI overbought")
+        elif rsi >= 55:
+            signal_score -= 1; confidence += 15; reasons.append("RSI mild overbought")
         
         # Trend Analysis
         sma_5 = latest.get('sma_5', 0); sma_10 = latest.get('sma_10', 0); sma_20 = latest.get('sma_20', 0)
@@ -3235,6 +3242,30 @@ def render_admin_panel():
                             st.rerun()
                         else:
                             st.error("❌ Failed to change password. Please verify your current password.")
+
+@st.cache_resource(ttl=1800)
+def get_trained_ml_models():
+    """Load our pre-trained LSTM and Meta models"""
+    models = {}
+    models_dir = "models"
+    
+    try:
+        # Load Meta Model (LightGBM)
+        meta_model_path = os.path.join(models_dir, "meta_model.pkl")
+        if os.path.exists(meta_model_path):
+            with open(meta_model_path, 'rb') as f:
+                models['meta_model'] = pickle.load(f)
+        
+        # Load Feature Scaler
+        scaler_path = os.path.join(models_dir, "feature_scaler.pkl")
+        if os.path.exists(scaler_path):
+            with open(scaler_path, 'rb') as f:
+                models['scaler'] = pickle.load(f)
+        
+        return models
+        
+    except Exception as e:
+        return {}
 
 @st.cache_resource(ttl=3600)  # Cache model for 1 hour
 def get_ml_model(symbol, df):

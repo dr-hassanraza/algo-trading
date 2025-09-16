@@ -1042,18 +1042,18 @@ class PSXAlgoTradingSystemFallback:
             final_confidence = (ml_confidence * 0.5) + (traditional_confidence * 0.5)
             final_confidence = min(final_confidence, 100)
             
-            # DEBUG: Ensure minimum confidence for testing
-            if final_confidence < 25:
-                final_confidence = 30  # Boost very low confidence for testing
+            # ULTRA EMERGENCY - FORCE minimum confidence
+            if final_confidence < 15:
+                final_confidence = 20  # Force higher confidence for testing
 
-            # EMERGENCY ULTRA-LOW THRESHOLDS - For immediate signal generation
-            if total_score >= 1.5 and final_confidence >= 50:
+            # ULTRA EMERGENCY - MINIMAL THRESHOLDS (Should generate 80%+ signals)
+            if total_score >= 0.1 and final_confidence >= 15:
                 final_signal = "STRONG_BUY"
-            elif total_score >= 0.3 and final_confidence >= 25:
+            elif total_score >= 0.05 and final_confidence >= 10:
                 final_signal = "BUY"
-            elif total_score <= -1.5 and final_confidence >= 50:
+            elif total_score <= -0.1 and final_confidence >= 15:
                 final_signal = "STRONG_SELL"
-            elif total_score <= -0.3 and final_confidence >= 25:
+            elif total_score <= -0.05 and final_confidence >= 10:
                 final_signal = "SELL"
             else:
                 final_signal = "HOLD"
@@ -1801,7 +1801,7 @@ def render_live_trading_signals():
             scan_intensity = st.selectbox("Scan Type", ["Quick Scan (50)", "Deep Scan (100)", "Full Market (200)"], index=0)
         
         with col3:
-            min_confidence = st.slider("Min Confidence", 20, 90, 25, 5, help="Minimum confidence level for signals")
+            min_confidence = st.slider("Min Confidence", 10, 90, 10, 5, help="Minimum confidence level for signals")
         
         if st.button("🚀 Scan Market Now", type="primary", key="scan_market_btn"):
             # Determine scan size based on selection

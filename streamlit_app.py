@@ -1449,6 +1449,20 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
                 # Validate signal data structure
                 if not signal_data or not isinstance(signal_data, dict):
                     raise ValueError("Invalid signal data returned")
+            else:
+                # Insufficient data - return safe default
+                safe_price = market_data.get('price', 100)
+                signal_data = {
+                    'signal': 'HOLD',
+                    'confidence': 0,
+                    'entry_price': safe_price,
+                    'stop_loss': safe_price * 0.98,
+                    'take_profit': safe_price * 1.04,
+                    'reasons': ['Insufficient historical data'],
+                    'volume_support': False,
+                    'liquidity_ok': True,
+                    'position_size': 0.0
+                }
         
         # Ensure required fields exist with safe defaults
         safe_price = market_data.get('price', signal_data.get('entry_price', 100))
@@ -1474,21 +1488,6 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
         signal_data['_data_source'] = 'integrated_ml_system'
         
         return signal_data
-            
-        else:
-            # Insufficient data - return safe default
-            safe_price = market_data.get('price', 100)
-            return {
-                'signal': 'HOLD',
-                'confidence': 0,
-                'entry_price': safe_price,
-                'stop_loss': safe_price * 0.98,
-                'take_profit': safe_price * 1.04,
-                'reasons': ['Insufficient historical data'],
-                'volume_support': False,
-                'liquidity_ok': True,
-                'position_size': 0.0
-            }
             
     except Exception as e:
         # Log error for debugging but don't clutter UI

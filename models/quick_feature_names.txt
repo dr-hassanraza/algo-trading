@@ -1,0 +1,1 @@
+rsi\nsma_5\nsma_10\nsma_20\nvolume_ratio\nmomentum\nvolatility\nmacd_histogram\nbb_position\nadx\n

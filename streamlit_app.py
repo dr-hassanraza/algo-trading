@@ -58,6 +58,37 @@ try:
 except ImportError:
     ML_AVAILABLE = False
 
+# Load enhanced ML model
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_enhanced_ml_model():
+    """Load the enhanced ML model with better signal diversity"""
+    try:
+        import joblib
+        import os
+        
+        model_path = 'models/quick_ml_model.pkl'
+        encoder_path = 'models/quick_label_encoder.pkl'
+        
+        if os.path.exists(model_path) and os.path.exists(encoder_path):
+            model = joblib.load(model_path)
+            label_encoder = joblib.load(encoder_path)
+            
+            # Load feature names
+            feature_names = [
+                'rsi', 'sma_5', 'sma_10', 'sma_20', 'volume_ratio',
+                'momentum', 'volatility', 'macd_histogram', 'bb_position', 'adx'
+            ]
+            
+            print("✅ Enhanced ML model loaded successfully")
+            return model, label_encoder, feature_names
+        else:
+            print("⚠️ Enhanced ML model files not found, using fallback")
+            return None, None, None
+            
+    except Exception as e:
+        print(f"❌ Error loading enhanced ML model: {str(e)}")
+        return None, None, None
+
 warnings.filterwarnings('ignore')
 
 # Authentication system imports
@@ -964,47 +995,48 @@ class PSXAlgoTradingSystemFallback:
             ml_confidence = 0
             ml_prediction_text = "N/A"
 
-            if ml_model and ML_AVAILABLE:
+            # Load enhanced ML model
+            ml_model, ml_label_encoder, ml_feature_names = load_enhanced_ml_model()
+            
+            if ml_model and ML_AVAILABLE and ml_feature_names:
                 try:
-                    # Prepare features for ML prediction
-                    feature_names = ['sma_5', 'sma_10', 'sma_20', 'volume_ratio', 'momentum',
-                                   'volatility', 'rsi', 'macd_histogram', 'bb_position', 'adx']
-                    
                     # Check if all required features exist and have valid values
-                    missing_features = [f for f in feature_names if f not in latest.index or pd.isna(latest[f])]
+                    missing_features = [f for f in ml_feature_names if f not in latest.index or pd.isna(latest[f])]
                     
                     if not missing_features:
-                        feature_values = [float(latest[f]) for f in feature_names]
+                        feature_values = [float(latest[f]) for f in ml_feature_names]
                         
                         # Validate feature values are finite
                         if all(np.isfinite(val) for val in feature_values):
-                            # Handle different model types (LightGBM vs sklearn)
-                            if hasattr(ml_model, 'predict_proba'):
-                                # sklearn model
-                                prediction_proba = ml_model.predict_proba([feature_values])[0]
-                                ml_pred = np.argmax(prediction_proba)
-                            else:
-                                # LightGBM model  
-                                prediction_proba = ml_model.predict([feature_values])[0]
-                                ml_pred = 1 if prediction_proba > 0.5 else 0
-                                prediction_proba = [1-prediction_proba, prediction_proba]
+                            # Use enhanced ML model for diverse predictions
+                            prediction_proba = ml_model.predict_proba([feature_values])[0]
+                            predicted_class = ml_model.predict([feature_values])[0]
+                            predicted_label = ml_label_encoder.inverse_transform([predicted_class])[0]
                             
-                            if ml_pred == 1 or prediction_proba[1] > 0.5: # Predicts price increase
-                                ml_score = 3 * prediction_proba[1]  # Reduced ML weight
-                                ml_confidence = prediction_proba[1] * 100
-                                ml_prediction_text = f"ML Predicts UP ({ml_confidence:.0f}%)"
-                            else:
-                                ml_score = -3 * prediction_proba[0]  # Reduced ML weight
-                                ml_confidence = prediction_proba[0] * 100
-                                ml_prediction_text = f"ML Predicts DOWN ({ml_confidence:.0f}%)"
+                            max_confidence = prediction_proba.max() * 100
+                            
+                            if predicted_label == 'BUY':
+                                ml_score = 3 * (prediction_proba.max() - 0.33)  # Scale from 0.33-1.0 to 0-2
+                                ml_prediction_text = f"ML: BUY ({max_confidence:.0f}%)"
+                            elif predicted_label == 'SELL':
+                                ml_score = -3 * (prediction_proba.max() - 0.33)  # Scale from 0.33-1.0 to 0-2
+                                ml_prediction_text = f"ML: SELL ({max_confidence:.0f}%)"
+                            else:  # HOLD
+                                ml_score = 0
+                                ml_prediction_text = f"ML: HOLD ({max_confidence:.0f}%)"
+                            
+                            ml_confidence = max_confidence
+                            
                         else:
                             ml_prediction_text = "ML: Invalid feature values"
                     else:
                         ml_prediction_text = f"ML: Missing {len(missing_features)} features ({', '.join(missing_features[:2])}...)"
                         
                 except Exception as e:
-                    print(f"ML Error details for {symbol}: {str(e)}")  # Log full error for debugging
+                    print(f"Enhanced ML Error for {symbol}: {str(e)}")  # Log full error for debugging
                     ml_prediction_text = f"ML: Error - {str(e)[:30]}"  # Show more of the error
+            elif not ML_AVAILABLE:
+                ml_prediction_text = "ML: Libraries not available"
 
             # STEP 1: Traditional Technical Analysis (25% weight)
             traditional_score, traditional_confidence, traditional_reasons = self.analyze_traditional_signals(df)
@@ -1030,16 +1062,16 @@ class PSXAlgoTradingSystemFallback:
             total_score = 0
             all_reasons = []
 
-            # ML Model (25% weight but only if confidence > 70% and no errors)
-            if ml_score and ml_confidence > 70 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
-                total_score += ml_score * 0.25
+            # Enhanced ML Model (30% weight but only if confidence > 60% and no errors)
+            if ml_score != 0 and ml_confidence > 60 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
+                total_score += ml_score * 0.30
             elif "Error" in ml_prediction_text or "Missing" in ml_prediction_text:
                 # If ML fails, reduce overall confidence and add a penalty
                 total_score *= 0.9  # 10% penalty for ML failure
             all_reasons.append(ml_prediction_text)
 
-            # Traditional signals (35% - increased weight to compensate for ML reduction)
-            total_score += traditional_score * 0.35
+            # Traditional signals (30% - balanced with enhanced ML)
+            total_score += traditional_score * 0.30
             all_reasons.extend([f"Tech: {r}" for r in traditional_reasons])
             
             # Volume (20%)

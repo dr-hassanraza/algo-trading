@@ -1051,7 +1051,7 @@ class PSXAlgoTradingSystemFallback:
             # Adjust score based on regime
             if market_regime == "Trending" and abs(traditional_score) < 2:
                 total_score *= 0.8 # Reduce score if no trend confirmation
-            if market_regime == "Ranging" and abs(rsi - 50) > 20:
+            if market_regime == "Ranging" and abs(latest.get('rsi', 50) - 50) > 20:
                 total_score *= 0.8 # Reduce score if not mean-reverting
 
             # FINAL SIGNAL DETERMINATION
@@ -1104,10 +1104,9 @@ class PSXAlgoTradingSystemFallback:
             }
             
         except Exception as e:
-            # DEBUG: Show what error is causing HOLD signals
-            error_msg = f"ML analysis error: {str(e)}"
-            if hasattr(st, 'write'):
-                st.write(f"🚨 DEBUG ERROR {symbol}: {error_msg}")
+            # Log error but don't show debug messages in UI
+            error_msg = f"ML analysis error: {str(e)[:50]}"
+            print(f"ML Error for {symbol}: {error_msg}")
             return {"signal": "HOLD", "confidence": 0, "reason": error_msg}
     
     def analyze_traditional_signals(self, df):
@@ -1419,9 +1418,9 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
             }
             
     except Exception as e:
-        # DEBUG: Show what error is causing HOLD signals in safe_generate_signal
+        # Log error for debugging but don't clutter UI
         error_msg = f'Analysis error: {str(e)[:50]}'
-        print(f"🚨 SAFE_GENERATE_SIGNAL ERROR {symbol}: {error_msg}")
+        print(f"Signal generation error for {symbol}: {error_msg}")
         
         # Error in analysis - return safe fallback
         safe_price = market_data.get('price', 100)

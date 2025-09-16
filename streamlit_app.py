@@ -970,34 +970,41 @@ class PSXAlgoTradingSystemFallback:
                     feature_names = ['sma_5', 'sma_10', 'sma_20', 'volume_ratio', 'momentum',
                                    'volatility', 'rsi', 'macd_histogram', 'bb_position', 'adx']
                     
-                    # Check if all required features exist
-                    if all(f in latest.index for f in feature_names):
-                        feature_values = [latest[f] for f in feature_names]
+                    # Check if all required features exist and have valid values
+                    missing_features = [f for f in feature_names if f not in latest.index or pd.isna(latest[f])]
+                    
+                    if not missing_features:
+                        feature_values = [float(latest[f]) for f in feature_names]
                         
-                        # Handle different model types (LightGBM vs sklearn)
-                        if hasattr(ml_model, 'predict_proba'):
-                            # sklearn model
-                            prediction_proba = ml_model.predict_proba([feature_values])[0]
-                            ml_pred = np.argmax(prediction_proba)
+                        # Validate feature values are finite
+                        if all(np.isfinite(val) for val in feature_values):
+                            # Handle different model types (LightGBM vs sklearn)
+                            if hasattr(ml_model, 'predict_proba'):
+                                # sklearn model
+                                prediction_proba = ml_model.predict_proba([feature_values])[0]
+                                ml_pred = np.argmax(prediction_proba)
+                            else:
+                                # LightGBM model  
+                                prediction_proba = ml_model.predict([feature_values])[0]
+                                ml_pred = 1 if prediction_proba > 0.5 else 0
+                                prediction_proba = [1-prediction_proba, prediction_proba]
+                            
+                            if ml_pred == 1 or prediction_proba[1] > 0.5: # Predicts price increase
+                                ml_score = 3 * prediction_proba[1]  # Reduced ML weight
+                                ml_confidence = prediction_proba[1] * 100
+                                ml_prediction_text = f"ML Predicts UP ({ml_confidence:.0f}%)"
+                            else:
+                                ml_score = -3 * prediction_proba[0]  # Reduced ML weight
+                                ml_confidence = prediction_proba[0] * 100
+                                ml_prediction_text = f"ML Predicts DOWN ({ml_confidence:.0f}%)"
                         else:
-                            # LightGBM model  
-                            prediction_proba = ml_model.predict([feature_values])[0]
-                            ml_pred = 1 if prediction_proba > 0.5 else 0
-                            prediction_proba = [1-prediction_proba, prediction_proba]
-                        
-                        if ml_pred == 1 or prediction_proba[1] > 0.5: # Predicts price increase
-                            ml_score = 5 * prediction_proba[1]
-                            ml_confidence = prediction_proba[1] * 100
-                            ml_prediction_text = f"ML Predicts UP ({ml_confidence:.0f}%)"
-                        else:
-                            ml_score = -5 * prediction_proba[0]
-                            ml_confidence = prediction_proba[0] * 100
-                            ml_prediction_text = f"ML Predicts DOWN ({ml_confidence:.0f}%)"
+                            ml_prediction_text = "ML: Invalid feature values"
                     else:
-                        ml_prediction_text = "ML: Missing features"
+                        ml_prediction_text = f"ML: Missing {len(missing_features)} features ({', '.join(missing_features[:2])}...)"
                         
                 except Exception as e:
-                    ml_prediction_text = f"ML: Error ({str(e)[:20]})"
+                    print(f"ML Error details for {symbol}: {str(e)}")  # Log full error for debugging
+                    ml_prediction_text = f"ML: Error - {str(e)[:30]}"  # Show more of the error
 
             # STEP 1: Traditional Technical Analysis (25% weight)
             traditional_score, traditional_confidence, traditional_reasons = self.analyze_traditional_signals(df)
@@ -1023,12 +1030,16 @@ class PSXAlgoTradingSystemFallback:
             total_score = 0
             all_reasons = []
 
-            # ML Model (35%)
-            total_score += ml_score * 0.35
+            # ML Model (25% weight but only if confidence > 70% and no errors)
+            if ml_score and ml_confidence > 70 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
+                total_score += ml_score * 0.25
+            elif "Error" in ml_prediction_text or "Missing" in ml_prediction_text:
+                # If ML fails, reduce overall confidence and add a penalty
+                total_score *= 0.9  # 10% penalty for ML failure
             all_reasons.append(ml_prediction_text)
 
-            # Traditional signals (25%)
-            total_score += traditional_score * 0.25
+            # Traditional signals (35% - increased weight to compensate for ML reduction)
+            total_score += traditional_score * 0.35
             all_reasons.extend([f"Tech: {r}" for r in traditional_reasons])
             
             # Volume (20%)
@@ -1118,15 +1129,19 @@ class PSXAlgoTradingSystemFallback:
         confidence = 0
         reasons = []
         
-        # RSI Analysis - More sensitive thresholds
+        # RSI Analysis - Conservative thresholds
         rsi = latest.get('rsi', 50)
-        if rsi <= 35:
-            signal_score += 3; confidence += 35; reasons.append("RSI oversold")
-        elif rsi <= 45:
+        if rsi <= 25:
+            signal_score += 3; confidence += 35; reasons.append("RSI severely oversold")
+        elif rsi <= 30:
+            signal_score += 2; confidence += 25; reasons.append("RSI oversold")
+        elif rsi <= 35:
             signal_score += 1; confidence += 15; reasons.append("RSI mild oversold")
+        elif rsi >= 75:
+            signal_score -= 3; confidence += 35; reasons.append("RSI severely overbought")
+        elif rsi >= 70:
+            signal_score -= 2; confidence += 25; reasons.append("RSI overbought")
         elif rsi >= 65:
-            signal_score -= 3; confidence += 35; reasons.append("RSI overbought")
-        elif rsi >= 55:
             signal_score -= 1; confidence += 15; reasons.append("RSI mild overbought")
         
         # Trend Analysis

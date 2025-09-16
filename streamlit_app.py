@@ -1801,7 +1801,7 @@ def render_live_trading_signals():
             scan_intensity = st.selectbox("Scan Type", ["Quick Scan (50)", "Deep Scan (100)", "Full Market (200)"], index=0)
         
         with col3:
-            min_confidence = st.slider("Min Confidence", 40, 90, 60, 5, help="Minimum confidence level for signals")
+            min_confidence = st.slider("Min Confidence", 20, 90, 25, 5, help="Minimum confidence level for signals")
         
         if st.button("🚀 Scan Market Now", type="primary", key="scan_market_btn"):
             # Determine scan size based on selection
@@ -2011,7 +2011,7 @@ def render_live_trading_signals():
                     # Suggestions for better results
                     st.markdown("""
                     **💡 Tips for Better Results:**
-                    - Lower confidence threshold to 50-55%
+                    - Lower confidence threshold to 25-35%
                     - Try 'Full Market' scan to analyze more stocks
                     - Check during active trading hours (10 AM - 3 PM)
                     - Market conditions may be ranging (few directional signals)
@@ -2172,7 +2172,7 @@ def render_symbol_analysis():
                 
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    min_confidence = st.slider("Min. Confidence (%)", 30, 85, 55, 5, help="Minimum confidence level for trade execution")
+                    min_confidence = st.slider("Min. Confidence (%)", 20, 85, 25, 5, help="Minimum confidence level for trade execution")
                 with col2:
                     max_position_size = st.slider("Max Position (%)", 2, 15, 8, 1, help="Maximum position size as % of capital") / 100
                 with col3:

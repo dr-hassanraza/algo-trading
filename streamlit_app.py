@@ -1410,44 +1410,70 @@ def render_header():
         """, unsafe_allow_html=True)
 
 def safe_generate_signal(symbol, market_data, system, data_points=100):
-    """UNIFIED signal generation - ensures consistency across Live Signals and Symbol Analysis"""
+    """ENHANCED UNIFIED signal generation with integrated ML and comprehensive analysis"""
     try:
-        # Use consistent data points across ALL pages (100 is optimal balance)
-        ticks_df = get_cached_intraday_ticks(symbol, data_points)
+        # Import integrated system
+        from integrated_signal_system import IntegratedTradingSystem
         
-        if not ticks_df.empty and len(ticks_df) >= 10:
-            # Calculate indicators and generate signals
-            ticks_df = system.calculate_technical_indicators(ticks_df)
-            signal_data = system.generate_trading_signals(ticks_df, symbol)
+        # Use enhanced integrated system for better accuracy
+        integrated_system = IntegratedTradingSystem()
+        enhanced_signal = integrated_system.generate_integrated_signal(symbol)
+        
+        # Convert enhanced signal to compatible format
+        signal_data = {
+            'signal': enhanced_signal.signal,
+            'confidence': enhanced_signal.confidence,
+            'entry_price': enhanced_signal.entry_price,
+            'stop_loss': enhanced_signal.stop_loss, 
+            'take_profit': enhanced_signal.take_profit,
+            'reasons': enhanced_signal.reasons,
+            'volume_support': enhanced_signal.volume_support,
+            'liquidity_ok': enhanced_signal.liquidity_ok,
+            'position_size': enhanced_signal.position_size,
+            'technical_score': enhanced_signal.technical_score,
+            'ml_score': enhanced_signal.ml_score,
+            'fundamental_score': enhanced_signal.fundamental_score,
+            'risk_score': enhanced_signal.risk_score
+        }
+        
+        # Fallback to original system if enhanced system fails
+        if signal_data['confidence'] == 0:
+            # Use consistent data points across ALL pages (100 is optimal balance) 
+            ticks_df = get_cached_intraday_ticks(symbol, data_points)
             
-            # Validate signal data structure
-            if not signal_data or not isinstance(signal_data, dict):
-                raise ValueError("Invalid signal data returned")
-            
-            # Ensure required fields exist with safe defaults
-            safe_price = market_data.get('price', 100)
-            defaults = {
-                'signal': 'HOLD',
-                'confidence': 0,
-                'entry_price': safe_price,
-                'stop_loss': safe_price * 0.98,
-                'take_profit': safe_price * 1.04,
-                'reasons': ['Technical analysis'],
-                'volume_support': False,
-                'liquidity_ok': True,
-                'position_size': 0.0
-            }
-            
-            for field, default_value in defaults.items():
-                if field not in signal_data:
-                    signal_data[field] = default_value
-            
-            # Add consistency tracking for debugging
-            signal_data['_unified_data_points'] = len(ticks_df)
-            signal_data['_generation_timestamp'] = datetime.now().isoformat()
-            signal_data['_data_source'] = f"{data_points}_ticks_unified"
-            
-            return signal_data
+            if not ticks_df.empty and len(ticks_df) >= 10:
+                # Calculate indicators and generate signals
+                ticks_df = system.calculate_technical_indicators(ticks_df)
+                signal_data = system.generate_trading_signals(ticks_df, symbol)
+                
+                # Validate signal data structure
+                if not signal_data or not isinstance(signal_data, dict):
+                    raise ValueError("Invalid signal data returned")
+        
+        # Ensure required fields exist with safe defaults
+        safe_price = market_data.get('price', signal_data.get('entry_price', 100))
+        defaults = {
+            'signal': 'HOLD',
+            'confidence': 0,
+            'entry_price': safe_price,
+            'stop_loss': safe_price * 0.98,
+            'take_profit': safe_price * 1.04,
+            'reasons': ['Enhanced analysis'],
+            'volume_support': False,
+            'liquidity_ok': True,
+            'position_size': 0.0
+        }
+        
+        for field, default_value in defaults.items():
+            if field not in signal_data:
+                signal_data[field] = default_value
+        
+        # Add enhanced system tracking
+        signal_data['_enhanced_system'] = True
+        signal_data['_generation_timestamp'] = datetime.now().isoformat()
+        signal_data['_data_source'] = 'integrated_ml_system'
+        
+        return signal_data
             
         else:
             # Insufficient data - return safe default
@@ -1964,10 +1990,65 @@ def render_live_trading_signals():
                 progress_bar.empty()
                 status_text.empty()
                 
-                # Display results
-                st.markdown(f"### 🎯 **Scan Results** ({len(scan_symbols)} stocks analyzed)")
+                # Display enhanced results with integrated dashboard
+                st.markdown(f"### 🎯 **Enhanced Scan Results** ({len(scan_symbols)} stocks analyzed)")
                 
-                # Summary metrics
+                # Combine all signals for enhanced dashboard
+                all_signals = []
+                for buy_opp in buy_opportunities:
+                    all_signals.append({
+                        'symbol': buy_opp['Symbol'],
+                        'signal': buy_opp['Signal'],
+                        'confidence': float(buy_opp['Confidence'].replace('%', '')),
+                        'entry_price': float(buy_opp['Entry']),
+                        'stop_loss': float(buy_opp['Stop']),
+                        'take_profit': float(buy_opp['Target']),
+                        'reasons': [buy_opp['Reason']],
+                        'volume_support': True,  # Assuming volume support for filtered results
+                        'liquidity_ok': True,
+                        'position_size': 5.0  # Default position size
+                    })
+                
+                for sell_opp in sell_opportunities:
+                    all_signals.append({
+                        'symbol': sell_opp['Symbol'],
+                        'signal': sell_opp['Signal'],
+                        'confidence': float(sell_opp['Confidence'].replace('%', '')),
+                        'entry_price': float(sell_opp['Entry']),
+                        'stop_loss': float(sell_opp['Stop']),
+                        'take_profit': float(sell_opp['Target']),
+                        'reasons': [sell_opp['Reason']],
+                        'volume_support': True,
+                        'liquidity_ok': True,
+                        'position_size': 4.0  # Default position size
+                    })
+                
+                # Import and use enhanced dashboard
+                try:
+                    from enhanced_dashboard import EnhancedDashboard
+                    dashboard = EnhancedDashboard()
+                    
+                    # Render enhanced portfolio summary
+                    if all_signals:
+                        dashboard.render_portfolio_summary(all_signals)
+                        dashboard.render_signal_distribution_chart(all_signals)
+                        
+                        # Display individual enhanced signal cards for top opportunities
+                        st.markdown("### 🌟 Top Trading Opportunities")
+                        
+                        # Show top 5 signals by confidence
+                        top_signals = sorted(all_signals, key=lambda x: x['confidence'], reverse=True)[:5]
+                        for signal in top_signals:
+                            market_data = {'price': signal['entry_price']}
+                            dashboard.render_enhanced_signal_card(signal, signal['symbol'], market_data)
+                        
+                        # Performance metrics
+                        dashboard.render_performance_metrics(all_signals)
+                        
+                except ImportError:
+                    st.warning("Enhanced dashboard not available, showing basic results")
+                
+                # Summary metrics (fallback)
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
@@ -2729,15 +2810,9 @@ def render_advanced_institutional_system():
                         else:
                             signal = system._create_default_signal_sync(selected_symbol)
                     except Exception as e2:
-                        st.error(f"❌ Fallback also failed: {str(e2)}")
-                        st.info("🔄 Please try clicking the 'Refresh System' button above.")
+                        st.error(f"❌ All signal generation methods failed: {str(e2)}")
+                        st.info("🔄 Please try refreshing the page or selecting a different symbol.")
                         return
-                
-                # Display comprehensive signal analysis
-                st.markdown("#### 🎯 Advanced Signal Results")
-                
-                # Primary signal display
-                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
                     signal_color = {

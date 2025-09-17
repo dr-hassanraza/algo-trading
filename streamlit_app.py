@@ -2202,7 +2202,7 @@ def render_symbol_analysis():
         market_data = get_cached_real_time_data(selected_symbol)
         
         if market_data:
-            signal_data = safe_generate_signal(selected_symbol, market_data, system, data_points=200)
+            signal_data = safe_generate_signal(selected_symbol, market_data, system, data_points=100)
             ticks_df = get_cached_intraday_ticks(selected_symbol, 200)
             if not ticks_df.empty:
                 ticks_df = system.calculate_technical_indicators(ticks_df)
@@ -2263,6 +2263,7 @@ def render_symbol_analysis():
                     )
                     
                     # Generate sample chart data
+                    import random
                     dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
                     prices = [market_data['price'] * (1 + random.uniform(-0.05, 0.05)) for _ in range(30)]
                     volumes = [random.randint(10000, 100000) for _ in range(30)]

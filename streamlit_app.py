@@ -2551,8 +2551,8 @@ def render_symbol_analysis():
                 st.subheader("🔍 Professional Technical Analysis")
                 
                 try:
-                    # Import the comprehensive analysis module
-                    from comprehensive_technical_analysis import generate_comprehensive_analysis
+                    # Import required libraries for comprehensive analysis
+                    import ta
                     
                     if not ticks_df.empty and len(ticks_df) >= 50:
                         # Prepare data for comprehensive analysis
@@ -2570,9 +2570,186 @@ def render_symbol_analysis():
                         if 'Open' not in analysis_df.columns:
                             analysis_df['Open'] = analysis_df['Close'].shift(1).fillna(analysis_df['Close'])
                         
-                        # Generate comprehensive analysis
-                        comprehensive_result = generate_comprehensive_analysis(
-                            selected_symbol, analysis_df, market_data['price']
+                        # Generate comprehensive analysis inline
+                        def generate_confluence_analysis(df, current_price, symbol):
+                            """Generate simplified confluence analysis"""
+                            
+                            # Calculate indicators
+                            indicators = {}
+                            indicators['sma_20'] = ta.trend.sma_indicator(df['Close'], window=20)
+                            indicators['sma_50'] = ta.trend.sma_indicator(df['Close'], window=50)
+                            indicators['sma_200'] = ta.trend.sma_indicator(df['Close'], window=200)
+                            indicators['ema_12'] = ta.trend.ema_indicator(df['Close'], window=12)
+                            indicators['ema_26'] = ta.trend.ema_indicator(df['Close'], window=26)
+                            indicators['rsi'] = ta.momentum.rsi(df['Close'], window=14)
+                            indicators['macd'] = ta.trend.macd(df['Close'])
+                            indicators['macd_signal'] = ta.trend.macd_signal(df['Close'])
+                            indicators['stoch_k'] = ta.momentum.stoch(df['High'], df['Low'], df['Close'])
+                            indicators['stoch_d'] = ta.momentum.stoch_signal(df['High'], df['Low'], df['Close'])
+                            indicators['bb_middle'] = ta.volatility.bollinger_mavg(df['Close'])
+                            indicators['adx'] = ta.trend.adx(df['High'], df['Low'], df['Close'])
+                            
+                            # Analyze signals
+                            signals = {'bullish': [], 'bearish': [], 'neutral': []}
+                            
+                            # Golden Cross Analysis
+                            sma_50 = indicators['sma_50'].iloc[-1] if not indicators['sma_50'].empty else 0
+                            sma_200 = indicators['sma_200'].iloc[-1] if not indicators['sma_200'].empty else 0
+                            if sma_50 > sma_200 and sma_50 > 0 and sma_200 > 0:
+                                signals['bullish'].append({
+                                    'name': 'Golden Cross (SMA50/200)',
+                                    'description': f'Bullish: SMA50({sma_50:.2f}) > SMA200({sma_200:.2f})'
+                                })
+                            elif sma_50 < sma_200 and sma_50 > 0 and sma_200 > 0:
+                                signals['bearish'].append({
+                                    'name': 'Death Cross (SMA50/200)',
+                                    'description': f'Bearish: SMA50({sma_50:.2f}) < SMA200({sma_200:.2f})'
+                                })
+                            
+                            # EMA Cross Analysis
+                            ema_12 = indicators['ema_12'].iloc[-1] if not indicators['ema_12'].empty else 0
+                            ema_26 = indicators['ema_26'].iloc[-1] if not indicators['ema_26'].empty else 0
+                            if ema_12 > ema_26 and ema_12 > 0:
+                                signals['bullish'].append({
+                                    'name': 'EMA Cross (12/26)',
+                                    'description': f'EMA12({ema_12:.2f}) > EMA26({ema_26:.2f})'
+                                })
+                            elif ema_12 < ema_26 and ema_12 > 0:
+                                signals['bearish'].append({
+                                    'name': 'EMA Cross (12/26)',
+                                    'description': f'EMA12({ema_12:.2f}) < EMA26({ema_26:.2f})'
+                                })
+                            
+                            # RSI Analysis
+                            rsi = indicators['rsi'].iloc[-1] if not indicators['rsi'].empty else 50
+                            if rsi > 50:
+                                signals['bullish'].append({
+                                    'name': 'RSI Analysis',
+                                    'description': f'RSI Bullish: {rsi:.2f}'
+                                })
+                            elif rsi < 50:
+                                signals['bearish'].append({
+                                    'name': 'RSI Analysis',
+                                    'description': f'RSI Bearish: {rsi:.2f}'
+                                })
+                            else:
+                                signals['neutral'].append({
+                                    'name': 'RSI Analysis',
+                                    'description': f'RSI Neutral: {rsi:.2f}'
+                                })
+                            
+                            # MACD Analysis
+                            macd = indicators['macd'].iloc[-1] if not indicators['macd'].empty else 0
+                            macd_signal = indicators['macd_signal'].iloc[-1] if not indicators['macd_signal'].empty else 0
+                            if macd > macd_signal:
+                                signals['bullish'].append({
+                                    'name': 'MACD Signal',
+                                    'description': f'MACD above signal: {macd:.4f} > {macd_signal:.4f}'
+                                })
+                            elif macd < macd_signal:
+                                signals['bearish'].append({
+                                    'name': 'MACD Signal',
+                                    'description': f'MACD below signal: {macd:.4f} < {macd_signal:.4f}'
+                                })
+                            
+                            # Stochastic Analysis
+                            stoch_k = indicators['stoch_k'].iloc[-1] if not indicators['stoch_k'].empty else 50
+                            stoch_d = indicators['stoch_d'].iloc[-1] if not indicators['stoch_d'].empty else 50
+                            if stoch_k > stoch_d:
+                                signals['bullish'].append({
+                                    'name': 'Stochastic Cross',
+                                    'description': f'Stoch bullish: %K({stoch_k:.2f}) > %D({stoch_d:.2f})'
+                                })
+                            else:
+                                signals['bearish'].append({
+                                    'name': 'Stochastic Cross',
+                                    'description': f'Stoch bearish: %K({stoch_k:.2f}) < %D({stoch_d:.2f})'
+                                })
+                            
+                            # Bollinger Bands Analysis
+                            bb_middle = indicators['bb_middle'].iloc[-1] if not indicators['bb_middle'].empty else current_price
+                            if current_price > bb_middle:
+                                signals['bullish'].append({
+                                    'name': 'Bollinger Bands',
+                                    'description': f'Price above BB middle: {current_price:.2f} > {bb_middle:.2f}'
+                                })
+                            else:
+                                signals['bearish'].append({
+                                    'name': 'Bollinger Bands',
+                                    'description': f'Price below BB middle: {current_price:.2f} < {bb_middle:.2f}'
+                                })
+                            
+                            # ADX Analysis
+                            adx = indicators['adx'].iloc[-1] if not indicators['adx'].empty else 20
+                            if adx < 25:
+                                signals['neutral'].append({
+                                    'name': 'ADX Trend',
+                                    'description': f'Weak trend: ADX({adx:.2f}) < 25'
+                                })
+                            
+                            # Calculate percentages
+                            total_signals = len(signals['bullish']) + len(signals['bearish']) + len(signals['neutral'])
+                            bullish_pct = len(signals['bullish']) / total_signals * 100 if total_signals > 0 else 0
+                            bearish_pct = len(signals['bearish']) / total_signals * 100 if total_signals > 0 else 0
+                            neutral_pct = len(signals['neutral']) / total_signals * 100 if total_signals > 0 else 0
+                            
+                            # Determine overall signal
+                            if bullish_pct > bearish_pct and bullish_pct > 40:
+                                overall_signal = 'BUY'
+                            elif bearish_pct > bullish_pct and bearish_pct > 40:
+                                overall_signal = 'SELL'
+                            else:
+                                overall_signal = 'HOLD'
+                            
+                            # Format output
+                            output = f"""Technical Analysis: {symbol}
+Timeframe: 1D | Current Price: ${current_price:.2f}
+
+🎯 CONFLUENCE ANALYSIS
+Signal: {overall_signal}
+🟢 Buy: {len(signals['bullish'])}/{total_signals} ({bullish_pct:.0f}%)
+🔴 Sell: {len(signals['bearish'])}/{total_signals} ({bearish_pct:.0f}%)
+⚪ Neutral: {len(signals['neutral'])}/{total_signals} ({neutral_pct:.0f}%)
+
+🟢 BULLISH SIGNALS"""
+                            
+                            for signal in signals['bullish']:
+                                output += f"\n✅ {signal['name']}\n└ {signal['description']}\n"
+                            
+                            output += "\n🔴 BEARISH SIGNALS"
+                            for signal in signals['bearish']:
+                                output += f"\n❌ {signal['name']}\n└ {signal['description']}\n"
+                            
+                            output += "\n⚪ NEUTRAL SIGNALS"
+                            for signal in signals['neutral']:
+                                output += f"\n⚪ {signal['name']}\n└ {signal['description']}\n"
+                            
+                            output += f"\n📊 Key Technical Levels"
+                            output += f"\nRSI: {rsi:.1f}"
+                            output += f"\nADX: {adx:.1f}"
+                            output += f"\nSMA20: {indicators['sma_20'].iloc[-1]:.2f}" if not indicators['sma_20'].empty else "\nSMA20: N/A"
+                            output += f"\nSMA50: {sma_50:.2f}" if sma_50 > 0 else "\nSMA50: N/A"
+                            
+                            output += f"\n\n🤖 Generated with [Claude Code](https://claude.ai/code)"
+                            output += f"\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                            
+                            return {
+                                'confluence': {
+                                    'overall_signal': overall_signal,
+                                    'bullish_signals': signals['bullish'],
+                                    'bearish_signals': signals['bearish'],
+                                    'neutral_signals': signals['neutral'],
+                                    'bullish_pct': bullish_pct,
+                                    'bearish_pct': bearish_pct,
+                                    'neutral_pct': neutral_pct,
+                                    'total_signals': total_signals
+                                },
+                                'formatted_output': output,
+                                'indicators': indicators
+                            }
+                        
+                        comprehensive_result = generate_confluence_analysis(
+                            analysis_df, market_data['price'], selected_symbol
                         )
                         
                         if 'error' not in comprehensive_result:
@@ -2617,18 +2794,35 @@ def render_symbol_analysis():
                             with col2:
                                 st.markdown("#### 📈 Key Metrics")
                                 
-                                # Display key metrics
-                                oscillators = comprehensive_result['oscillators']
-                                ma_analysis = comprehensive_result['moving_averages']
+                                # Display key metrics  
+                                indicators = comprehensive_result['indicators']
+                                
+                                # Calculate oscillator signals
+                                rsi = indicators['rsi'].iloc[-1] if not indicators['rsi'].empty else 50
+                                stoch_k = indicators['stoch_k'].iloc[-1] if not indicators['stoch_k'].empty else 50
+                                macd = indicators['macd'].iloc[-1] if not indicators['macd'].empty else 0
+                                
+                                osc_buy = sum([1 for x in [rsi < 30, stoch_k < 20, macd > 0] if x])
+                                osc_sell = sum([1 for x in [rsi > 70, stoch_k > 80, macd < 0] if x])
+                                osc_neutral = 3 - osc_buy - osc_sell
                                 
                                 st.metric(
                                     "Oscillator Signals",
-                                    f"{oscillators['summary']['buy']}B/{oscillators['summary']['sell']}S/{oscillators['summary']['neutral']}N"
+                                    f"{osc_buy}B/{osc_sell}S/{osc_neutral}N"
                                 )
+                                
+                                # Calculate MA signals
+                                sma_20 = indicators['sma_20'].iloc[-1] if not indicators['sma_20'].empty else market_data['price']
+                                sma_50 = indicators['sma_50'].iloc[-1] if not indicators['sma_50'].empty else market_data['price'] 
+                                ema_12 = indicators['ema_12'].iloc[-1] if not indicators['ema_12'].empty else market_data['price']
+                                
+                                ma_buy = sum([1 for ma in [sma_20, sma_50, ema_12] if market_data['price'] > ma and ma > 0])
+                                ma_sell = sum([1 for ma in [sma_20, sma_50, ema_12] if market_data['price'] < ma and ma > 0])
+                                ma_neutral = 3 - ma_buy - ma_sell
                                 
                                 st.metric(
                                     "Moving Average Signals", 
-                                    f"{ma_analysis['summary']['buy']}B/{ma_analysis['summary']['sell']}S/{ma_analysis['summary']['neutral']}N"
+                                    f"{ma_buy}B/{ma_sell}S/{ma_neutral}N"
                                 )
                                 
                                 st.metric(
@@ -2636,11 +2830,11 @@ def render_symbol_analysis():
                                     f"{confluence['bullish_pct']:.0f}% Bullish"
                                 )
                                 
-                                # Market structure info
-                                market_structure = comprehensive_result['market_structure']
+                                # Technical levels
+                                adx = indicators['adx'].iloc[-1] if not indicators['adx'].empty else 20
                                 st.metric(
-                                    "Weekly Performance",
-                                    f"{market_structure['weekly_change']:+.1f}%"
+                                    "Trend Strength (ADX)",
+                                    f"{adx:.1f}"
                                 )
                             
                             # Detailed signal breakdown
@@ -2668,14 +2862,19 @@ def render_symbol_analysis():
                             
                             # Support/Resistance levels
                             with st.expander("🎯 Support & Resistance Analysis", expanded=False):
-                                sr_levels = comprehensive_result['support_resistance']
+                                # Calculate simple support/resistance
+                                recent_high = analysis_df['High'].tail(20).max()
+                                recent_low = analysis_df['Low'].tail(20).min()
+                                sma_20 = indicators['sma_20'].iloc[-1] if not indicators['sma_20'].empty else market_data['price']
+                                sma_50 = indicators['sma_50'].iloc[-1] if not indicators['sma_50'].empty else market_data['price']
                                 
-                                for method, levels in sr_levels.items():
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.metric(f"{method.title()} Support", f"{levels['support']:.2f}")
-                                    with col2:
-                                        st.metric(f"{method.title()} Resistance", f"{levels['resistance']:.2f}")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.metric("20-Day Low (Support)", f"{recent_low:.2f}")
+                                    st.metric("SMA20 (Dynamic Support)", f"{sma_20:.2f}")
+                                with col2:
+                                    st.metric("20-Day High (Resistance)", f"{recent_high:.2f}")
+                                    st.metric("SMA50 (Major Level)", f"{sma_50:.2f}")
                         
                         else:
                             st.error(f"Analysis Error: {comprehensive_result['error']}")

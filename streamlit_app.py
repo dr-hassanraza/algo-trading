@@ -2034,17 +2034,50 @@ def render_live_trading_signals():
                         # Display individual enhanced signal cards for top opportunities
                         st.markdown("### 🌟 Top Trading Opportunities")
                         
-                        # Show top 5 signals by confidence
+                        # Show top 5 signals by confidence with enhanced cards
                         top_signals = sorted(all_signals, key=lambda x: x['confidence'], reverse=True)[:5]
                         for signal in top_signals:
                             market_data = {'price': signal['entry_price']}
-                            dashboard.render_enhanced_signal_card(signal, signal['symbol'], market_data)
+                            try:
+                                dashboard.render_enhanced_signal_card(signal, signal['symbol'], market_data)
+                            except Exception as e:
+                                # Fallback to basic card if enhanced card fails
+                                st.error(f"Enhanced card error for {signal['symbol']}: {str(e)}")
+                                # Render basic signal card instead
+                                signal_type = signal.get('signal', 'HOLD')
+                                confidence = signal.get('confidence', 0)
+                                
+                                if signal_type in ['BUY', 'STRONG_BUY']:
+                                    color = "#00C851"
+                                    emoji = "🟢"
+                                elif signal_type in ['SELL', 'STRONG_SELL']:
+                                    color = "#FF4444"
+                                    emoji = "🔴"
+                                else:
+                                    color = "#FFA726"
+                                    emoji = "🟡"
+                                
+                                st.markdown(f"""
+                                <div style='border-left: 5px solid {color}; padding: 1rem; margin: 1rem 0; background: rgba(255,255,255,0.05); border-radius: 8px;'>
+                                    <h4 style='margin: 0 0 0.5rem 0; color: {color};'>{emoji} {signal['symbol']} - {signal_type}</h4>
+                                    <p style='margin: 0; font-size: 1.1rem;'><strong>Confidence:</strong> {confidence:.1f}%</p>
+                                    <div style='display: flex; gap: 2rem; margin-top: 0.5rem;'>
+                                        <span><strong>Entry:</strong> {signal.get('entry_price', 0):.2f}</span>
+                                        <span><strong>Stop Loss:</strong> {signal.get('stop_loss', 0):.2f}</span>
+                                        <span><strong>Take Profit:</strong> {signal.get('take_profit', 0):.2f}</span>
+                                        <span><strong>Position:</strong> {signal.get('position_size', 0):.1f}%</span>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         
                         # Performance metrics
-                        dashboard.render_performance_metrics(all_signals)
+                        try:
+                            dashboard.render_performance_metrics(all_signals)
+                        except Exception as e:
+                            st.warning(f"Performance metrics not available: {str(e)}")
                         
                 except ImportError:
-                    st.warning("Enhanced dashboard not available, showing basic results")
+                    st.warning("⚠️ Enhanced dashboard not available, using basic display")
                 
                 # Summary metrics (fallback)
                 col1, col2, col3, col4 = st.columns(4)

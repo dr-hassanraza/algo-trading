@@ -2207,7 +2207,7 @@ def render_symbol_analysis():
             if not ticks_df.empty:
                 ticks_df = system.calculate_technical_indicators(ticks_df)
             
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Current Signal", "📈 Price Chart", "🎯 Performance", "📋 Details"])
+            tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Current Signal", "📈 Price Chart", "🎯 Performance", "📋 Details", "🔍 Comprehensive Analysis"])
             
             with tab1:
                 col1, col2, col3 = st.columns(3)
@@ -2545,6 +2545,173 @@ def render_symbol_analysis():
             with tab4:
                 # ... (Details tab remains the same)
                 st.write("Details tab content...")
+            
+            with tab5:
+                # Comprehensive Technical Analysis
+                st.subheader("🔍 Professional Technical Analysis")
+                
+                try:
+                    # Import the comprehensive analysis module
+                    from comprehensive_technical_analysis import generate_comprehensive_analysis
+                    
+                    if not ticks_df.empty and len(ticks_df) >= 50:
+                        # Prepare data for comprehensive analysis
+                        analysis_df = ticks_df.copy()
+                        analysis_df = analysis_df.rename(columns={
+                            'price': 'Close',
+                            'volume': 'Volume'
+                        })
+                        
+                        # Add required OHLC columns if missing
+                        if 'High' not in analysis_df.columns:
+                            analysis_df['High'] = analysis_df['Close'] * 1.01
+                        if 'Low' not in analysis_df.columns:
+                            analysis_df['Low'] = analysis_df['Close'] * 0.99
+                        if 'Open' not in analysis_df.columns:
+                            analysis_df['Open'] = analysis_df['Close'].shift(1).fillna(analysis_df['Close'])
+                        
+                        # Generate comprehensive analysis
+                        comprehensive_result = generate_comprehensive_analysis(
+                            selected_symbol, analysis_df, market_data['price']
+                        )
+                        
+                        if 'error' not in comprehensive_result:
+                            # Display formatted analysis
+                            st.markdown("### 📊 Confluence Analysis Report")
+                            st.code(comprehensive_result['formatted_output'], language='text')
+                            
+                            # Additional visual components
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                confluence = comprehensive_result['confluence']
+                                st.markdown("#### 🎯 Signal Breakdown")
+                                
+                                # Create a simple chart showing signal distribution
+                                import plotly.graph_objects as go
+                                
+                                labels = ['Bullish', 'Bearish', 'Neutral']
+                                values = [
+                                    len(confluence['bullish_signals']),
+                                    len(confluence['bearish_signals']),
+                                    len(confluence['neutral_signals'])
+                                ]
+                                colors = ['#00C851', '#FF4444', '#FFA726']
+                                
+                                fig = go.Figure(data=[go.Pie(
+                                    labels=labels,
+                                    values=values,
+                                    marker_colors=colors,
+                                    hole=0.4
+                                )])
+                                
+                                fig.update_layout(
+                                    title="Signal Distribution",
+                                    showlegend=True,
+                                    height=300,
+                                    margin=dict(t=50, b=20, l=20, r=20)
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True)
+                            
+                            with col2:
+                                st.markdown("#### 📈 Key Metrics")
+                                
+                                # Display key metrics
+                                oscillators = comprehensive_result['oscillators']
+                                ma_analysis = comprehensive_result['moving_averages']
+                                
+                                st.metric(
+                                    "Oscillator Signals",
+                                    f"{oscillators['summary']['buy']}B/{oscillators['summary']['sell']}S/{oscillators['summary']['neutral']}N"
+                                )
+                                
+                                st.metric(
+                                    "Moving Average Signals", 
+                                    f"{ma_analysis['summary']['buy']}B/{ma_analysis['summary']['sell']}S/{ma_analysis['summary']['neutral']}N"
+                                )
+                                
+                                st.metric(
+                                    "Overall Confidence",
+                                    f"{confluence['bullish_pct']:.0f}% Bullish"
+                                )
+                                
+                                # Market structure info
+                                market_structure = comprehensive_result['market_structure']
+                                st.metric(
+                                    "Weekly Performance",
+                                    f"{market_structure['weekly_change']:+.1f}%"
+                                )
+                            
+                            # Detailed signal breakdown
+                            with st.expander("📋 Detailed Signal Breakdown", expanded=False):
+                                
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.markdown("**🟢 Bullish Signals**")
+                                    for signal in confluence['bullish_signals']:
+                                        st.success(f"✅ {signal['name']}")
+                                        st.caption(signal['description'])
+                                
+                                with col2:
+                                    st.markdown("**🔴 Bearish Signals**")
+                                    for signal in confluence['bearish_signals']:
+                                        st.error(f"❌ {signal['name']}")
+                                        st.caption(signal['description'])
+                                
+                                with col3:
+                                    st.markdown("**⚪ Neutral Signals**")
+                                    for signal in confluence['neutral_signals']:
+                                        st.info(f"⚪ {signal['name']}")
+                                        st.caption(signal['description'])
+                            
+                            # Support/Resistance levels
+                            with st.expander("🎯 Support & Resistance Analysis", expanded=False):
+                                sr_levels = comprehensive_result['support_resistance']
+                                
+                                for method, levels in sr_levels.items():
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric(f"{method.title()} Support", f"{levels['support']:.2f}")
+                                    with col2:
+                                        st.metric(f"{method.title()} Resistance", f"{levels['resistance']:.2f}")
+                        
+                        else:
+                            st.error(f"Analysis Error: {comprehensive_result['error']}")
+                            st.info("Using basic technical analysis instead...")
+                            
+                            # Fallback to basic analysis
+                            st.markdown("#### 📊 Basic Technical Overview")
+                            latest = ticks_df.iloc[-1]
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Current Price", f"{latest['price']:.2f} PKR")
+                                st.metric("Volume", f"{latest['volume']:,}")
+                            
+                            with col2:
+                                rsi_val = latest.get('rsi', 50)
+                                rsi_signal = "Bullish" if rsi_val > 50 else "Bearish" if rsi_val < 50 else "Neutral"
+                                st.metric("RSI", f"{rsi_val:.1f}", help=f"Signal: {rsi_signal}")
+                            
+                            with col3:
+                                momentum = latest.get('momentum', 0)
+                                momentum_signal = "Bullish" if momentum > 0 else "Bearish" if momentum < 0 else "Neutral"
+                                st.metric("Momentum", f"{momentum:.4f}", help=f"Signal: {momentum_signal}")
+                    
+                    else:
+                        st.warning("Insufficient data for comprehensive analysis. Need at least 50 data points.")
+                        st.info("Please try selecting a more liquid stock with more trading history.")
+                
+                except ImportError:
+                    st.error("Comprehensive analysis module not available.")
+                    st.info("The comprehensive technical analysis feature requires additional dependencies.")
+                
+                except Exception as e:
+                    st.error(f"Analysis error: {str(e)}")
+                    st.info("Please try refreshing or selecting a different symbol.")
         else:
             st.error(f"Unable to load data for {selected_symbol}")
 

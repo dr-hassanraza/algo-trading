@@ -1830,8 +1830,9 @@ def render_live_trading_signals():
     # Portfolio Summary Section
     st.markdown("---")
     st.subheader("📊 Portfolio Summary")
+    st.caption("📋 Summary reflects actual signals generated above using enhanced ML system")
     
-    # Calculate portfolio-level metrics
+    # Calculate portfolio-level metrics using SAME enhanced system as individual signals
     buy_signals = 0
     sell_signals = 0
     high_confidence_signals = 0
@@ -1841,19 +1842,17 @@ def render_live_trading_signals():
         try:
             market_data = get_cached_real_time_data(symbol)
             if market_data:
-                ticks_df = get_cached_intraday_ticks(symbol, 50)
-                if not ticks_df.empty:
-                    ticks_df = system.calculate_technical_indicators(ticks_df)
-                    signal_data = system.generate_trading_signals(ticks_df, symbol)
-                    
-                    total_processed += 1
-                    if signal_data['signal'] in ['BUY', 'STRONG_BUY']:
-                        buy_signals += 1
-                    elif signal_data['signal'] in ['SELL', 'STRONG_SELL']:
-                        sell_signals += 1
-                    
-                    if signal_data['confidence'] > 75:
-                        high_confidence_signals += 1
+                # Use SAME enhanced signal generation as individual signals above
+                signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
+                
+                total_processed += 1
+                if signal_data['signal'] in ['BUY', 'STRONG_BUY']:
+                    buy_signals += 1
+                elif signal_data['signal'] in ['SELL', 'STRONG_SELL']:
+                    sell_signals += 1
+                
+                if signal_data['confidence'] > 75:
+                    high_confidence_signals += 1
         except:
             continue
     

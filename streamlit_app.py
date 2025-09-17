@@ -2543,8 +2543,38 @@ def render_symbol_analysis():
                     st.error("❌ Insufficient data for backtesting. Need at least 50 data points.")
 
             with tab4:
-                # ... (Details tab remains the same)
-                st.write("Details tab content...")
+                # Detailed Technical Analysis
+                st.subheader("📋 Technical Details")
+                
+                if not ticks_df.empty:
+                    # Latest values
+                    latest = ticks_df.iloc[-1]
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write("**Price Information**")
+                        st.write(f"Current Price: {latest['price']:.2f} PKR")
+                        st.write(f"SMA 5: {latest.get('sma_5', 0):.2f}")
+                        st.write(f"SMA 10: {latest.get('sma_10', 0):.2f}")
+                        st.write(f"SMA 20: {latest.get('sma_20', 0):.2f}")
+                        st.write(f"Support: {latest.get('support', 0):.2f}")
+                        st.write(f"Resistance: {latest.get('resistance', 0):.2f}")
+                    
+                    with col2:
+                        st.write("**Volume & Momentum**")
+                        st.write(f"Current Volume: {latest['volume']:,}")
+                        st.write(f"Volume Ratio: {latest.get('volume_ratio', 0):.2f}")
+                        st.write(f"Momentum: {latest.get('momentum', 0):.4f}")
+                        st.write(f"Volatility: {latest.get('volatility', 0):.4f}")
+                        if 'rsi' in latest:
+                            st.write(f"RSI: {latest.get('rsi', 0):.1f}")
+                    
+                    # Raw data
+                    with st.expander("📊 Raw Tick Data (Last 20)"):
+                        st.dataframe(ticks_df[['timestamp', 'price', 'volume']].tail(20))
+                else:
+                    st.warning("No technical data available for this symbol.")
             
             with tab5:
                 # Comprehensive Technical Analysis
@@ -2552,9 +2582,14 @@ def render_symbol_analysis():
                 
                 try:
                     # Import required libraries for comprehensive analysis
-                    import ta
+                    try:
+                        import ta
+                        TA_AVAILABLE = True
+                    except ImportError:
+                        st.warning("⚠️ TA library not available. Using basic analysis.")
+                        TA_AVAILABLE = False
                     
-                    if not ticks_df.empty and len(ticks_df) >= 50:
+                    if not ticks_df.empty and len(ticks_df) >= 50 and TA_AVAILABLE:
                         # Prepare data for comprehensive analysis
                         analysis_df = ticks_df.copy()
                         analysis_df = analysis_df.rename(columns={
@@ -2900,17 +2935,77 @@ Signal: {overall_signal}
                                 momentum_signal = "Bullish" if momentum > 0 else "Bearish" if momentum < 0 else "Neutral"
                                 st.metric("Momentum", f"{momentum:.4f}", help=f"Signal: {momentum_signal}")
                     
+                    elif not TA_AVAILABLE:
+                        # Fallback analysis without TA library
+                        st.info("🔧 Using Basic Technical Analysis (TA library not available)")
+                        
+                        if not ticks_df.empty:
+                            latest = ticks_df.iloc[-1]
+                            
+                            # Basic analysis
+                            st.markdown("### 📊 Basic Technical Overview")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("Current Price", f"{latest['price']:.2f} PKR")
+                                st.metric("Volume", f"{latest['volume']:,}")
+                                
+                            with col2:
+                                # Simple moving averages if available
+                                sma_5 = latest.get('sma_5', 0)
+                                sma_10 = latest.get('sma_10', 0)
+                                if sma_5 > 0:
+                                    st.metric("SMA 5", f"{sma_5:.2f}")
+                                if sma_10 > 0:
+                                    st.metric("SMA 10", f"{sma_10:.2f}")
+                            
+                            with col3:
+                                # Basic momentum indicators
+                                momentum = latest.get('momentum', 0)
+                                volatility = latest.get('volatility', 0)
+                                st.metric("Momentum", f"{momentum:.4f}")
+                                st.metric("Volatility", f"{volatility:.4f}")
+                            
+                            # Basic signal analysis
+                            st.markdown("### 🎯 Basic Signal Analysis")
+                            
+                            signals = []
+                            if sma_5 > sma_10 and sma_5 > 0 and sma_10 > 0:
+                                signals.append("🟢 **Bullish**: SMA5 > SMA10 (Short-term uptrend)")
+                            elif sma_5 < sma_10 and sma_5 > 0 and sma_10 > 0:
+                                signals.append("🔴 **Bearish**: SMA5 < SMA10 (Short-term downtrend)")
+                            
+                            if momentum > 0:
+                                signals.append("🟢 **Bullish**: Positive momentum")
+                            elif momentum < 0:
+                                signals.append("🔴 **Bearish**: Negative momentum")
+                            
+                            if signals:
+                                for signal in signals:
+                                    st.markdown(signal)
+                            else:
+                                st.info("⚪ **Neutral**: Mixed or insufficient signals")
+                            
+                            # Raw data table
+                            with st.expander("📊 Recent Price Data"):
+                                st.dataframe(ticks_df[['timestamp', 'price', 'volume']].tail(10))
+                        else:
+                            st.warning("No data available for analysis")
+                    
                     else:
                         st.warning("Insufficient data for comprehensive analysis. Need at least 50 data points.")
                         st.info("Please try selecting a more liquid stock with more trading history.")
                 
-                except ImportError:
-                    st.error("Comprehensive analysis module not available.")
-                    st.info("The comprehensive technical analysis feature requires additional dependencies.")
-                
                 except Exception as e:
                     st.error(f"Analysis error: {str(e)}")
                     st.info("Please try refreshing or selecting a different symbol.")
+                    
+                    # Debug information
+                    with st.expander("🔧 Debug Information"):
+                        st.write(f"Error details: {str(e)}")
+                        st.write(f"Data available: {not ticks_df.empty if 'ticks_df' in locals() else 'Unknown'}")
+                        st.write(f"Data length: {len(ticks_df) if 'ticks_df' in locals() and not ticks_df.empty else 'Unknown'}")
         else:
             st.error(f"Unable to load data for {selected_symbol}")
 

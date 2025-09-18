@@ -2208,7 +2208,141 @@ def render_live_trading_signals():
         
         # Option to scan anyway
         if st.button("🔍 Scan Market Anyway", help="Find additional opportunities beyond your watchlist", key="scan_anyway_btn"):
-            st.info("Scroll up and use the market scanner when no signals are active.")
+            st.info("🔍 **Scanning entire market for additional opportunities...**")
+            
+            # Force market scan regardless of existing signals
+            with st.spinner("Analyzing broader market opportunities..."):
+                # Get all symbols for broader scan
+                all_symbols = get_cached_symbols()
+                if all_symbols:
+                    # Limit to reasonable number for performance
+                    scan_symbols = all_symbols[:50]  # Top 50 most liquid stocks
+                    
+                    additional_opportunities = {'buy': [], 'sell': []}
+                    scanned_count = 0
+                    
+                    # Create progress bar
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    for i, symbol in enumerate(scan_symbols):
+                        try:
+                            # Update progress
+                            progress = (i + 1) / len(scan_symbols)
+                            progress_bar.progress(progress)
+                            status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)})")
+                            
+                            # Skip if already in selected stocks to avoid duplicates
+                            if 'selected_stocks' in st.session_state and symbol in st.session_state.selected_stocks:
+                                continue
+                            
+                            market_data = get_cached_real_time_data(symbol)
+                            if market_data:
+                                signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
+                                
+                                if signal_data['confidence'] >= 60:  # Minimum confidence threshold
+                                    opportunity = {
+                                        'symbol': symbol,
+                                        'signal': signal_data['signal'],
+                                        'confidence': signal_data['confidence'],
+                                        'entry_price': signal_data['entry_price'],
+                                        'stop_loss': signal_data['stop_loss'],
+                                        'take_profit': signal_data['take_profit'],
+                                        'position_size': signal_data['position_size']
+                                    }
+                                    
+                                    if signal_data['signal'] in ['BUY', 'STRONG_BUY']:
+                                        additional_opportunities['buy'].append(opportunity)
+                                    elif signal_data['signal'] in ['SELL', 'STRONG_SELL']:
+                                        additional_opportunities['sell'].append(opportunity)
+                                
+                                scanned_count += 1
+                        
+                        except Exception as e:
+                            continue
+                    
+                    # Clear progress indicators
+                    progress_bar.empty()
+                    status_text.empty()
+                    
+                    # Display results
+                    st.success(f"✅ **Market Scan Complete** - Analyzed {scanned_count} symbols")
+                    
+                    # Sort by confidence
+                    additional_opportunities['buy'].sort(key=lambda x: x['confidence'], reverse=True)
+                    additional_opportunities['sell'].sort(key=lambda x: x['confidence'], reverse=True)
+                    
+                    # Display additional BUY opportunities
+                    if additional_opportunities['buy']:
+                        st.markdown("### 🟢 **Additional BUY Opportunities Found**")
+                        for i, opp in enumerate(additional_opportunities['buy'][:10], 1):
+                            with st.expander(f"🟢 #{i} {opp['symbol']} - BUY ({opp['confidence']:.1f}% confidence)", expanded=(i <= 3)):
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Entry Price", f"{opp['entry_price']:.2f} PKR")
+                                    st.metric("Stop Loss", f"{opp['stop_loss']:.2f} PKR")
+                                with col2:
+                                    st.metric("Take Profit", f"{opp['take_profit']:.2f} PKR")
+                                    st.metric("Position Size", f"{opp['position_size']:.1f}%")
+                                with col3:
+                                    risk = abs(opp['entry_price'] - opp['stop_loss']) / opp['entry_price'] * 100
+                                    reward = abs(opp['take_profit'] - opp['entry_price']) / opp['entry_price'] * 100
+                                    rr_ratio = reward / risk if risk > 0 else 0
+                                    st.metric("Risk", f"{risk:.1f}%")
+                                    st.metric("R/R Ratio", f"1:{rr_ratio:.1f}")
+                    
+                    # Display additional SELL opportunities
+                    if additional_opportunities['sell']:
+                        st.markdown("### 🔴 **Additional SELL Opportunities Found**")
+                        for i, opp in enumerate(additional_opportunities['sell'][:5], 1):
+                            with st.expander(f"🔴 #{i} {opp['symbol']} - SELL ({opp['confidence']:.1f}% confidence)", expanded=(i <= 2)):
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.metric("Entry Price", f"{opp['entry_price']:.2f} PKR")
+                                    st.metric("Stop Loss", f"{opp['stop_loss']:.2f} PKR")
+                                with col2:
+                                    st.metric("Take Profit", f"{opp['take_profit']:.2f} PKR")
+                                    st.metric("Position Size", f"{opp['position_size']:.1f}%")
+                                with col3:
+                                    risk = abs(opp['entry_price'] - opp['stop_loss']) / opp['entry_price'] * 100
+                                    reward = abs(opp['entry_price'] - opp['take_profit']) / opp['entry_price'] * 100
+                                    rr_ratio = reward / risk if risk > 0 else 0
+                                    st.metric("Risk", f"{risk:.1f}%")
+                                    st.metric("R/R Ratio", f"1:{rr_ratio:.1f}")
+                    
+                    # Summary
+                    total_additional = len(additional_opportunities['buy']) + len(additional_opportunities['sell'])
+                    if total_additional == 0:
+                        st.info("ℹ️ **No additional high-confidence opportunities found** in the broader market scan. Your current signals may already represent the best opportunities.")
+                    else:
+                        st.success(f"🎯 **Found {len(additional_opportunities['buy'])} additional BUY and {len(additional_opportunities['sell'])} SELL opportunities** beyond your current watchlist!")
+                        
+                        # Option to add symbols to watchlist
+                        if additional_opportunities['buy'] or additional_opportunities['sell']:
+                            top_symbols = []
+                            if additional_opportunities['buy']:
+                                top_symbols.extend([opp['symbol'] for opp in additional_opportunities['buy'][:3]])
+                            if additional_opportunities['sell']:
+                                top_symbols.extend([opp['symbol'] for opp in additional_opportunities['sell'][:2]])
+                            
+                            if st.button(f"➕ Add Top {len(top_symbols)} Symbols to Watchlist", key="add_scanned_symbols"):
+                                if 'selected_stocks' not in st.session_state:
+                                    st.session_state.selected_stocks = []
+                                
+                                added_count = 0
+                                for symbol in top_symbols:
+                                    if symbol not in st.session_state.selected_stocks and len(st.session_state.selected_stocks) < 12:
+                                        st.session_state.selected_stocks.append(symbol)
+                                        added_count += 1
+                                
+                                if added_count > 0:
+                                    st.success(f"✅ Added {added_count} symbols to your watchlist! Refresh to see updated signals.")
+                                    st.rerun()
+                                else:
+                                    st.warning("Watchlist full or symbols already added.")
+                
+                else:
+                    st.error("Unable to load symbols for market scan.")
 
 def render_symbol_analysis():
     """Render detailed symbol analysis with interactive backtesting."""

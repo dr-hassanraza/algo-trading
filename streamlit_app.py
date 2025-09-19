@@ -2447,6 +2447,12 @@ def render_symbol_analysis():
             with tab2:
                 # Price and volume charts
                 try:
+                    # Ensure plotly imports are available
+                    import plotly.graph_objects as go
+                    from plotly.subplots import make_subplots
+                    import pandas as pd
+                    from datetime import datetime
+                    
                     fig = make_subplots(
                         rows=3, cols=1,
                         shared_xaxes=True,
@@ -2496,9 +2502,17 @@ def render_symbol_analysis():
                     fig.update_layout(height=600, showlegend=True)
                     st.plotly_chart(fig, use_container_width=True)
                     
+                except ImportError as e:
+                    st.warning("📊 Charts require plotly installation. Showing basic price information instead.")
+                    st.metric("Current Price", f"{market_data['price']:.2f} PKR")
+                    if signal_data.get('entry_price'):
+                        st.metric("Entry Price", f"{signal_data['entry_price']:.2f} PKR")
+                        st.metric("Stop Loss", f"{signal_data['stop_loss']:.2f} PKR")
+                        st.metric("Take Profit", f"{signal_data['take_profit']:.2f} PKR")
                 except Exception as e:
-                    st.error(f"Chart generation error: {e}")
-                    st.info("Chart functionality will be restored in the next update.")
+                    st.error(f"Chart generation error: {str(e)}")
+                    st.info("Showing basic price information instead.")
+                    st.metric("Current Price", f"{market_data['price']:.2f} PKR")
 
             with tab3:
                 st.subheader("🚀 Advanced Backtesting & Strategy Optimization")
@@ -2993,7 +3007,8 @@ Signal: {overall_signal}
                                 st.markdown("#### 🎯 Signal Breakdown")
                                 
                                 # Create a simple chart showing signal distribution
-                                import plotly.graph_objects as go
+                                try:
+                                    import plotly.graph_objects as go
                                 
                                 labels = ['Bullish', 'Bearish', 'Neutral']
                                 values = [
@@ -3018,6 +3033,12 @@ Signal: {overall_signal}
                                 )
                                 
                                 st.plotly_chart(fig, use_container_width=True)
+                                except Exception as e:
+                                    st.error(f"Signal chart error: {e}")
+                                    st.info("Using text-based signal breakdown instead.")
+                                    st.write(f"Bullish: {len(confluence['bullish_signals'])}")
+                                    st.write(f"Bearish: {len(confluence['bearish_signals'])}")
+                                    st.write(f"Neutral: {len(confluence['neutral_signals'])}")
                             
                             with col2:
                                 st.markdown("#### 📈 Key Metrics")

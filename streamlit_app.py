@@ -2475,7 +2475,7 @@ def render_symbol_analysis():
                             high=[p * random.uniform(1.01, 1.03) for p in prices],
                             low=[p * random.uniform(0.97, 0.99) for p in prices],
                             close=prices,
-                            name=symbol
+                            name=selected_symbol
                         ), row=1, col=1
                     )
                     

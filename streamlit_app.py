@@ -1058,37 +1058,47 @@ class PSXAlgoTradingSystemFallback:
             # fund_data = self.get_fundamental_data(symbol)
             # fundamental_score = 1 if fund_data['is_profitable'] and fund_data['eps_growth'] > 0 else 0
 
-            # COMBINE ALL SCORES (New Weights)
+            # COMBINE ALL SCORES (ML-Prioritized Weights)
             total_score = 0
             all_reasons = []
 
-            # Enhanced ML Model (30% weight but only if confidence > 60% and no errors)
-            if ml_score != 0 and ml_confidence > 60 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
-                total_score += ml_score * 0.30
+            # Enhanced ML Model (60% weight - PRIORITIZED as primary signal)
+            ml_weight = 0.60
+            if ml_score != 0 and ml_confidence > 40 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
+                total_score += ml_score * ml_weight
+                # If ML confidence is high (>60%), use ML signal as primary driver
+                if ml_confidence > 60:
+                    ml_weight = 0.70  # Even higher weight for high-confidence ML
+                    total_score = ml_score * ml_weight  # Reset to prioritize ML
             elif "Error" in ml_prediction_text or "Missing" in ml_prediction_text:
-                # If ML fails, reduce overall confidence and add a penalty
+                # If ML fails, reduce ML weight and rely more on technical
+                ml_weight = 0.0
                 total_score *= 0.9  # 10% penalty for ML failure
             all_reasons.append(ml_prediction_text)
 
-            # Traditional signals (30% - balanced with enhanced ML)
-            total_score += traditional_score * 0.30
+            # Traditional signals (reduced weight when ML is available)
+            tech_weight = 0.20 if ml_weight > 0 else 0.40  # Lower weight when ML works
+            total_score += traditional_score * tech_weight
             all_reasons.extend([f"Tech: {r}" for r in traditional_reasons])
             
-            # Volume (20%)
-            total_score += volume_score * 0.20
+            # Volume (reduced when ML available)
+            vol_weight = 0.10 if ml_weight > 0 else 0.25  # Lower volume weight when ML works
+            total_score += volume_score * vol_weight
             if volume_analysis['confirmed']:
                 all_reasons.extend([f"Vol: {r}" for r in volume_analysis.get('reasons', [])])
             
-            # Multi-timeframe (15%)
+            # Multi-timeframe (reduced when ML available)
+            mtf_weight = 0.08 if ml_weight > 0 else 0.20  # Lower MTF weight when ML works
             if mtf_direction == 'BULLISH':
-                total_score += mtf_score * 3 * 0.15
+                total_score += mtf_score * 3 * mtf_weight
             elif mtf_direction == 'BEARISH':
-                total_score -= mtf_score * 3 * 0.15
+                total_score -= mtf_score * 3 * mtf_weight
             if mtf_analysis.get('consensus', False):
                 all_reasons.append(f"MTF: {mtf_direction} consensus")
             
-            # Sentiment & Regime (5%)
-            total_score += sentiment_score * 0.05
+            # Sentiment & Regime (minimal weight)
+            regime_weight = 0.02 if ml_weight > 0 else 0.05  # Minimal regime weight when ML works
+            total_score += sentiment_score * regime_weight
             all_reasons.append(f"Regime: {market_regime}")
 
             # Adjust score based on regime
@@ -1097,23 +1107,45 @@ class PSXAlgoTradingSystemFallback:
             if market_regime == "Ranging" and abs(latest.get('rsi', 50) - 50) > 20:
                 total_score *= 0.8 # Reduce score if not mean-reverting
 
-            # FINAL SIGNAL DETERMINATION
-            final_confidence = (ml_confidence * 0.5) + (traditional_confidence * 0.5)
-            final_confidence = min(final_confidence, 100)
-            
-            # ULTRA EMERGENCY - FORCE minimum confidence
-            if final_confidence < 15:
-                final_confidence = 20  # Force higher confidence for testing
-
-            # EMERGENCY OVERRIDE - Force all signals regardless of ML availability
-            # Since ML is not available in cloud deployment, force through traditional signals
-            if traditional_confidence > 0 or total_score != 0:
-                final_signal = "BUY"
-                final_confidence = max(75, traditional_confidence)  # Force high confidence
+            # ML-PRIORITIZED SIGNAL DETERMINATION
+            # If ML is available and confident, use ML signal as primary
+            if ml_weight > 0 and ml_confidence > 40 and "Error" not in ml_prediction_text:
+                # ML drives the decision
+                if "BUY" in ml_prediction_text:
+                    final_signal = "BUY" 
+                    final_confidence = ml_confidence
+                elif "SELL" in ml_prediction_text:
+                    final_signal = "SELL"
+                    final_confidence = ml_confidence
+                else:  # HOLD
+                    final_signal = "HOLD"
+                    final_confidence = ml_confidence
+                
+                # Adjust confidence based on supporting signals
+                if total_score > 2:
+                    final_confidence = min(final_confidence + 10, 100)  # Boost if other signals agree
+                elif total_score < -2:
+                    final_confidence = min(final_confidence + 10, 100)  # Boost if other signals agree
+                
             else:
-                # Even with zero scores, force some signals for testing
-                final_signal = "BUY" if symbol in ['HBL', 'ENGRO', 'LUCK', 'PSO', 'UBL'] else "SELL"
-                final_confidence = 60
+                # Fallback to traditional signal logic when ML not available
+                final_confidence = (ml_confidence * 0.3) + (traditional_confidence * 0.7)
+                final_confidence = min(final_confidence, 100)
+                
+                # Use traditional scoring for signal determination
+                if total_score >= 2:
+                    final_signal = "BUY"
+                    final_confidence = max(final_confidence, 60)
+                elif total_score <= -2:
+                    final_signal = "SELL" 
+                    final_confidence = max(final_confidence, 60)
+                else:
+                    final_signal = "HOLD"
+                    final_confidence = max(final_confidence, 30)
+            
+            # Minimum confidence floor
+            if final_confidence < 15:
+                final_confidence = 20
             
             # ENHANCED RISK MANAGEMENT
             entry_price = latest['price']

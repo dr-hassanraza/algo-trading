@@ -3010,29 +3010,29 @@ Signal: {overall_signal}
                                 try:
                                     import plotly.graph_objects as go
                                 
-                                labels = ['Bullish', 'Bearish', 'Neutral']
-                                values = [
-                                    len(confluence['bullish_signals']),
-                                    len(confluence['bearish_signals']),
-                                    len(confluence['neutral_signals'])
-                                ]
-                                colors = ['#00C851', '#FF4444', '#FFA726']
+                                    labels = ['Bullish', 'Bearish', 'Neutral']
+                                    values = [
+                                        len(confluence['bullish_signals']),
+                                        len(confluence['bearish_signals']),
+                                        len(confluence['neutral_signals'])
+                                    ]
+                                    colors = ['#00C851', '#FF4444', '#FFA726']
                                 
-                                fig = go.Figure(data=[go.Pie(
-                                    labels=labels,
-                                    values=values,
-                                    marker_colors=colors,
-                                    hole=0.4
-                                )])
-                                
-                                fig.update_layout(
-                                    title="Signal Distribution",
-                                    showlegend=True,
-                                    height=300,
-                                    margin=dict(t=50, b=20, l=20, r=20)
-                                )
-                                
-                                st.plotly_chart(fig, use_container_width=True)
+                                    fig = go.Figure(data=[go.Pie(
+                                        labels=labels,
+                                        values=values,
+                                        marker_colors=colors,
+                                        hole=0.4
+                                    )])
+                                    
+                                    fig.update_layout(
+                                        title="Signal Distribution",
+                                        showlegend=True,
+                                        height=300,
+                                        margin=dict(t=50, b=20, l=20, r=20)
+                                    )
+                                    
+                                    st.plotly_chart(fig, use_container_width=True)
                                 except Exception as e:
                                     st.error(f"Signal chart error: {e}")
                                     st.info("Using text-based signal breakdown instead.")

@@ -1307,8 +1307,18 @@ class PSXAlgoTradingSystemFallback:
 
 @st.cache_data(ttl=30)
 def get_cached_symbols():
-    """Cache symbols for 30 seconds with error handling"""
+    """Cache symbols for 30 seconds with error handling - now supports 500+ stocks"""
     try:
+        # First try PSX ticker manager for comprehensive stock list
+        from psx_ticker_manager import get_stock_symbols_only
+        symbols = get_stock_symbols_only()
+        if symbols and len(symbols) > 100:  # Ensure we got a good stock list
+            return symbols
+    except Exception as e:
+        print(f"PSX ticker manager failed: {e}")
+    
+    try:
+        # Fallback to trading system
         system = PSXAlgoTradingSystem() if ENHANCED_SYSTEM_AVAILABLE else PSXAlgoTradingSystemFallback()
         symbols = system.get_symbols()
         if symbols:
@@ -1887,10 +1897,10 @@ def render_live_trading_signals():
         col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
-            st.markdown("**Scanning 100+ PSX stocks for BUY/SELL signals...**")
+            st.markdown("**Scanning 500+ PSX stocks for BUY/SELL signals...**")
         
         with col2:
-            scan_intensity = st.selectbox("Scan Type", ["Quick Scan (50)", "Deep Scan (100)", "Full Market (200)"], index=0)
+            scan_intensity = st.selectbox("Scan Type", ["Quick Scan (50)", "Deep Scan (100)", "Full Market (200)", "Complete Market (500+)"], index=0)
         
         with col3:
             min_confidence = st.slider("Min Confidence", 10, 90, 10, 5, help="Minimum confidence level for signals")
@@ -1901,8 +1911,10 @@ def render_live_trading_signals():
                 scan_limit = 50
             elif "Deep" in scan_intensity:
                 scan_limit = 100
-            else:
+            elif "Full Market" in scan_intensity:
                 scan_limit = 200
+            else:  # Complete Market
+                scan_limit = 500
             
             # Progress tracking
             progress_bar = st.progress(0)
@@ -1911,25 +1923,32 @@ def render_live_trading_signals():
             # Get all symbols for scanning
             all_symbols = get_cached_symbols()
             if all_symbols:
-                # Prioritize liquid stocks for scanning
+                # Prioritize liquid stocks for scanning (expanded list)
                 major_liquid_stocks = [
                     'HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL',
                     'TRG', 'SYSTEMS', 'POL', 'PPL', 'NESTLE', 'UNILEVER', 'COLG', 'ICI', 'BAHL',
                     'BAFL', 'MEBL', 'JSBL', 'AKBL', 'FABL', 'EFERT', 'FATIMA', 'DGKC', 'MLCF',
-                    'FFBL', 'ATRL', 'SEARL', 'PIOC', 'KAPCO', 'HUBCO', 'FCCL', 'KEL', 'KTM',
-                    'LOTCHEM', 'MRNS', 'NRL', 'OGDC', 'OMC', 'PACE', 'PAEL', 'PASL', 'PRL',
-                    'SSGC', 'TELE', 'WTL', 'BNWM', 'CHCC', 'DOL', 'EPCL', 'FLYNG', 'GATM'
+                    'FFBL', 'ATRL', 'SEARL', 'PIOC', 'KAPCO', 'HUBC', 'FCCL', 'KEL', 'KTML',
+                    'LOTCHEM', 'MRNS', 'NRL', 'MARI', 'SNGP', 'SSGC', 'TELE', 'WTL', 'BNWM', 
+                    'CHCC', 'DOL', 'EPCL', 'FLYNG', 'GATM', 'SILK', 'BOP', 'SNBL', 'ASL', 'ISL',
+                    'KASB', 'THALL', 'GWLC', 'KOHINOOR', 'ASTL', 'ITTEFAQ', 'YOUW', 'ZIL', 'SITC',
+                    'KOTML', 'GLAXO', 'IBL', 'HINOON', 'ABBOTT', 'GSK', 'ALICO', 'EFU', 'IGI',
+                    'NICL', 'HMB', 'INDU', 'HCL', 'NETSOL', 'PACE', 'AVANCEON', 'SYSTEMSLTD'
                 ]
                 
-                # Create scanning list with priority
+                # Create scanning list with enhanced priority system
                 scan_symbols = []
-                for stock in major_liquid_stocks[:scan_limit//2]:
+                
+                # Add priority stocks first (up to half the scan limit)
+                priority_count = min(len(major_liquid_stocks), scan_limit // 2)
+                for stock in major_liquid_stocks[:priority_count]:
                     if stock in all_symbols:
                         scan_symbols.append(stock)
                 
                 # Add remaining symbols to reach scan limit
                 remaining = [s for s in all_symbols if s not in scan_symbols]
-                scan_symbols.extend(remaining[:scan_limit - len(scan_symbols)])
+                additional_needed = scan_limit - len(scan_symbols)
+                scan_symbols.extend(remaining[:additional_needed])
                 scan_symbols = scan_symbols[:scan_limit]
                 
                 # Store results
@@ -1941,7 +1960,7 @@ def render_live_trading_signals():
                     try:
                         progress = (i + 1) / len(scan_symbols)
                         progress_bar.progress(progress)
-                        status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)})")
+                        status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)}) - {len(all_symbols)} total stocks available")
                         
                         # Get market data
                         market_data = get_cached_real_time_data(symbol)
@@ -2215,8 +2234,8 @@ def render_live_trading_signals():
                 # Get all symbols for broader scan
                 all_symbols = get_cached_symbols()
                 if all_symbols:
-                    # Limit to reasonable number for performance
-                    scan_symbols = all_symbols[:50]  # Top 50 most liquid stocks
+                    # Use broader scan for better market coverage
+                    scan_symbols = all_symbols[:200]  # Top 200 most liquid stocks for comprehensive scan
                     
                     additional_opportunities = {'buy': [], 'sell': []}
                     scanned_count = 0
@@ -2230,7 +2249,7 @@ def render_live_trading_signals():
                             # Update progress
                             progress = (i + 1) / len(scan_symbols)
                             progress_bar.progress(progress)
-                            status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)})")
+                            status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)}) - {len(all_symbols)} total stocks available")
                             
                             # Skip if already in selected stocks to avoid duplicates
                             if 'selected_stocks' in st.session_state and symbol in st.session_state.selected_stocks:

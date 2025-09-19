@@ -1420,59 +1420,34 @@ def render_header():
         """, unsafe_allow_html=True)
 
 def safe_generate_signal(symbol, market_data, system, data_points=100):
-    """ENHANCED UNIFIED signal generation with integrated ML and comprehensive analysis"""
+    """UNIFIED signal generation - ensures consistency across all pages"""
     try:
-        # Import integrated system
-        from integrated_signal_system import IntegratedTradingSystem
+        # Always use the same signal generation logic for consistency
+        # Use consistent data points across ALL pages (100 is optimal balance) 
+        ticks_df = get_cached_intraday_ticks(symbol, data_points)
         
-        # Use enhanced integrated system for better accuracy
-        integrated_system = IntegratedTradingSystem()
-        enhanced_signal = integrated_system.generate_integrated_signal(symbol)
-        
-        # Convert enhanced signal to compatible format
-        signal_data = {
-            'signal': enhanced_signal.signal,
-            'confidence': enhanced_signal.confidence,
-            'entry_price': enhanced_signal.entry_price,
-            'stop_loss': enhanced_signal.stop_loss, 
-            'take_profit': enhanced_signal.take_profit,
-            'reasons': enhanced_signal.reasons,
-            'volume_support': enhanced_signal.volume_support,
-            'liquidity_ok': enhanced_signal.liquidity_ok,
-            'position_size': enhanced_signal.position_size,
-            'technical_score': enhanced_signal.technical_score,
-            'ml_score': enhanced_signal.ml_score,
-            'fundamental_score': enhanced_signal.fundamental_score,
-            'risk_score': enhanced_signal.risk_score
-        }
-        
-        # Fallback to original system if enhanced system fails
-        if signal_data['confidence'] == 0:
-            # Use consistent data points across ALL pages (100 is optimal balance) 
-            ticks_df = get_cached_intraday_ticks(symbol, data_points)
+        if not ticks_df.empty and len(ticks_df) >= 10:
+            # Calculate indicators and generate signals
+            ticks_df = system.calculate_technical_indicators(ticks_df)
+            signal_data = system.generate_trading_signals(ticks_df, symbol)
             
-            if not ticks_df.empty and len(ticks_df) >= 10:
-                # Calculate indicators and generate signals
-                ticks_df = system.calculate_technical_indicators(ticks_df)
-                signal_data = system.generate_trading_signals(ticks_df, symbol)
-                
-                # Validate signal data structure
-                if not signal_data or not isinstance(signal_data, dict):
-                    raise ValueError("Invalid signal data returned")
-            else:
-                # Insufficient data - return safe default
-                safe_price = market_data.get('price', 100)
-                signal_data = {
-                    'signal': 'HOLD',
-                    'confidence': 0,
-                    'entry_price': safe_price,
-                    'stop_loss': safe_price * 0.98,
-                    'take_profit': safe_price * 1.04,
-                    'reasons': ['Insufficient historical data'],
-                    'volume_support': False,
-                    'liquidity_ok': True,
-                    'position_size': 0.0
-                }
+            # Validate signal data structure
+            if not signal_data or not isinstance(signal_data, dict):
+                raise ValueError("Invalid signal data returned")
+        else:
+            # Insufficient data - return safe default
+            safe_price = market_data.get('price', 100)
+            signal_data = {
+                'signal': 'HOLD',
+                'confidence': 0,
+                'entry_price': safe_price,
+                'stop_loss': safe_price * 0.98,
+                'take_profit': safe_price * 1.04,
+                'reasons': ['Insufficient data for analysis'],
+                'volume_support': False,
+                'liquidity_ok': False,
+                'position_size': 0.0
+            }
         
         # Ensure required fields exist with safe defaults
         safe_price = market_data.get('price', signal_data.get('entry_price', 100))

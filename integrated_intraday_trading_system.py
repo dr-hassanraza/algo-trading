@@ -33,6 +33,13 @@ try:
 except ImportError as e:
     print(f"Warning: Some components not available: {e}")
     COMPONENTS_AVAILABLE = False
+    # Define fallback types to avoid import errors
+    class RegimeSignal:
+        pass
+    class RiskSignal:
+        pass
+    class IntradayFeatures:
+        pass
 
 # Lazy import for ML system to avoid circular dependency
 def get_ml_system():
@@ -56,7 +63,7 @@ class IntegratedSignal:
     confidence: float
     
     # Enhanced analysis (using Any to avoid import issues)
-    ml_signal: Optional[any] = None  # MLTradingSignal
+    ml_signal: Optional[any] = None  # MLTradingSignal - use Any to avoid import issues
     regime_signal: Optional[RegimeSignal] = None
     risk_signal: Optional[RiskSignal] = None
     features: Optional[IntradayFeatures] = None

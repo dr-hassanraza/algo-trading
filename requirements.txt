@@ -33,4 +33,5 @@ joblib>=1.3.0
 ta>=0.10.0
 tensorflow>=2.13.0
 keras>=2.13.0
-psx-data-reader>=1.0.0
+matplotlib>=3.7.0
+psx-data-reader>=0.0.6

@@ -22,18 +22,26 @@ import json
 import warnings
 from pathlib import Path
 
-# Import all enhanced components
+# Import enhanced components with lazy loading to avoid circular imports
 try:
     from enhanced_intraday_feature_engine import EnhancedIntradayFeatureEngine, IntradayFeatures
     from enhanced_intraday_risk_manager import EnhancedIntradayRiskManager, RiskSignal, RiskMetrics
     from volatility_regime_detector import VolatilityRegimeDetector, VolatilityRegime, RegimeSignal
     from enhanced_backtesting_engine import EnhancedBacktestingEngine, BacktestResult, WalkForwardResult
     from real_time_execution_engine import RealTimeExecutionEngine, Order, OrderType, OrderStatus
-    from advanced_ml_trading_system import AdvancedMLTradingSystem, MLTradingSignal
     COMPONENTS_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Some components not available: {e}")
     COMPONENTS_AVAILABLE = False
+
+# Lazy import for ML system to avoid circular dependency
+def get_ml_system():
+    """Lazy import ML system to avoid circular dependencies"""
+    try:
+        from advanced_ml_trading_system import AdvancedMLTradingSystem, MLTradingSignal
+        return AdvancedMLTradingSystem, MLTradingSignal
+    except ImportError:
+        return None, None
 
 warnings.filterwarnings('ignore')
 
@@ -47,8 +55,8 @@ class IntegratedSignal:
     base_signal: str  # BUY, SELL, HOLD
     confidence: float
     
-    # Enhanced analysis
-    ml_signal: Optional[MLTradingSignal] = None
+    # Enhanced analysis (using Any to avoid import issues)
+    ml_signal: Optional[any] = None  # MLTradingSignal
     regime_signal: Optional[RegimeSignal] = None
     risk_signal: Optional[RiskSignal] = None
     features: Optional[IntradayFeatures] = None
@@ -165,10 +173,14 @@ class IntegratedIntradayTradingSystem:
             print(f"❌ Regime detector failed: {e}")
             self.regime_detector = None
         
-        # ML/DL system
+        # ML/DL system (lazy initialization)
         try:
-            self.ml_system = AdvancedMLTradingSystem()
-            print("✅ ML/DL system initialized")
+            AdvancedMLTradingSystem, _ = get_ml_system()
+            if AdvancedMLTradingSystem:
+                self.ml_system = AdvancedMLTradingSystem()
+                print("✅ ML/DL system initialized")
+            else:
+                self.ml_system = None
         except Exception as e:
             print(f"❌ ML/DL system failed: {e}")
             self.ml_system = None

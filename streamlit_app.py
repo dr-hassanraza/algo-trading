@@ -52,18 +52,27 @@ try:
 except ImportError:
     ADVANCED_SYSTEM_AVAILABLE = False
 
-# Import NEW enhanced intraday components
+# Import NEW enhanced intraday components (with lazy loading)
 try:
     from enhanced_intraday_feature_engine import EnhancedIntradayFeatureEngine
     from enhanced_intraday_risk_manager import EnhancedIntradayRiskManager
     from volatility_regime_detector import VolatilityRegimeDetector
     from enhanced_intraday_dashboard import EnhancedIntradayDashboard
-    from integrated_intraday_trading_system import IntegratedIntradayTradingSystem
+    # Note: IntegratedIntradayTradingSystem imported lazily to avoid circular deps
     ENHANCED_INTRADAY_AVAILABLE = True
     print("✅ Enhanced Intraday Trading System loaded successfully")
 except ImportError as e:
     ENHANCED_INTRADAY_AVAILABLE = False
     print(f"⚠️ Enhanced Intraday system not available: {e}")
+
+# Lazy import function for integrated system
+def get_integrated_system():
+    """Lazy import to avoid circular dependencies"""
+    try:
+        from integrated_intraday_trading_system import IntegratedIntradayTradingSystem
+        return IntegratedIntradayTradingSystem
+    except ImportError:
+        return None
 
 # Import advanced ML/DL trading system
 try:
@@ -4446,17 +4455,13 @@ def main():
             render_live_trading_signals()
             
         elif page == "⚡ Enhanced Intraday Dashboard":
-            if ENHANCED_INTRADAY_AVAILABLE:
-                try:
-                    # Initialize and render the enhanced dashboard
-                    enhanced_dashboard = EnhancedIntradayDashboard()
-                    enhanced_dashboard.render_dashboard()
-                except Exception as e:
-                    st.error(f"Error loading Enhanced Intraday Dashboard: {e}")
-                    st.info("Falling back to standard Symbol Analysis...")
-                    render_symbol_analysis()
-            else:
-                st.error("Enhanced Intraday Dashboard not available")
+            try:
+                # Use the safe dashboard version that doesn't have circular dependencies
+                from enhanced_dashboard_safe import render_enhanced_intraday_dashboard
+                render_enhanced_intraday_dashboard()
+            except Exception as e:
+                st.error(f"Error loading Enhanced Intraday Dashboard: {e}")
+                st.info("Falling back to standard Symbol Analysis...")
                 render_symbol_analysis()
             
         elif page == "🔍 Symbol Analysis":

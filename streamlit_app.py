@@ -52,6 +52,19 @@ try:
 except ImportError:
     ADVANCED_SYSTEM_AVAILABLE = False
 
+# Import NEW enhanced intraday components
+try:
+    from enhanced_intraday_feature_engine import EnhancedIntradayFeatureEngine
+    from enhanced_intraday_risk_manager import EnhancedIntradayRiskManager
+    from volatility_regime_detector import VolatilityRegimeDetector
+    from enhanced_intraday_dashboard import EnhancedIntradayDashboard
+    from integrated_intraday_trading_system import IntegratedIntradayTradingSystem
+    ENHANCED_INTRADAY_AVAILABLE = True
+    print("✅ Enhanced Intraday Trading System loaded successfully")
+except ImportError as e:
+    ENHANCED_INTRADAY_AVAILABLE = False
+    print(f"⚠️ Enhanced Intraday system not available: {e}")
+
 # Import advanced ML/DL trading system
 try:
     from advanced_ml_trading_system import AdvancedMLTradingSystem, MLTradingSignal
@@ -141,6 +154,12 @@ def display_system_status():
             status_messages.append("✅ ML Libraries")
         else:
             status_messages.append("⚠️ ML Libraries (limited)")
+            
+        # NEW Enhanced Intraday System Status
+        if ENHANCED_INTRADAY_AVAILABLE:
+            status_messages.append("🚀 Enhanced Intraday System")
+        else:
+            status_messages.append("⚠️ Enhanced Intraday System (not available)")
             
         for msg in status_messages:
             st.sidebar.text(msg)
@@ -4396,6 +4415,10 @@ def main():
         "🔧 System Status"
     ]
     
+    # Add enhanced intraday dashboard if available
+    if ENHANCED_INTRADAY_AVAILABLE:
+        navigation_options.insert(1, "⚡ Enhanced Intraday Dashboard")
+    
     # Add admin panel for admin users
     if AUTH_AVAILABLE and is_admin(st.session_state.get('username', '')):
         navigation_options.append("👑 Admin Panel")
@@ -4421,6 +4444,20 @@ def main():
     try:
         if page == "🚨 Live Signals":
             render_live_trading_signals()
+            
+        elif page == "⚡ Enhanced Intraday Dashboard":
+            if ENHANCED_INTRADAY_AVAILABLE:
+                try:
+                    # Initialize and render the enhanced dashboard
+                    enhanced_dashboard = EnhancedIntradayDashboard()
+                    enhanced_dashboard.render_dashboard()
+                except Exception as e:
+                    st.error(f"Error loading Enhanced Intraday Dashboard: {e}")
+                    st.info("Falling back to standard Symbol Analysis...")
+                    render_symbol_analysis()
+            else:
+                st.error("Enhanced Intraday Dashboard not available")
+                render_symbol_analysis()
             
         elif page == "🔍 Symbol Analysis":
             render_symbol_analysis()

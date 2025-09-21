@@ -56,15 +56,28 @@ except ImportError:
 try:
     from advanced_ml_trading_system import AdvancedMLTradingSystem, MLTradingSignal
     ADVANCED_ML_SYSTEM_AVAILABLE = True
-except ImportError:
+    print("✅ Advanced ML/DL Trading System available")
+except ImportError as e:
     ADVANCED_ML_SYSTEM_AVAILABLE = False
+    print(f"⚠️ Advanced ML/DL system not available: {e}")
 
 # Import integrated signal system
 try:
     from integrated_signal_system import IntegratedTradingSystem, TradingSignal
     INTEGRATED_SYSTEM_AVAILABLE = True
-except ImportError:
+    print("✅ Integrated Trading System available")
+except ImportError as e:
     INTEGRATED_SYSTEM_AVAILABLE = False
+    print(f"⚠️ Integrated system not available: {e}")
+
+# Import comprehensive technical analysis
+try:
+    from comprehensive_technical_analysis import ComprehensiveTechnicalAnalysis, generate_comprehensive_analysis
+    COMPREHENSIVE_ANALYSIS_AVAILABLE = True
+    print("✅ Comprehensive Technical Analysis available")
+except ImportError as e:
+    COMPREHENSIVE_ANALYSIS_AVAILABLE = False
+    print(f"⚠️ Comprehensive analysis not available: {e}")
 
 # Try to import ML libraries
 try:
@@ -107,24 +120,60 @@ def load_enhanced_ml_model():
 
 warnings.filterwarnings('ignore')
 
+# System Status Display
+def display_system_status():
+    """Display system initialization status"""
+    try:
+        st.sidebar.markdown("### 🔧 System Status")
+        
+        status_messages = []
+        if ADVANCED_ML_SYSTEM_AVAILABLE:
+            status_messages.append("✅ Advanced ML/DL System")
+        else:
+            status_messages.append("⚠️ Advanced ML/DL System (not available)")
+            
+        if INTEGRATED_SYSTEM_AVAILABLE:
+            status_messages.append("✅ Integrated System")
+        else:
+            status_messages.append("⚠️ Integrated System (not available)")
+            
+        if ML_AVAILABLE:
+            status_messages.append("✅ ML Libraries")
+        else:
+            status_messages.append("⚠️ ML Libraries (limited)")
+            
+        for msg in status_messages:
+            st.sidebar.text(msg)
+            
+    except Exception as e:
+        st.sidebar.error(f"Status check error: {e}")
+
 # Initialize Advanced ML/DL Trading System
 @st.cache_resource
 def initialize_advanced_ml_system():
     """Initialize the advanced ML/DL trading system"""
     try:
         if ADVANCED_ML_SYSTEM_AVAILABLE:
-            ml_system = AdvancedMLTradingSystem()
-            print("✅ Advanced ML/DL Trading System initialized successfully")
-            return ml_system
-        elif INTEGRATED_SYSTEM_AVAILABLE:
-            integrated_system = IntegratedTradingSystem()
-            print("✅ Integrated Trading System initialized successfully")
-            return integrated_system
-        else:
-            print("⚠️ No advanced systems available, using fallback")
-            return None
+            try:
+                ml_system = AdvancedMLTradingSystem()
+                print("✅ Advanced ML/DL Trading System initialized successfully")
+                return ml_system
+            except Exception as e:
+                print(f"❌ Error initializing Advanced ML/DL system: {str(e)}")
+                
+        if INTEGRATED_SYSTEM_AVAILABLE:
+            try:
+                integrated_system = IntegratedTradingSystem()
+                print("✅ Integrated Trading System initialized successfully")
+                return integrated_system
+            except Exception as e:
+                print(f"❌ Error initializing Integrated system: {str(e)}")
+        
+        print("⚠️ No advanced systems available, using fallback")
+        return None
+        
     except Exception as e:
-        print(f"❌ Error initializing advanced systems: {str(e)}")
+        print(f"❌ Critical error in system initialization: {str(e)}")
         return None
 
 # Authentication system imports
@@ -1451,23 +1500,28 @@ def safe_data_operation(operation_name, operation_func, fallback_result=None):
 
 def render_header():
     """Render header with ML/DL system status"""
-    st.markdown('<h1 class="main-header">🤖 PSX Advanced ML/DL Trading System</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🤖 PSX Advanced Trading System</h1>', unsafe_allow_html=True)
     
     # Check which system is available
-    advanced_system = initialize_advanced_ml_system()
-    if advanced_system:
-        if hasattr(advanced_system, 'generate_prediction'):
-            system_status = "🧠 Ensemble ML/DL System Active"
-            system_desc = "6-Model Deep Learning Engine"
-        elif hasattr(advanced_system, 'generate_integrated_signal'):
-            system_status = "⚡ Integrated ML System Active"
-            system_desc = "Advanced Technical + ML Analysis"
+    try:
+        advanced_system = initialize_advanced_ml_system()
+        if advanced_system:
+            if hasattr(advanced_system, 'generate_prediction'):
+                system_status = "🧠 Ensemble ML/DL System Active"
+                system_desc = "6-Model Deep Learning Engine"
+            elif hasattr(advanced_system, 'generate_integrated_signal'):
+                system_status = "⚡ Integrated ML System Active"
+                system_desc = "Advanced Technical + ML Analysis"
+            else:
+                system_status = "📊 Enhanced System Active"
+                system_desc = "Professional Technical Analysis"
         else:
-            system_status = "📊 Standard System Active"
-            system_desc = "Traditional Technical Analysis"
-    else:
-        system_status = "📊 Standard System Active"
-        system_desc = "Traditional Technical Analysis"
+            system_status = "📊 Professional System Active"
+            system_desc = "Enhanced Technical Analysis"
+    except Exception as e:
+        print(f"Header system check error: {e}")
+        system_status = "📊 Professional System Active"
+        system_desc = "Enhanced Technical Analysis"
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -1507,7 +1561,11 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
     """UNIFIED signal generation using advanced ML/DL system for highest accuracy"""
     try:
         # Initialize advanced ML/DL system for maximum accuracy
-        advanced_system = initialize_advanced_ml_system()
+        advanced_system = None
+        try:
+            advanced_system = initialize_advanced_ml_system()
+        except Exception as e:
+            print(f"Warning: Could not initialize advanced system: {e}")
         
         if advanced_system:
             # Use advanced ML/DL system for signal generation
@@ -4350,6 +4408,9 @@ def main():
     # Auto-refresh options
     st.sidebar.markdown("### ⚙️ Settings")
     auto_refresh = st.sidebar.checkbox("🔄 Auto Refresh (30s)", value=False)
+    
+    # Display system status
+    display_system_status()
     
     if auto_refresh:
         import time

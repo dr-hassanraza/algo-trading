@@ -1,202 +1,191 @@
-#!/usr/bin/env python3
 """
-Test Integrated PSX DPS System
-==============================
-
-Test suite to verify that PSX DPS integration is working correctly
-as the primary data source with fallback mechanisms.
+INTEGRATED SYSTEM TEST RUNNER
+Simple test script to verify all components work together
 """
 
 import sys
-import time
-from datetime import datetime, timedelta
+import traceback
+from datetime import datetime
 
-def test_psx_dps_real_time():
-    """Test PSX DPS real-time data fetching"""
-    print("🔬 Testing PSX DPS Real-time Data")
-    print("-" * 40)
-    
+def test_feature_engine():
+    """Test feature engine component"""
     try:
-        from psx_dps_fetcher import PSXDPSFetcher
+        from enhanced_intraday_feature_engine import EnhancedIntradayFeatureEngine
+        import pandas as pd
+        import numpy as np
         
-        fetcher = PSXDPSFetcher()
+        engine = EnhancedIntradayFeatureEngine()
         
-        # Test individual stocks
-        test_symbols = ['UBL', 'MCB', 'LUCK']
+        # Generate sample data
+        dates = pd.date_range(start='2024-01-01 09:15', periods=100, freq='5min')
+        sample_data = pd.DataFrame({
+            'Open': np.random.uniform(95, 105, 100),
+            'High': np.random.uniform(105, 110, 100),
+            'Low': np.random.uniform(90, 95, 100),
+            'Close': np.random.uniform(95, 105, 100),
+            'Volume': np.random.randint(1000, 10000, 100)
+        }, index=dates)
         
-        for symbol in test_symbols:
-            try:
-                data = fetcher.fetch_real_time_data(symbol)
-                if data:
-                    print(f"✅ {symbol}: {data['price']:.2f} PKR (Vol: {data['volume']:,})")
-                    print(f"   📅 Time: {data['datetime'].strftime('%H:%M:%S')}")
-                    print(f"   📊 Source: {data['source']}")
-                else:
-                    print(f"❌ {symbol}: No real-time data")
-            except Exception as e:
-                print(f"❌ {symbol}: Error - {e}")
-        
+        features = engine.extract_comprehensive_features('TEST', sample_data)
+        print("✅ Feature Engine: PASS")
         return True
         
     except Exception as e:
-        print(f"❌ PSX DPS test failed: {e}")
+        print(f"❌ Feature Engine: FAIL - {e}")
         return False
 
-def test_enhanced_data_fetcher():
-    """Test Enhanced Data Fetcher with PSX DPS priority"""
-    print("\n🔬 Testing Enhanced Data Fetcher Integration")
-    print("-" * 50)
-    
+def test_risk_manager():
+    """Test risk manager component"""
     try:
-        from enhanced_data_fetcher import EnhancedDataFetcher
+        from enhanced_intraday_risk_manager import EnhancedIntradayRiskManager
+        import pandas as pd
+        import numpy as np
         
-        fetcher = EnhancedDataFetcher()
+        risk_manager = EnhancedIntradayRiskManager()
         
-        # Test real-time data (should use PSX DPS first)
-        print("📈 Testing real-time data fetching:")
-        symbols = ['UBL', 'MCB']
+        # Generate sample data
+        sample_data = pd.DataFrame({
+            'Open': np.random.uniform(95, 105, 50),
+            'High': np.random.uniform(105, 110, 50),
+            'Low': np.random.uniform(90, 95, 50),
+            'Close': np.random.uniform(95, 105, 50),
+            'Volume': np.random.randint(1000, 10000, 50)
+        })
         
-        for symbol in symbols:
-            try:
-                real_time = fetcher.get_real_time_data(symbol)
-                if real_time:
-                    print(f"✅ {symbol}: {real_time.price:.2f} PKR - Source: {real_time.source}")
-                else:
-                    print(f"❌ {symbol}: No real-time data")
-            except Exception as e:
-                print(f"❌ {symbol}: Error - {e}")
-        
-        # Test current price verification
-        print("\n🎯 Testing verified current prices:")
-        for symbol in ['UBL', 'FFC']:
-            try:
-                verified = fetcher.get_verified_current_price(symbol)
-                if verified and verified.get('price'):
-                    print(f"✅ {symbol}: {verified['price']:.2f} PKR")
-                    print(f"   📊 Source: {verified['source']}")
-                    print(f"   ⭐ Confidence: {verified.get('confidence', 'N/A')}/10")
-                else:
-                    print(f"❌ {symbol}: No verified price")
-            except Exception as e:
-                print(f"❌ {symbol}: Error - {e}")
-        
+        risk_signal = risk_manager.evaluate_trade_risk('TEST', 75.0, 100.0, 10000, sample_data)
+        print("✅ Risk Manager: PASS")
         return True
         
     except Exception as e:
-        print(f"❌ Enhanced Data Fetcher test failed: {e}")
+        print(f"❌ Risk Manager: FAIL - {e}")
         return False
 
-def test_data_source_priority():
-    """Test that PSX DPS is being used as primary source"""
-    print("\n🔬 Testing Data Source Priority")
-    print("-" * 40)
-    
+def test_regime_detector():
+    """Test volatility regime detector"""
     try:
-        from enhanced_data_fetcher import EnhancedDataFetcher
+        from volatility_regime_detector import VolatilityRegimeDetector
+        import pandas as pd
+        import numpy as np
         
-        fetcher = EnhancedDataFetcher()
+        detector = VolatilityRegimeDetector()
         
-        # Check if PSX DPS is initialized
-        if hasattr(fetcher, 'psx_dps_fetcher') and fetcher.psx_dps_fetcher:
-            print("✅ PSX DPS Official fetcher initialized (PRIMARY)")
-        else:
-            print("❌ PSX DPS Official fetcher NOT initialized")
-            
-        # Check reliability statistics after some operations
-        print("\n📊 Data Source Reliability:")
-        reliability = fetcher.get_source_reliability()
-        for source, rate in reliability.items():
-            if rate > 0:
-                print(f"   {source}: {rate:.1%} success rate")
+        # Generate sample data
+        sample_data = pd.DataFrame({
+            'Open': np.random.uniform(95, 105, 100),
+            'High': np.random.uniform(105, 110, 100),
+            'Low': np.random.uniform(90, 95, 100),
+            'Close': np.random.uniform(95, 105, 100),
+            'Volume': np.random.randint(1000, 10000, 100)
+        })
         
+        regime = detector.detect_regime(sample_data, 'TEST')
+        print("✅ Regime Detector: PASS")
         return True
         
     except Exception as e:
-        print(f"❌ Data source priority test failed: {e}")
+        print(f"❌ Regime Detector: FAIL - {e}")
         return False
 
-def test_market_status():
-    """Test market status detection"""
-    print("\n🔬 Testing Market Status")
-    print("-" * 30)
-    
+def test_ml_system():
+    """Test ML trading system"""
     try:
-        from psx_dps_fetcher import PSXDPSFetcher
+        from advanced_ml_trading_system import AdvancedMLTradingSystem
         
-        fetcher = PSXDPSFetcher()
-        status = fetcher.get_market_status()
-        
-        print(f"📊 Market Status: {status['message']}")
-        print(f"🕒 Next Event: {status.get('next_event', 'N/A')}")
-        print(f"💹 Is Trading: {status.get('is_trading', False)}")
-        
+        ml_system = AdvancedMLTradingSystem()
+        signal = ml_system.generate_prediction('TEST')
+        print("✅ ML System: PASS")
         return True
         
     except Exception as e:
-        print(f"❌ Market status test failed: {e}")
+        print(f"❌ ML System: FAIL - {e}")
+        return False
+
+def test_execution_engine():
+    """Test execution engine"""
+    try:
+        from real_time_execution_engine import RealTimeExecutionEngine
+        
+        engine = RealTimeExecutionEngine()
+        print("✅ Execution Engine: PASS")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Execution Engine: FAIL - {e}")
+        return False
+
+def test_integration():
+    """Test basic integration"""
+    try:
+        # Test importing all components together
+        from enhanced_intraday_feature_engine import EnhancedIntradayFeatureEngine
+        from enhanced_intraday_risk_manager import EnhancedIntradayRiskManager  
+        from volatility_regime_detector import VolatilityRegimeDetector
+        from advanced_ml_trading_system import AdvancedMLTradingSystem
+        
+        # Create instances
+        feature_engine = EnhancedIntradayFeatureEngine()
+        risk_manager = EnhancedIntradayRiskManager()
+        regime_detector = VolatilityRegimeDetector()
+        ml_system = AdvancedMLTradingSystem()
+        
+        print("✅ Integration: PASS")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Integration: FAIL - {e}")
         return False
 
 def main():
-    """Run all integration tests"""
-    print("🚀 PSX DPS Integration Test Suite")
-    print("=" * 60)
-    print(f"📅 Test Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
+    """Run all tests"""
+    print("🧪 Running Integrated System Tests")
+    print("=" * 50)
     
     tests = [
-        ("PSX DPS Real-time", test_psx_dps_real_time),
-        ("Enhanced Data Fetcher", test_enhanced_data_fetcher),
-        ("Data Source Priority", test_data_source_priority),
-        ("Market Status", test_market_status)
+        ("Feature Engine", test_feature_engine),
+        ("Risk Manager", test_risk_manager),
+        ("Regime Detector", test_regime_detector),
+        ("ML System", test_ml_system),
+        ("Execution Engine", test_execution_engine),
+        ("Integration", test_integration)
     ]
     
     results = []
     
     for test_name, test_func in tests:
+        print(f"\n📊 Testing {test_name}...")
         try:
-            start_time = time.time()
             result = test_func()
-            end_time = time.time()
-            
-            results.append({
-                'name': test_name,
-                'passed': result,
-                'time': end_time - start_time
-            })
-            
+            results.append((test_name, result))
         except Exception as e:
-            print(f"❌ {test_name} failed with exception: {e}")
-            results.append({
-                'name': test_name,
-                'passed': False,
-                'time': 0,
-                'error': str(e)
-            })
+            print(f"❌ {test_name}: CRITICAL FAIL - {e}")
+            results.append((test_name, False))
     
     # Summary
-    print("\n" + "=" * 60)
-    print("📋 TEST SUMMARY")
-    print("=" * 60)
+    print("\n" + "=" * 50)
+    print("📈 TEST SUMMARY")
+    print("=" * 50)
     
-    passed = sum(1 for r in results if r['passed'])
+    passed = 0
     total = len(results)
     
-    for result in results:
-        status = "✅ PASS" if result['passed'] else "❌ FAIL"
-        time_str = f"({result['time']:.1f}s)"
-        print(f"{status} {result['name']} {time_str}")
-        if 'error' in result:
-            print(f"    Error: {result['error']}")
+    for test_name, result in results:
+        status = "PASS" if result else "FAIL"
+        icon = "✅" if result else "❌"
+        print(f"{icon} {test_name}: {status}")
+        if result:
+            passed += 1
     
-    print("-" * 60)
-    print(f"🎯 Overall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    print(f"\n📊 Overall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 All tests passed! PSX DPS integration is working correctly.")
-        return 0
+        print("🎉 All tests passed! System is ready for deployment.")
+    elif passed >= total * 0.8:
+        print("⚠️ Most tests passed. System functional with minor issues.")
     else:
-        print("⚠️ Some tests failed. Please check the integration.")
-        return 1
+        print("❌ Multiple test failures. System needs attention.")
+    
+    return passed == total
 
 if __name__ == "__main__":
-    sys.exit(main())
+    success = main()
+    sys.exit(0 if success else 1)

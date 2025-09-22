@@ -12,12 +12,18 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta, time
 import warnings
 
-# Import real PSX data fetcher
+# Import real PSX data fetcher and enhanced API manager
 try:
     from psx_data_reader_fetcher import PSXDataFetcher, PSXStockData
     PSX_DATA_AVAILABLE = True
 except ImportError:
     PSX_DATA_AVAILABLE = False
+
+try:
+    from enhanced_api_manager import api_manager, get_real_time_price, PriceData
+    ENHANCED_API_AVAILABLE = True
+except ImportError:
+    ENHANCED_API_AVAILABLE = False
 
 # Import other data sources
 try:
@@ -44,7 +50,7 @@ def render_enhanced_intraday_dashboard():
     
     # Display component status
     with st.expander("🔧 System Components Status", expanded=False):
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.write("**Core Components:**")
@@ -59,8 +65,24 @@ def render_enhanced_intraday_dashboard():
             st.info("📊 Multi-timeframe Analysis")
             st.info("🎯 Volatility Regime Detection") 
             st.info("⚠️ Advanced Risk Management")
-            
+        
         with col3:
+            st.write("**API Data Sources:**")
+            if ENHANCED_API_AVAILABLE:
+                try:
+                    from enhanced_api_manager import api_manager
+                    api_health = api_manager.health_check()
+                    for api_name, is_healthy in api_health.items():
+                        if is_healthy:
+                            st.success(f"🟢 {api_name}")
+                        else:
+                            st.error(f"🔴 {api_name}")
+                except:
+                    st.warning("⚠️ API Health Check Failed")
+            else:
+                st.warning("⚠️ Enhanced APIs Unavailable")
+            
+        with col4:
             st.write("**Performance Target:**")
             st.metric("Expected Accuracy", "90-95%", "High")
             st.metric("Signal Quality", "Institutional", "Grade")
@@ -388,7 +410,36 @@ def render_performance_dashboard():
 def get_real_psx_data(symbol: str, hours: int = 6) -> pd.DataFrame:
     """Get real PSX data from available sources"""
     
-    # Try PSX data reader first
+    # Try enhanced API manager first (with multiple fallbacks)
+    if ENHANCED_API_AVAILABLE:
+        try:
+            price_data = get_real_time_price(symbol)
+            if price_data:
+                # Convert PriceData to DataFrame format
+                df = pd.DataFrame({
+                    'Open': [price_data.open],
+                    'High': [price_data.high],
+                    'Low': [price_data.low],
+                    'Close': [price_data.close],
+                    'Volume': [price_data.volume]
+                }, index=[price_data.timestamp])
+                
+                # Show data source and quality
+                if 'st' in globals():
+                    if price_data.quality_score >= 0.9:
+                        st.success(f"📡 Real-time data from {price_data.source} (Quality: {price_data.quality_score:.1%})")
+                    else:
+                        st.info(f"📊 Data from {price_data.source} (Quality: {price_data.quality_score:.1%})")
+                
+                # Extend with historical pattern if needed
+                if hours > 1:
+                    df = extend_with_pattern(df, hours)
+                
+                return df
+        except Exception as e:
+            print(f"Enhanced API manager failed: {e}")
+    
+    # Try PSX data reader as fallback
     if PSX_DATA_AVAILABLE:
         try:
             fetcher = PSXDataFetcher()

@@ -38,6 +38,24 @@ try:
 except ImportError:
     YFINANCE_AVAILABLE = False
 
+# Import comprehensive PSX stock symbols
+try:
+    from all_psx_tickers import STOCK_SYMBOLS_ONLY as PSX_SYMBOLS
+    PSX_SYMBOLS_AVAILABLE = True
+except ImportError:
+    # Fallback to popular symbols if file not available
+    PSX_SYMBOLS = [
+        'HBL', 'UBL', 'MCB', 'ABL', 'NBP', 'BAFL', 'MEBL', 'BOP',  # Banking
+        'ENGRO', 'FFC', 'FATIMA', 'EFERT',  # Fertilizer
+        'LUCK', 'DGKC', 'CHCC', 'FCCL', 'MLCF',  # Cement
+        'PPL', 'OGDC', 'PSO', 'MARI', 'POL', 'SNGP', 'SSGC',  # Oil & Gas
+        'TRG', 'SYSTEMS', 'NETSOL', 'AVANCEON', 'TPL',  # Technology
+        'NESTLE', 'COLG', 'PTC', 'SEARL', 'GLAXO',  # FMCG/Pharma
+        'HABSM', 'KOHINOOR', 'ASTL', 'ATLH', 'GADT',  # Textiles
+        'KAPCO', 'HUBCO', 'KEL', 'KTML', 'ARPL'  # Power/Utilities
+    ]
+    PSX_SYMBOLS_AVAILABLE = False
+
 warnings.filterwarnings('ignore')
 
 def render_enhanced_intraday_dashboard():
@@ -146,12 +164,21 @@ def render_realtime_monitor():
     
     st.subheader("📊 Real-Time Market Monitoring")
     
-    # Symbol selection
-    symbols = st.multiselect(
-        "Select Symbols to Monitor:",
-        ["HBL", "UBL", "MCB", "ENGRO", "LUCK", "FFC", "PSO", "OGDC", "TRG", "SYSTEMS"],
-        default=["HBL", "UBL"]
-    )
+    # Symbol selection with comprehensive PSX list
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        symbols = st.multiselect(
+            "Select Symbols to Monitor:",
+            options=sorted(PSX_SYMBOLS),
+            default=["HBL", "UBL", "MCB"] if len(PSX_SYMBOLS) > 100 else ["HBL", "UBL"],
+            help=f"Choose from {len(PSX_SYMBOLS)} available PSX stocks"
+        )
+    with col2:
+        st.info(f"📊 **{len(PSX_SYMBOLS)}** stocks available")
+        if PSX_SYMBOLS_AVAILABLE:
+            st.success("✅ Full PSX list loaded")
+        else:
+            st.warning("⚠️ Using popular stocks only")
     
     if not symbols:
         st.warning("Please select at least one symbol")
@@ -220,7 +247,38 @@ def render_signal_analysis():
     
     st.subheader("🎯 Advanced Signal Analysis")
     
-    symbol = st.selectbox("Select Symbol:", ["HBL", "UBL", "MCB", "ENGRO", "LUCK"])
+    # Enhanced symbol selection with search
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        # Add search filter
+        search_term = st.text_input("🔍 Search Stock Symbol:", placeholder="Type to filter (e.g., HBL, ENGRO)")
+        
+        # Filter symbols based on search
+        if search_term:
+            filtered_symbols = [s for s in PSX_SYMBOLS if search_term.upper() in s.upper()]
+            if not filtered_symbols:
+                st.warning(f"No stocks found matching '{search_term}'")
+                filtered_symbols = PSX_SYMBOLS[:10]  # Show top 10 as fallback
+        else:
+            filtered_symbols = PSX_SYMBOLS
+        
+        symbol = st.selectbox(
+            "Select Symbol for Analysis:", 
+            options=sorted(filtered_symbols),
+            index=0,
+            help=f"Showing {len(filtered_symbols)} of {len(PSX_SYMBOLS)} PSX stocks"
+        )
+    with col2:
+        st.metric("Available Stocks", len(PSX_SYMBOLS), "Complete PSX")
+        st.metric("Filtered Results", len(filtered_symbols), "Current View")
+    with col3:
+        # Quick access to popular stocks
+        st.write("**Quick Select:**")
+        popular_stocks = ["HBL", "UBL", "MCB", "ENGRO", "LUCK", "FFC", "PSO", "OGDC"]
+        for stock in popular_stocks:
+            if stock in PSX_SYMBOLS and st.button(stock, key=f"quick_{stock}"):
+                st.session_state.selected_symbol = stock
+                st.rerun()
     
     # Get real PSX data
     data = get_real_psx_data(symbol, 24)

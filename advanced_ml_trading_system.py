@@ -6,26 +6,86 @@ Deep Learning & Machine Learning Ensemble Approach
 
 import pandas as pd
 import numpy as np
-import tensorflow as tf
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.model_selection import train_test_split
-import lightgbm as lgb
-import xgboost as xgb
-import joblib
 import warnings
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 import requests
-import ta
 from datetime import datetime, timedelta
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
-import yfinance as yf
 
 warnings.filterwarnings('ignore')
+
+# Conditional imports for ML/DL dependencies
+ML_DEPENDENCIES_AVAILABLE = True
+missing_dependencies = []
+
+try:
+    import tensorflow as tf
+    import keras
+    TF_AVAILABLE = True
+except ImportError as e:
+    TF_AVAILABLE = False
+    missing_dependencies.append('tensorflow')
+
+try:
+    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.preprocessing import StandardScaler, LabelEncoder
+    from sklearn.model_selection import train_test_split
+    SKLEARN_AVAILABLE = True
+except ImportError as e:
+    SKLEARN_AVAILABLE = False
+    missing_dependencies.append('scikit-learn')
+
+try:
+    import lightgbm as lgb
+    LIGHTGBM_AVAILABLE = True
+except ImportError as e:
+    LIGHTGBM_AVAILABLE = False
+    missing_dependencies.append('lightgbm')
+
+try:
+    import xgboost as xgb
+    XGB_AVAILABLE = True
+except ImportError as e:
+    XGB_AVAILABLE = False
+    missing_dependencies.append('xgboost')
+
+try:
+    import joblib
+    JOBLIB_AVAILABLE = True
+except ImportError as e:
+    JOBLIB_AVAILABLE = False
+    missing_dependencies.append('joblib')
+
+try:
+    import ta
+    TA_AVAILABLE = True
+except ImportError as e:
+    TA_AVAILABLE = False
+    missing_dependencies.append('ta')
+
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError as e:
+    YFINANCE_AVAILABLE = False
+    missing_dependencies.append('yfinance')
+
+# Check overall ML availability
+ML_DEPENDENCIES_AVAILABLE = (
+    SKLEARN_AVAILABLE and 
+    (LIGHTGBM_AVAILABLE or XGB_AVAILABLE) and
+    TA_AVAILABLE
+)
+
+if not ML_DEPENDENCIES_AVAILABLE:
+    print(f"⚠️ Some ML dependencies not available: {missing_dependencies}")
+    print("   Advanced ML features will be limited to basic functionality")
+else:
+    print("✅ All ML dependencies available")
 
 @dataclass
 class MLTradingSignal:
@@ -54,19 +114,23 @@ class AdvancedMLTradingSystem:
         self.encoders = {}
         self.feature_importance = {}
         
+        # Check ML dependencies availability
+        self.ml_available = ML_DEPENDENCIES_AVAILABLE
+        self.tf_available = TF_AVAILABLE
+        self.sklearn_available = SKLEARN_AVAILABLE
+        self.lightgbm_available = LIGHTGBM_AVAILABLE
+        self.xgb_available = XGB_AVAILABLE
+        self.ta_available = TA_AVAILABLE
+        
         # API endpoints
         self.psx_dps_url = "https://dps.psx.com.pk/timeseries/int"
         self.session = requests.Session()
         
-        # Model weights for ensemble
-        self.model_weights = {
-            'lstm_model': 0.25,      # Deep Learning LSTM
-            'transformer': 0.20,     # Transformer model
-            'xgboost': 0.20,         # XGBoost
-            'lightgbm': 0.15,        # LightGBM
-            'random_forest': 0.10,   # Random Forest
-            'neural_net': 0.10       # Neural Network
-        }
+        # Initialize models based on available dependencies
+        self._initialize_available_models()
+        
+        # Dynamic model weights based on available models
+        self.model_weights = self._get_dynamic_model_weights()
         
         # Analysis weights
         self.analysis_weights = {
@@ -77,13 +141,45 @@ class AdvancedMLTradingSystem:
         
         self.initialize_models()
     
+    def _initialize_available_models(self):
+        """Initialize only the models that have their dependencies available"""
+        available_models = []
+        
+        if self.sklearn_available:
+            available_models.extend(['random_forest', 'neural_net'])
+        if self.lightgbm_available:
+            available_models.append('lightgbm')
+        if self.xgb_available:
+            available_models.append('xgboost')
+        if self.tf_available:
+            available_models.extend(['lstm_model', 'transformer'])
+        
+        self.available_models = available_models
+        print(f"✅ Available ML models: {available_models}")
+        
+        if not available_models:
+            print("⚠️ No ML models available - using basic technical analysis only")
+    
+    def _get_dynamic_model_weights(self):
+        """Get model weights based on available models"""
+        if not hasattr(self, 'available_models') or not self.available_models:
+            return {}
+        
+        # Equal weights for available models
+        weight_per_model = 1.0 / len(self.available_models)
+        return {model: weight_per_model for model in self.available_models}
+    
     def initialize_models(self):
-        """Initialize all ML/DL models"""
+        """Initialize available ML/DL models"""
+        if not self.ml_available:
+            print("⚠️ ML dependencies not available - using basic analysis only")
+            return
+            
         try:
             self.load_pretrained_models()
         except:
-            print("🔄 Training new models...")
-            self.train_ensemble_models()
+            print("🔄 No pretrained models found - system will work with basic models")
+            # Don't train models automatically - let user decide
     
     # =================== FEATURE ENGINEERING ===================
     
@@ -398,17 +494,21 @@ class AdvancedMLTradingSystem:
     # =================== PREDICTION ENGINE ===================
     
     def generate_prediction(self, symbol: str) -> MLTradingSignal:
-        """Generate high-accuracy ML/DL prediction"""
+        """Generate ML/DL prediction with graceful degradation"""
         try:
             # Get market data
             df = self.get_market_data(symbol)
             if df.empty or len(df) < 50:
                 return self.create_fallback_signal(symbol)
             
-            # Extract all features
-            technical_features = self.extract_technical_features(df)
-            fundamental_features = self.extract_fundamental_features(symbol)
-            sentiment_features = self.extract_sentiment_features(symbol, technical_features)
+            # Extract features based on available libraries
+            technical_features = self.extract_technical_features(df) if self.ta_available else pd.DataFrame()
+            fundamental_features = self.extract_fundamental_features(symbol) if self.ml_available else {}
+            sentiment_features = self.extract_sentiment_features(symbol, technical_features) if self.ml_available else {}
+            
+            # If no ML libraries available, use basic technical analysis
+            if not self.ml_available or technical_features.empty:
+                return self.create_basic_technical_signal(symbol, df)
             
             # Combine features
             combined_features = self.combine_features(
@@ -875,6 +975,79 @@ class AdvancedMLTradingSystem:
             position_size=0.01,
             reasons=["⚠️ Insufficient data for analysis"]
         )
+    
+    def create_basic_technical_signal(self, symbol: str, df: pd.DataFrame) -> MLTradingSignal:
+        """Create basic technical signal when ML libraries are not available"""
+        try:
+            # Basic technical analysis using only pandas and numpy
+            current_price = float(df['Close'].iloc[-1])
+            
+            # Simple moving averages
+            sma_5 = df['Close'].rolling(5).mean().iloc[-1] if len(df) >= 5 else current_price
+            sma_20 = df['Close'].rolling(20).mean().iloc[-1] if len(df) >= 20 else current_price
+            
+            # Basic trend detection
+            is_uptrend = sma_5 > sma_20
+            
+            # Simple volatility measure
+            price_std = df['Close'].rolling(10).std().iloc[-1] if len(df) >= 10 else 0
+            volatility = (price_std / current_price) * 100 if current_price > 0 else 0
+            
+            # Basic signal generation
+            if is_uptrend and volatility < 5:  # Uptrend with low volatility
+                signal = 'BUY'
+                confidence = 60.0
+                technical_score = 70.0
+            elif not is_uptrend and volatility < 5:  # Downtrend with low volatility
+                signal = 'SELL'
+                confidence = 55.0
+                technical_score = 30.0
+            else:
+                signal = 'HOLD'
+                confidence = 40.0
+                technical_score = 50.0
+            
+            # Basic risk management
+            stop_loss_pct = 0.05  # 5% stop loss
+            take_profit_pct = 0.10  # 10% take profit
+            
+            if signal == 'BUY':
+                stop_loss = current_price * (1 - stop_loss_pct)
+                take_profit = current_price * (1 + take_profit_pct)
+            elif signal == 'SELL':
+                stop_loss = current_price * (1 + stop_loss_pct)
+                take_profit = current_price * (1 - take_profit_pct)
+            else:
+                stop_loss = current_price * 0.95
+                take_profit = current_price * 1.05
+            
+            reasons = [
+                f"📈 SMA5: {sma_5:.2f}, SMA20: {sma_20:.2f}",
+                f"📊 Trend: {'Upward' if is_uptrend else 'Downward'}",
+                f"📉 Volatility: {volatility:.2f}%",
+                "⚠️ Basic analysis (ML libraries not available)"
+            ]
+            
+            return MLTradingSignal(
+                symbol=symbol,
+                signal=signal,
+                confidence=confidence,
+                ml_confidence=0.0,  # No ML available
+                dl_confidence=0.0,  # No DL available
+                fundamental_score=50.0,  # Neutral
+                technical_score=technical_score,
+                sentiment_score=50.0,  # Neutral
+                ensemble_score=confidence,
+                entry_price=current_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                position_size=0.02,
+                reasons=reasons
+            )
+            
+        except Exception as e:
+            print(f"❌ Error in basic technical analysis: {e}")
+            return self.create_fallback_signal(symbol)
     
     def save_models(self):
         """Save trained models"""

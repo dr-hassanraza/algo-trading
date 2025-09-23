@@ -252,19 +252,43 @@ class EnhancedAPIManager:
         if response.status_code == 200:
             data = response.json()
             if 'data' in data and data['data']:
-                # Parse PSX DPS data format
-                latest = data['data'][-1]  # Get latest data point
+                # PSX DPS returns tick data: [timestamp, price, volume]
+                ticks = data['data']
+                
+                if not ticks:
+                    return None
+                
+                # Calculate actual OHLC from tick data
+                prices = [float(tick[1]) for tick in ticks]
+                volumes = [int(tick[2]) for tick in ticks]
+                
+                # Most recent tick (first in array - they come newest first)
+                latest_tick = ticks[0]
+                current_price = float(latest_tick[1])
+                current_timestamp = latest_tick[0]
+                
+                # Calculate today's OHLC from all ticks
+                # Note: PSX DPS gives intraday ticks, so we use all available data
+                high_price = max(prices)
+                low_price = min(prices)
+                total_volume = sum(volumes)
+                
+                # For open price, use the oldest tick (last in array) or current if only one tick
+                if len(ticks) > 1:
+                    open_price = float(ticks[-1][1])  # Oldest tick
+                else:
+                    open_price = current_price
                 
                 return PriceData(
                     symbol=symbol,
-                    timestamp=datetime.fromtimestamp(latest[0] / 1000),  # Convert from milliseconds
-                    open=float(latest[1]),
-                    high=float(latest[1]) * 1.002,  # Estimated from close
-                    low=float(latest[1]) * 0.998,   # Estimated from close
-                    close=float(latest[1]),
-                    volume=int(latest[2]) if len(latest) > 2 else 0,
-                    source='PSX DPS',
-                    quality_score=0.9  # High quality from official source
+                    timestamp=datetime.fromtimestamp(current_timestamp),  # Most recent timestamp
+                    open=open_price,
+                    high=high_price,  # Actual high from tick data
+                    low=low_price,    # Actual low from tick data
+                    close=current_price,  # Most recent price
+                    volume=total_volume,  # Sum of all tick volumes
+                    source='PSX DPS (Real OHLC)',
+                    quality_score=0.95  # Higher quality - real OHLC data
                 )
         
         return None

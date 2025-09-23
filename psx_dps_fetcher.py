@@ -104,20 +104,42 @@ class PSXDPSFetcher:
                 time_series = data['data']
                 
                 if time_series:
-                    # Get the most recent data point
-                    latest = time_series[0]  # First entry is most recent
+                    # PSX DPS returns tick data: [timestamp, price, volume]
+                    # Calculate actual OHLC from all available ticks
+                    prices = [float(tick[1]) for tick in time_series]
+                    volumes = [int(tick[2]) for tick in time_series]
+                    
+                    # Most recent tick (first entry)
+                    latest = time_series[0]
+                    current_price = float(latest[1])
+                    current_timestamp = int(latest[0])
+                    
+                    # Calculate today's OHLC from all ticks
+                    high_price = max(prices)
+                    low_price = min(prices)
+                    total_volume = sum(volumes)
+                    
+                    # Open price from oldest tick (or current if only one)
+                    if len(time_series) > 1:
+                        open_price = float(time_series[-1][1])  # Oldest tick
+                    else:
+                        open_price = current_price
                     
                     result = {
                         'symbol': clean_symbol,
-                        'price': float(latest[1]),
-                        'volume': int(latest[2]),
-                        'timestamp': int(latest[0]),
-                        'datetime': dt.datetime.fromtimestamp(latest[0]),
+                        'price': current_price,  # Most recent price
+                        'open': open_price,      # Opening price
+                        'high': high_price,      # Actual day's high
+                        'low': low_price,        # Actual day's low
+                        'volume': total_volume,  # Total volume
+                        'tick_count': len(time_series),  # Number of trades
+                        'timestamp': current_timestamp,
+                        'datetime': dt.datetime.fromtimestamp(current_timestamp),
                         'currency': 'PKR',
-                        'source': 'PSX DPS Official API',
+                        'source': 'PSX DPS Official API (Real OHLC)',
                         'confidence': 10,  # Highest confidence - official API
                         'is_current': True,
-                        'data_freshness': 'Real-time'
+                        'data_freshness': 'Real-time with actual OHLC'
                     }
                     
                     # Cache the result

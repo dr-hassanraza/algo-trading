@@ -77,4 +77,5 @@ temp/
 # Authentication tokens
 *.token
 *.key
-*.pem
+*.pemportfolio.json
+all_psx_tickers.txt

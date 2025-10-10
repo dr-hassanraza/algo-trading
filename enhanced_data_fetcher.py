@@ -31,7 +31,7 @@ try:
     PSX_DPS_AVAILABLE = True
 except ImportError:
     PSX_DPS_AVAILABLE = False
-    print("PSX DPS Official fetcher not available")
+    logger.warning("PSX DPS Official fetcher not available")
 
 # Import PSX data reader (backup)
 try:
@@ -39,7 +39,7 @@ try:
     PSX_READER_AVAILABLE = True
 except ImportError:
     PSX_READER_AVAILABLE = False
-    print("PSX Data Reader not available")
+    logger.warning("PSX Data Reader not available")
 
 # Import accurate PSX price fetcher
 try:
@@ -47,7 +47,7 @@ try:
     ACCURATE_PRICE_AVAILABLE = True
 except ImportError:
     ACCURATE_PRICE_AVAILABLE = False
-    print("Accurate price fetcher not available")
+    logger.warning("Accurate price fetcher not available")
 
 logger = logging.getLogger(__name__)
 
@@ -64,18 +64,21 @@ class EnhancedDataFetcher:
         if PSX_DPS_AVAILABLE:
             try:
                 self.psx_dps_fetcher = PSXDPSFetcher()
-                print("✅ PSX DPS Official API initialized (PRIMARY SOURCE)")
+                logger.info("✅ PSX DPS Official API initialized (PRIMARY SOURCE)")
             except Exception as e:
-                print(f"Failed to initialize PSX DPS fetcher: {e}")
-        
+                logger.error(f"Failed to initialize PSX DPS fetcher: {e}")
+                self.psx_dps_fetcher = None # Ensure it's None on failure
+        else:
+            logger.warning("PSX DPS Official fetcher not available, will use fallback sources.")
+
         # Initialize PSX data reader if available (backup)
         self.psx_fetcher = None
         if PSX_READER_AVAILABLE:
             try:
                 self.psx_fetcher = PSXDataFetcher()
-                print("✅ PSX Data Reader initialized (BACKUP SOURCE)")
+                logger.info("✅ PSX Data Reader initialized (BACKUP SOURCE)")
             except Exception as e:
-                print(f"Failed to initialize PSX Data Reader: {e}")
+                logger.error(f"Failed to initialize PSX Data Reader: {e}")
         
         # Cache for recent data to avoid repeated API calls
         self.cache = {}
@@ -110,22 +113,20 @@ class EnhancedDataFetcher:
             logger.info(f"Using cached data for {symbol}")
             return self.cache[cache_key]['data']
         
-        # Try multiple data sources in order of preference
-        # PSX DPS Official is now HIGHEST priority for PSX stocks
+        # Define the data source priority list.
         data_sources = []
-        
-        # Add PSX DPS Official as FIRST choice (official PSX API)
+
+        # 1. Primary Source: PSX DPS Official API
         if self.psx_dps_fetcher:
             data_sources.append(('psx_dps_official', self._fetch_psx_dps_official))
-        
-        # Add EODHD Premium as second choice (your purchased API)
+
+        # 2. Secondary Source: EODHD Premium (Purchased API)
         data_sources.append(('eodhd_premium', self._fetch_eodhd_premium))
-        
-        # Add PSX reader as third choice if available
+
+        # 3. Backup Sources
         if self.psx_fetcher:
             data_sources.append(('psx_reader', self._fetch_psx_reader))
         
-        # Add other sources as fallbacks
         data_sources.extend([
             ('eodhd', self._fetch_eodhd),
             ('yfinance', self._fetch_yfinance),

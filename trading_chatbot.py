@@ -109,8 +109,10 @@ class TradingChatbot:
         explain_keywords = ['explain', 'why', 'how', 'what does', 'meaning', 'detail', 'details', 'criteria', 'rules', 'above criteria', 'tell me more']
         watchlist_keywords = ['watchlist', 'add', 'remove', 'track', 'monitor', 'show my watchlist', 'my watchlist']
         
-        # Check signal keywords first (before trade keywords) to prioritize signal requests
-        if any(keyword in user_input for keyword in signal_keywords):
+        # Prioritize explanation requests
+        if any(keyword in user_input for keyword in explain_keywords):
+            return 'explain'
+        elif any(keyword in user_input for keyword in signal_keywords):
             return 'signals'
         elif any(keyword in user_input for keyword in scan_keywords):
             return 'scan'
@@ -121,8 +123,6 @@ class TradingChatbot:
             if any(signal_word in user_input for signal_word in ['signal', 'signals', 'show me', 'recommendation']):
                 return 'signals'
             return 'trade'
-        elif any(keyword in user_input for keyword in explain_keywords):
-            return 'explain'
         elif any(keyword in user_input for keyword in watchlist_keywords):
             return 'watchlist'
         else:
@@ -514,7 +514,7 @@ What would you like to explore?"""
         
         # Look for explicit PSX symbols (3-4 letters, possibly with .KAR)
         # but exclude common English words
-        exclude_words = {'BUY', 'SELL', 'THE', 'AND', 'FOR', 'ARE', 'WHAT', 'SHOW', 'GIVE', 'NEED', 'SCAN', 'ABOUT', 'CAN', 'YOU', 'GET', 'ANY', 'NOT', 'BUT', 'ALL', 'HOW', 'WHY'}
+        exclude_words = {'BUY', 'SELL', 'THE', 'AND', 'FOR', 'ARE', 'WHAT', 'SHOW', 'GIVE', 'NEED', 'SCAN', 'ABOUT', 'CAN', 'YOU', 'GET', 'ANY', 'NOT', 'BUT', 'ALL', 'HOW', 'WHY', 'ADD', 'OUR'}
         symbol_pattern = r'\b([A-Z]{3,4})(?:\.KAR)?\b'
         found_symbols = re.findall(symbol_pattern, text.upper())
         found_symbols = [s for s in found_symbols if s not in exclude_words]

@@ -2137,7 +2137,7 @@ def render_live_trading_signals():
                         
                         if market_data and 'price' in market_data and market_data['price'] > 0:
                             # Safe signal generation with full error handling
-                            signal_data = safe_generate_signal(symbol, market_data, system)
+                            signal_data, debug_logs = safe_generate_signal(symbol, market_data, system)
                             
                             # Display signal with safe data extraction
                             signal_type = signal_data.get('signal', 'HOLD')
@@ -2216,7 +2216,7 @@ def render_live_trading_signals():
             market_data = get_cached_real_time_data(symbol)
             if market_data:
                 # Use SAME enhanced signal generation as individual signals above
-                signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
+                signal_data, debug_logs = safe_generate_signal(symbol, market_data, system, data_points=100)
                 
                 total_processed += 1
                 if signal_data['signal'] in ['BUY', 'STRONG_BUY']:
@@ -2333,7 +2333,13 @@ def render_live_trading_signals():
                         
                         if market_data:
                             # Use UNIFIED signal generation for consistency
-                            signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
+                            signal_data, debug_logs = safe_generate_signal(symbol, market_data, system, data_points=100, debug_mode=debug_mode)
+                            
+                            # Show debug logs if debug mode is enabled
+                            if debug_mode and debug_logs:
+                                with st.expander(f"🔍 Debug: {symbol}"):
+                                    for log in debug_logs:
+                                        st.text(log)
                             
                             confidence = signal_data['confidence']
                             signal_type = signal_data['signal']
@@ -2593,7 +2599,7 @@ def render_live_trading_signals():
                             
                             market_data = get_cached_real_time_data(symbol)
                             if market_data:
-                                signal_data = safe_generate_signal(symbol, market_data, system, data_points=100)
+                                signal_data, debug_logs = safe_generate_signal(symbol, market_data, system, data_points=100)
                                 
                                 if signal_data['confidence'] >= 60:  # Minimum confidence threshold
                                     opportunity = {
@@ -2724,7 +2730,7 @@ def render_symbol_analysis():
         market_data = get_cached_real_time_data(selected_symbol)
         
         if market_data:
-            signal_data = safe_generate_signal(selected_symbol, market_data, system, data_points=100)
+            signal_data, debug_logs = safe_generate_signal(selected_symbol, market_data, system, data_points=100)
             ticks_df = get_cached_intraday_ticks(selected_symbol, 200)
             if not ticks_df.empty:
                 ticks_df = system.calculate_technical_indicators(ticks_df)

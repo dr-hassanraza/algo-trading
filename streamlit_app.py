@@ -1260,17 +1260,17 @@ class PSXAlgoTradingSystemFallback:
                 final_confidence = (ml_confidence * 0.3) + (traditional_confidence * 0.7)
                 final_confidence = min(final_confidence, 100)
                 
-                # Use traditional scoring for signal determination with lower thresholds
-                if total_score >= 1.5:  # Lowered from 2 to be more sensitive
+                # Use traditional scoring for signal determination with enhanced sensitivity
+                if total_score >= 1.2:  # Strong BUY - slightly lowered threshold
                     final_signal = "BUY"
                     final_confidence = max(final_confidence, 50)
-                elif total_score <= -1.5:  # Lowered from -2 to be more sensitive
+                elif total_score <= -1.0:  # Strong SELL - significantly lowered for better bearish detection
                     final_signal = "SELL" 
                     final_confidence = max(final_confidence, 50)
-                elif total_score >= 0.5:  # Weak BUY signal
+                elif total_score >= 0.4:  # Weak BUY signal - slightly lowered
                     final_signal = "BUY"
                     final_confidence = max(final_confidence, 35)
-                elif total_score <= -0.5:  # Weak SELL signal
+                elif total_score <= -0.3:  # Weak SELL signal - significantly lowered for falling markets
                     final_signal = "SELL"
                     final_confidence = max(final_confidence, 35)
                 else:
@@ -1327,7 +1327,7 @@ class PSXAlgoTradingSystemFallback:
         confidence = 20  # Base confidence for all analysis
         reasons = []
         
-        # RSI Analysis - Conservative thresholds
+        # RSI Analysis - Enhanced sensitivity for market movements
         rsi = latest.get('rsi', 50)
         if rsi <= 25:
             signal_score += 3; confidence += 35; reasons.append("RSI severely oversold")
@@ -1335,18 +1335,24 @@ class PSXAlgoTradingSystemFallback:
             signal_score += 2; confidence += 25; reasons.append("RSI oversold")
         elif rsi <= 35:
             signal_score += 1; confidence += 15; reasons.append("RSI mild oversold")
+        elif rsi <= 45:  # NEW: Detect weak selling pressure
+            signal_score += 0.5; confidence += 8; reasons.append("RSI below midpoint (weak)")
         elif rsi >= 75:
             signal_score -= 3; confidence += 35; reasons.append("RSI severely overbought")
         elif rsi >= 70:
             signal_score -= 2; confidence += 25; reasons.append("RSI overbought")
         elif rsi >= 65:
             signal_score -= 1; confidence += 15; reasons.append("RSI mild overbought")
+        elif rsi >= 55:  # NEW: Detect early bearish momentum
+            signal_score -= 0.5; confidence += 8; reasons.append("RSI above midpoint (resistance)")
         else:
             # Neutral RSI - add small confidence for normal market behavior
             confidence += 10; reasons.append("RSI neutral range")
         
-        # Trend Analysis
+        # Enhanced Trend Analysis - More sensitive to declining markets
         sma_5 = latest.get('sma_5', 0); sma_10 = latest.get('sma_10', 0); sma_20 = latest.get('sma_20', 0)
+        price = latest.get('price', 0)
+        
         if sma_5 > sma_10 > sma_20:
             signal_score += 2; confidence += 15; reasons.append("Strong bullish trend")
         elif sma_5 < sma_10 < sma_20:
@@ -1355,7 +1361,20 @@ class PSXAlgoTradingSystemFallback:
             signal_score += 1; confidence += 10; reasons.append("Short-term bullish momentum")
         elif sma_5 < sma_10:
             signal_score -= 1; confidence += 10; reasons.append("Short-term bearish momentum")
-        else:
+        
+        # NEW: Additional bearish patterns for falling markets
+        if price < sma_5 and price < sma_10:  # Price below short-term averages
+            signal_score -= 1; confidence += 12; reasons.append("Price below key averages")
+        if sma_10 < sma_20:  # Medium-term decline
+            signal_score -= 0.5; confidence += 8; reasons.append("Medium-term decline")
+        
+        # NEW: Check for accelerating decline
+        if len(df) >= 3:
+            sma_5_prev = df.iloc[-2].get('sma_5', 0) if len(df) > 1 else sma_5
+            if sma_5 < sma_5_prev and sma_5 < sma_10:  # Accelerating decline
+                signal_score -= 1; confidence += 15; reasons.append("Accelerating decline detected")
+        
+        if signal_score == 0:  # No clear trend signals
             confidence += 5; reasons.append("Sideways trend")
         
         # MACD Crossover
@@ -1369,15 +1388,28 @@ class PSXAlgoTradingSystemFallback:
             elif latest['macd'] < latest['macd_signal']:
                 signal_score -= 1; confidence += 10; reasons.append("MACD below signal")
         
-        # Price momentum check
+        # Enhanced Price momentum check - More sensitive to declining markets
         if len(df) > 5:
             price_change_5d = (latest['price'] - df.iloc[-6]['price']) / df.iloc[-6]['price']
             if price_change_5d > 0.05:
                 signal_score += 1; confidence += 15; reasons.append("Strong 5-day momentum")
             elif price_change_5d < -0.05:
                 signal_score -= 1; confidence += 15; reasons.append("Weak 5-day momentum")
+            elif price_change_5d < -0.02:  # NEW: Detect moderate decline
+                signal_score -= 0.5; confidence += 10; reasons.append("Moderate decline trend")
+            elif price_change_5d > 0.02:  # NEW: Detect moderate gains
+                signal_score += 0.5; confidence += 10; reasons.append("Moderate upward trend")
             else:
                 confidence += 5; reasons.append("Stable price action")
+        
+        # NEW: Check recent price velocity (last 3 periods)
+        if len(df) >= 4:
+            recent_prices = [df.iloc[i]['price'] for i in range(-4, 0)]
+            price_velocity = (recent_prices[-1] - recent_prices[0]) / recent_prices[0]
+            if price_velocity < -0.015:  # Declining fast
+                signal_score -= 1; confidence += 12; reasons.append("Recent price acceleration down")
+            elif price_velocity > 0.015:  # Rising fast
+                signal_score += 1; confidence += 12; reasons.append("Recent price acceleration up")
         
         return signal_score, confidence, reasons
     

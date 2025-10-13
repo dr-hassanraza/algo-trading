@@ -142,6 +142,9 @@ def load_enhanced_ml_model():
 
 warnings.filterwarnings('ignore')
 
+DEBUG_MODE = True
+
+
 # System Status Display
 def display_system_status():
     """Display system initialization status"""
@@ -1126,7 +1129,12 @@ class PSXAlgoTradingSystemFallback:
                             predicted_class = ml_model.predict([feature_values])[0]
                             predicted_label = ml_label_encoder.inverse_transform([predicted_class])[0]
                             
+                            # Improved confidence calculation - use the actual probability for that class
                             max_confidence = prediction_proba.max() * 100
+                            
+                            # Ensure minimum ML confidence of 35% to make decisions meaningful
+                            if max_confidence < 35:
+                                max_confidence = max(35, max_confidence * 1.2)  # Boost weak signals slightly
                             
                             if predicted_label == 'BUY':
                                 ml_score = 3 * (prediction_proba.max() - 0.33)  # Scale from 0.33-1.0 to 0-2
@@ -1142,14 +1150,21 @@ class PSXAlgoTradingSystemFallback:
                             
                         else:
                             ml_prediction_text = "ML: Invalid feature values"
+                            print(f"Invalid feature values for {symbol}: {feature_values}")
                     else:
                         ml_prediction_text = f"ML: Missing {len(missing_features)} features ({', '.join(missing_features[:2])}...)"
+                        print(f"Missing features for {symbol}: {missing_features}")
                         
                 except Exception as e:
                     print(f"Enhanced ML Error for {symbol}: {str(e)}")  # Log full error for debugging
                     ml_prediction_text = f"ML: Error - {str(e)[:30]}"  # Show more of the error
-            elif not ML_AVAILABLE:
-                ml_prediction_text = "ML: Libraries not available"
+            else:
+                if not ML_AVAILABLE:
+                    ml_prediction_text = "ML: Libraries not available"
+                    print("ML libraries not available - using traditional analysis only")
+                else:
+                    ml_prediction_text = "ML: Model not loaded"
+                    print(f"ML model not loaded - model:{ml_model is not None}, encoder:{ml_label_encoder is not None}, features:{ml_feature_names is not None}")
 
             # STEP 1: Traditional Technical Analysis (25% weight)
             traditional_score, traditional_confidence, traditional_reasons = self.analyze_traditional_signals(df)
@@ -1177,7 +1192,7 @@ class PSXAlgoTradingSystemFallback:
 
             # Enhanced ML Model (60% weight - PRIORITIZED as primary signal)
             ml_weight = 0.60
-            if ml_score != 0 and ml_confidence > 40 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
+            if ml_score != 0 and ml_confidence > 30 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:
                 total_score += ml_score * ml_weight
                 # If ML confidence is high (>60%), use ML signal as primary driver
                 if ml_confidence > 60:
@@ -1222,7 +1237,7 @@ class PSXAlgoTradingSystemFallback:
 
             # ML-PRIORITIZED SIGNAL DETERMINATION
             # If ML is available and confident, use ML signal as primary
-            if ml_weight > 0 and ml_confidence > 40 and "Error" not in ml_prediction_text:
+            if ml_weight > 0 and ml_confidence > 30 and "Error" not in ml_prediction_text and "Missing" not in ml_prediction_text:  # Lowered threshold from 40 to 30
                 # ML drives the decision
                 if "BUY" in ml_prediction_text:
                     final_signal = "BUY" 
@@ -1235,9 +1250,9 @@ class PSXAlgoTradingSystemFallback:
                     final_confidence = ml_confidence
                 
                 # Adjust confidence based on supporting signals
-                if total_score > 2:
+                if total_score > 1.5:  # Lowered threshold
                     final_confidence = min(final_confidence + 10, 100)  # Boost if other signals agree
-                elif total_score < -2:
+                elif total_score < -1.5:  # Lowered threshold
                     final_confidence = min(final_confidence + 10, 100)  # Boost if other signals agree
                 
             else:
@@ -1245,13 +1260,19 @@ class PSXAlgoTradingSystemFallback:
                 final_confidence = (ml_confidence * 0.3) + (traditional_confidence * 0.7)
                 final_confidence = min(final_confidence, 100)
                 
-                # Use traditional scoring for signal determination
-                if total_score >= 2:
+                # Use traditional scoring for signal determination with lower thresholds
+                if total_score >= 1.5:  # Lowered from 2 to be more sensitive
                     final_signal = "BUY"
-                    final_confidence = max(final_confidence, 60)
-                elif total_score <= -2:
+                    final_confidence = max(final_confidence, 50)
+                elif total_score <= -1.5:  # Lowered from -2 to be more sensitive
                     final_signal = "SELL" 
-                    final_confidence = max(final_confidence, 60)
+                    final_confidence = max(final_confidence, 50)
+                elif total_score >= 0.5:  # Weak BUY signal
+                    final_signal = "BUY"
+                    final_confidence = max(final_confidence, 35)
+                elif total_score <= -0.5:  # Weak SELL signal
+                    final_signal = "SELL"
+                    final_confidence = max(final_confidence, 35)
                 else:
                     final_signal = "HOLD"
                     final_confidence = max(final_confidence, 30)
@@ -1303,7 +1324,7 @@ class PSXAlgoTradingSystemFallback:
         prev = df.iloc[-2] if len(df) > 1 else latest
         
         signal_score = 0
-        confidence = 0
+        confidence = 20  # Base confidence for all analysis
         reasons = []
         
         # RSI Analysis - Conservative thresholds
@@ -1320,6 +1341,9 @@ class PSXAlgoTradingSystemFallback:
             signal_score -= 2; confidence += 25; reasons.append("RSI overbought")
         elif rsi >= 65:
             signal_score -= 1; confidence += 15; reasons.append("RSI mild overbought")
+        else:
+            # Neutral RSI - add small confidence for normal market behavior
+            confidence += 10; reasons.append("RSI neutral range")
         
         # Trend Analysis
         sma_5 = latest.get('sma_5', 0); sma_10 = latest.get('sma_10', 0); sma_20 = latest.get('sma_20', 0)
@@ -1327,6 +1351,12 @@ class PSXAlgoTradingSystemFallback:
             signal_score += 2; confidence += 15; reasons.append("Strong bullish trend")
         elif sma_5 < sma_10 < sma_20:
             signal_score -= 2; confidence += 15; reasons.append("Strong bearish trend")
+        elif sma_5 > sma_10:
+            signal_score += 1; confidence += 10; reasons.append("Short-term bullish momentum")
+        elif sma_5 < sma_10:
+            signal_score -= 1; confidence += 10; reasons.append("Short-term bearish momentum")
+        else:
+            confidence += 5; reasons.append("Sideways trend")
         
         # MACD Crossover
         if 'macd' in df.columns and 'macd_signal' in df.columns:
@@ -1334,6 +1364,20 @@ class PSXAlgoTradingSystemFallback:
                 signal_score += 2; confidence += 20; reasons.append("MACD bullish crossover")
             elif latest['macd'] < latest['macd_signal'] and prev['macd'] >= prev['macd_signal']:
                 signal_score -= 2; confidence += 20; reasons.append("MACD bearish crossover")
+            elif latest['macd'] > latest['macd_signal']:
+                signal_score += 1; confidence += 10; reasons.append("MACD above signal")
+            elif latest['macd'] < latest['macd_signal']:
+                signal_score -= 1; confidence += 10; reasons.append("MACD below signal")
+        
+        # Price momentum check
+        if len(df) > 5:
+            price_change_5d = (latest['price'] - df.iloc[-6]['price']) / df.iloc[-6]['price']
+            if price_change_5d > 0.05:
+                signal_score += 1; confidence += 15; reasons.append("Strong 5-day momentum")
+            elif price_change_5d < -0.05:
+                signal_score -= 1; confidence += 15; reasons.append("Weak 5-day momentum")
+            else:
+                confidence += 5; reasons.append("Stable price action")
         
         return signal_score, confidence, reasons
     
@@ -1585,17 +1629,26 @@ def render_header():
         </div>
         """, unsafe_allow_html=True)
 
-def safe_generate_signal(symbol, market_data, system, data_points=100):
+def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mode=False):
     """UNIFIED signal generation using advanced ML/DL system for highest accuracy"""
+    debug_logs = []
+    if debug_mode:
+        debug_logs.append(f"--- Debugging {symbol} ---")
+
     try:
         # Initialize advanced ML/DL system for maximum accuracy
         advanced_system = None
         try:
             advanced_system = initialize_advanced_ml_system()
+            if debug_mode and advanced_system:
+                debug_logs.append("Initialized advanced_ml_system")
         except Exception as e:
-            print(f"Warning: Could not initialize advanced system: {e}")
+            if debug_mode:
+                debug_logs.append(f"Warning: Could not initialize advanced system: {e}")
         
         if advanced_system:
+            if debug_mode:
+                debug_logs.append("Using advanced system")
             # Use advanced ML/DL system for signal generation
             if hasattr(advanced_system, 'generate_prediction'):
                 # Advanced ML/DL system (highest accuracy)
@@ -1640,6 +1693,8 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
             else:
                 raise ValueError("Advanced system not properly configured")
         else:
+            if debug_mode:
+                debug_logs.append("Using fallback system")
             # Fallback to legacy system
             ticks_df = get_cached_intraday_ticks(symbol, data_points)
             
@@ -1690,9 +1745,13 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
         signal_data['_data_source'] = 'advanced_ml_dl_system'
         signal_data['_system_type'] = 'ensemble_ml_dl' if advanced_system else 'legacy'
         
-        return signal_data
+        if debug_mode:
+            debug_logs.append(f"Signal generated: {signal_data['signal']} with confidence {signal_data['confidence']}")
+        return signal_data, debug_logs
             
     except Exception as e:
+        if debug_mode:
+            debug_logs.append(f"ERROR in safe_generate_signal: {str(e)}")
         # Log error for debugging but don't clutter UI
         error_msg = f'ML/DL Analysis error: {str(e)[:50]}'
         print(f"Advanced signal generation error for {symbol}: {error_msg}")
@@ -1712,7 +1771,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100):
             '_enhanced_system': False,
             '_generation_timestamp': datetime.now().isoformat(),
             '_data_source': 'fallback_system'
-        }
+        }, debug_logs
 
 def render_ml_dl_signal_card(signal, symbol):
     """Render enhanced ML/DL signal card with analysis breakdown"""
@@ -2198,7 +2257,7 @@ def render_live_trading_signals():
         st.warning("⚠️ **No actionable signals in your watchlist!** Let's scan the broader market for opportunities...")
         
         # Scanner controls
-        col1, col2, col3 = st.columns([2, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         
         with col1:
             st.markdown("**Scanning 500+ PSX stocks for BUY/SELL signals...**")
@@ -2208,6 +2267,9 @@ def render_live_trading_signals():
         
         with col3:
             min_confidence = st.slider("Min Confidence", 10, 90, 10, 5, help="Minimum confidence level for signals")
+        
+        with col4:
+            debug_mode = st.checkbox("Enable Debug Mode")
         
         if st.button("🚀 Scan Market Now", type="primary", key="scan_market_btn"):
             # Determine scan size based on selection

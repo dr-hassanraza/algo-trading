@@ -12,7 +12,10 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta, time
 import asyncio
 import warnings
-warnings.filterwarnings('ignore')
+import glob
+import os
+import joblib
+import shutil
 
 # Import our trading system components
 from psx_dps_fetcher import PSXDPSFetcher
@@ -391,83 +394,83 @@ def render_daily_backtesting():
 
 def run_daily_backtest(start_date, end_date, universe_size, rebalance_freq):
     """Execute daily backtesting"""
-    with st.spinner("Running daily backtest..."):
+    with st.spinner("Running daily backtest... This may take a while."):
         try:
-            # Mock backtest for demo (in production, use real backtester)
-            st.info("🔄 Generating mock backtest results for demonstration...")
+            st.info("Initializing daily backtest...")
             
-            # Create sample results
-            dates = pd.date_range(start_date, end_date, freq='D')
-            np.random.seed(42)
+            # 1. Get a list of symbols for the universe
+            all_symbols = ['HBL', 'UBL', 'MCB', 'ABL', 'BAFL', 'ENGRO', 'FFC', 'LUCK', 'DG.KHAN', 'NESTLE', 'OGDC', 'PPL', 'SYS', 'TRG']
+            universe = all_symbols[:universe_size]
             
-            # Generate sample equity curve
-            returns = np.random.normal(0.0006, 0.02, len(dates))  # ~15% annual return, 20% vol
-            equity_curve = (1 + pd.Series(returns, index=dates)).cumprod() * 100000
+            # 2. Fetch daily price data
+            st.write(f"Fetching daily price data for {len(universe)} symbols...")
+            price_data = st.session_state.enhanced_fetcher.fetch_daily_data(universe, start_date, end_date)
             
-            # Calculate metrics
-            total_return = (equity_curve.iloc[-1] / equity_curve.iloc[0]) - 1
-            annual_return = (1 + total_return) ** (365 / len(dates)) - 1
-            volatility = pd.Series(returns).std() * np.sqrt(365)
-            sharpe_ratio = (annual_return - 0.12) / volatility  # 12% risk-free rate
+            if price_data.empty:
+                st.warning("Could not fetch sufficient price data for the selected period and universe.")
+                return
+
+            price_data_pivot = price_data.pivot(index='date', columns='symbol', values='adjClose')
+
+            # 3. Initialize and run the backtester
+            st.write("Running walk-forward backtest... This is computationally intensive.")
+            backtester = WalkForwardBacktester(st.session_state.config)
             
-            max_dd = ((equity_curve / equity_curve.expanding().max()) - 1).min()
-            
-            # Display results
-            st.markdown("### 📈 Backtest Results")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Return", f"{total_return:.2%}")
-            with col2:
-                st.metric("Annual Return", f"{annual_return:.2%}")
-            with col3:
-                st.metric("Sharpe Ratio", f"{sharpe_ratio:.2f}")
-            with col4:
-                st.metric("Max Drawdown", f"{max_dd:.2%}")
-            
-            # Plot equity curve
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=equity_curve.index,
-                y=equity_curve.values,
-                name="Strategy",
-                line=dict(color='#1f4e79', width=2)
-            ))
-            
-            fig.update_layout(
-                title="Portfolio Equity Curve",
-                xaxis_title="Date",
-                yaxis_title="Portfolio Value (PKR)",
-                height=400
+            backtester.rebalance_freq = rebalance_freq.upper()
+
+            results = backtester.run_backtest(
+                price_data=price_data_pivot,
+                start_date=start_date,
+                end_date=end_date
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            if not results:
+                st.warning("Backtest completed with no results. The underlying engine may have issues or there may have been no valid trading periods.")
+                return
+
+            # 4. Display aggregate results
+            st.markdown("### 📈 Walk-Forward Backtest Results")
+            agg_metrics = backtester.get_aggregate_metrics()
             
-            # Performance analysis
-            st.markdown("### 📊 Performance Analysis")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Return", f"{agg_metrics.get('total_return', 0):.2%}")
+            with col2:
+                st.metric("Annualized Return", f"{agg_metrics.get('annualized_return', 0):.2%}")
+            with col3:
+                st.metric("Sharpe Ratio", f"{agg_metrics.get('sharpe_ratio', 0):.2f}")
+            with col4:
+                st.metric("Max Drawdown", f"{agg_metrics.get('max_drawdown', 0):.2%}")
+
+            # 5. Plot equity curve
+            if not backtester.equity_curve.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=backtester.equity_curve.index,
+                    y=backtester.equity_curve.values,
+                    name="Strategy Equity",
+                    line=dict(color='#1f4e79', width=2)
+                ))
+                if not backtester.benchmark_curve.empty:
+                    fig.add_trace(go.Scatter(
+                        x=backtester.benchmark_curve.index,
+                        y=backtester.benchmark_curve.values,
+                        name="Benchmark Equity",
+                        line=dict(color='#888888', width=1, dash='dash')
+                    ))
+                fig.update_layout(title="Walk-Forward Portfolio Equity Curve", yaxis_title="Portfolio Value (PKR)")
+                st.plotly_chart(fig, use_container_width=True)
             
-            target_alpha = st.session_state.config.performance.annual_alpha_target
-            target_sharpe = st.session_state.config.performance.sharpe_ratio_target
-            max_dd_limit = st.session_state.config.performance.max_drawdown_limit
-            
-            if annual_return >= target_alpha:
-                st.success(f"✅ Alpha target achieved: {annual_return:.2%} vs {target_alpha:.2%}")
-            else:
-                st.warning(f"⚠️ Alpha below target: {annual_return:.2%} vs {target_alpha:.2%}")
-            
-            if sharpe_ratio >= target_sharpe:
-                st.success(f"✅ Sharpe ratio target achieved: {sharpe_ratio:.2f} vs {target_sharpe:.2f}")
-            else:
-                st.warning(f"⚠️ Sharpe ratio below target: {sharpe_ratio:.2f} vs {target_sharpe:.2f}")
-            
-            if abs(max_dd) <= max_dd_limit:
-                st.success(f"✅ Drawdown within limit: {max_dd:.2%} vs {max_dd_limit:.2%}")
-            else:
-                st.error(f"❌ Drawdown exceeds limit: {max_dd:.2%} vs {max_dd_limit:.2%}")
-                
+            # 6. Show period breakdown
+            with st.expander("Show Period-by-Period Breakdown"):
+                st.text(backtester.generate_report())
+
         except Exception as e:
-            st.error(f"❌ Backtest failed: {str(e)}")
+            st.error(f"❌ Daily backtest failed with an error.")
+            st.error(f"Error: {e}")
+            st.info("This may be due to an inconsistency in the backtesting engine, such as a call to a non-existent `train_and_validate` method. Further fixes to the engine might be required.")
+            import traceback
+            st.text(traceback.format_exc())
 
 def render_intraday_backtesting():
     """Render intraday backtesting interface"""
@@ -510,76 +513,88 @@ def render_intraday_backtesting():
 
 def run_intraday_backtest(test_date, symbols, data_frequency, max_positions):
     """Execute intraday backtesting"""
-    with st.spinner("Running intraday backtest..."):
+    if not symbols:
+        st.warning("Please select at least one symbol for the backtest.")
+        return
+
+    with st.spinner(f"Running intraday backtest for {test_date.strftime('%Y-%m-%d')} on {len(symbols)} symbols..."):
         try:
-            st.info("🔄 Processing intraday strategy with real PSX DPS data...")
+            # 1. Initialize the backtester
+            backtester = IntradayWalkForwardBacktester(st.session_state.config)
             
-            # Sample intraday results for demo
-            np.random.seed(42)
+            # Note: To backtest the hybrid model, you would generate and pass ml_biases here
+            # backtester = IntradayWalkForwardBacktester(st.session_state.config, ml_biases=get_ml_biases(symbols))
             
-            # Generate sample trades
-            num_trades = np.random.randint(5, 25)
-            pnl_per_trade = np.random.normal(500, 2000, num_trades)  # Average 500 PKR per trade
-            
-            total_pnl = pnl_per_trade.sum()
-            win_rate = len(pnl_per_trade[pnl_per_trade > 0]) / len(pnl_per_trade)
-            
-            # Display results
-            st.markdown("### ⚡ Intraday Results")
+            # 2. Run the backtest for the selected day
+            results = backtester.run_intraday_backtest(
+                symbols=symbols,
+                start_date=datetime.combine(test_date, time.min),
+                end_date=datetime.combine(test_date, time.max),
+                data_frequency=data_frequency
+            )
+
+            if not results:
+                st.warning("No trading activity or data found for the selected day. This can happen on weekends, holidays, or if there was no data.")
+                return
+
+            # 3. Get results (for a single day, there will be one result object)
+            day_result = results[0]
+
+            # 4. Display results
+            st.markdown("### ⚡ Intraday Backtest Results")
             
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total P&L", f"{total_pnl:,.0f} PKR")
+                st.metric("Total P&L", f"{day_result.total_pnl:,.2f} PKR")
             with col2:
-                st.metric("Number of Trades", f"{num_trades}")
+                st.metric("Number of Trades", f"{day_result.num_trades}")
             with col3:
-                st.metric("Win Rate", f"{win_rate:.1%}")
+                st.metric("Win Rate", f"{day_result.win_rate:.1%}")
             with col4:
-                avg_trade = total_pnl / num_trades if num_trades > 0 else 0
-                st.metric("Avg Trade P&L", f"{avg_trade:.0f} PKR")
-            
-            # Generate sample intraday chart
-            trading_hours = pd.date_range(
-                start=datetime.combine(test_date, time(9, 45)),
-                end=datetime.combine(test_date, time(15, 30)),
-                freq='5min'
-            )
-            
-            equity_values = np.cumsum(np.random.normal(0, 100, len(trading_hours))) + 1000000
-            
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=trading_hours,
-                y=equity_values,
-                name="Intraday P&L",
-                line=dict(color='#2e8b57', width=2)
-            ))
-            
-            fig.update_layout(
-                title="Intraday Equity Curve",
-                xaxis_title="Time",
-                yaxis_title="Portfolio Value (PKR)",
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Trading summary
-            st.markdown("### 📋 Trading Summary")
-            
-            if symbols:
-                st.info(f"🎯 Traded symbols: {', '.join(symbols)}")
-                st.info(f"📊 Data frequency: {data_frequency}")
-                st.info(f"⏰ Session: 09:45 - 15:30 PSX time")
+                st.metric("Sharpe Ratio (Intraday)", f"{day_result.sharpe_ratio:.2f}")
+
+            # Display more detailed metrics
+            with st.expander("Show Detailed Performance Metrics"):
+                perf_data = {
+                    "Profit Factor": f"{day_result.profit_factor:.2f}",
+                    "Max Intraday Drawdown": f"{day_result.max_intraday_drawdown:.2%}",
+                    "Average Hold Time (min)": f"{day_result.average_hold_time_minutes:.1f}",
+                    "Commissions Paid": f"{day_result.commission_paid:,.2f} PKR",
+                    "Slippage Cost": f"{day_result.slippage_cost:,.2f} PKR",
+                    "Signals Generated": day_result.signals_generated,
+                    "Signals Executed": day_result.signals_executed,
+                }
+                st.json(perf_data)
+
+
+            # 5. Plot equity curve
+            if not day_result.equity_curve.empty:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=day_result.equity_curve.index,
+                    y=day_result.equity_curve.values,
+                    name="Intraday P&L",
+                    line=dict(color='#2e8b57', width=2)
+                ))
                 
-                if total_pnl > 0:
-                    st.success(f"✅ Profitable session: +{total_pnl:,.0f} PKR")
-                else:
-                    st.warning(f"⚠️ Loss session: {total_pnl:,.0f} PKR")
+                fig.update_layout(
+                    title=f"Intraday Equity Curve for {test_date.strftime('%Y-%m-%d')}",
+                    xaxis_title="Time",
+                    yaxis_title="Portfolio Value (PKR)",
+                    height=400
+                )
+                st.plotly_chart(fig, use_container_width=True)
             
+            # 6. Display trades
+            if not day_result.trades.empty:
+                st.markdown("#### Trades Executed")
+                st.dataframe(day_result.trades)
+
         except Exception as e:
-            st.error(f"❌ Intraday backtest failed: {str(e)}")
+            st.error(f"❌ Intraday backtest failed: {e}")
+            import traceback
+            st.text(traceback.format_exc())
 
 def render_system_status():
     """Render system status and health checks"""
@@ -719,6 +734,265 @@ def render_documentation():
         - Scale gradually with proven results
         """)
 
+import glob
+import os
+
+# ... (other imports remain the same) ...
+
+@st.cache_data(ttl=3600) # Cache for 1 hour
+def get_ml_biases(symbols: list) -> dict:
+    """
+    Generates and returns the latest ML model predictions (biases) for a list of symbols.
+    """
+    st.info("🤖 Generating ML daily biases... (This is cached and runs periodically)")
+    try:
+        ml_system = st.session_state.ml_system
+        
+        # 1. Find the model to use
+        model_path = st.session_state.get('active_model_path', None)
+        if not model_path:
+            model_dirs = glob.glob("models/models_*")
+            if not model_dirs:
+                st.warning("No trained ML models found. Cannot generate ML biases.")
+                return {}
+            model_path = max(model_dirs, key=os.path.getmtime)
+
+        st.write(f"Loading ML model from: `{os.path.basename(model_path)}`")
+        ml_system.load_models(model_path)
+
+        # 3. Get data for feature engineering (e.g., last 365 days)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        
+        with st.spinner(f"Fetching daily data for {len(symbols)} symbols..."):
+            data = st.session_state.enhanced_fetcher.fetch_daily_data(symbols, start_date, end_date)
+        
+        if data.empty:
+            st.warning("Could not fetch daily data for feature engineering.")
+            return {}
+
+        # 4. Engineer features
+        with st.spinner("Engineering features for ML model..."):
+            feature_engineer = st.session_state.feature_engineer
+            features_df = feature_engineer.create_all_features(data)
+
+        # 5. Get the most recent features for each symbol for prediction
+        latest_features = features_df.groupby('symbol').last()
+        if latest_features.empty:
+            st.warning("Could not generate latest features for prediction.")
+            return {}
+
+        # 6. Predict
+        with st.spinner("Generating ML predictions..."):
+            predictions = ml_system.predict(latest_features)
+        
+        # 7. Create bias dictionary
+        biases = dict(zip(latest_features.index, predictions))
+        
+        st.success("✅ ML daily biases generated successfully.")
+        return biases
+
+    except Exception as e:
+        st.error(f"Failed to generate ML biases: {e}")
+        return {}
+
+def render_signal_chart(signal, symbol, data_fetcher):
+    """Renders a detailed price chart for a given signal."""
+    
+    with st.spinner(f"Loading chart for {symbol}..."):
+        try:
+            # Fetch last 60 minutes of tick data for a better chart
+            ticks = data_fetcher.fetch_intraday_ticks(symbol, limit=500) # Fetch more ticks
+            if ticks.empty:
+                st.warning("Could not fetch sufficient data for chart.")
+                return
+            
+            # Keep only the last 60 minutes of data
+            last_hour = ticks.index.max() - timedelta(minutes=60)
+            chart_data = ticks[ticks.index >= last_hour]
+
+            if chart_data.empty:
+                st.warning("No data in the last hour to plot.")
+                return
+
+            # Resample to 1-minute OHLC bars
+            ohlc = chart_data['price'].resample('1min').ohlc()
+            
+            fig = go.Figure(data=[go.Candlestick(x=ohlc.index,
+                                               open=ohlc['open'],
+                                               high=ohlc['high'],
+                                               low=ohlc['low'],
+                                               close=ohlc['close'], name=symbol)])
+            
+            # Add lines for signal levels
+            fig.add_hline(y=signal.entry_price, line_dash="dot", line_color="blue", annotation_text="Entry", annotation_position="bottom right")
+            fig.add_hline(y=signal.target_price, line_dash="solid", line_color="green", annotation_text="Target", annotation_position="bottom right")
+            fig.add_hline(y=signal.stop_loss, line_dash="solid", line_color="red", annotation_text="Stop Loss", annotation_position="bottom right")
+
+            fig.update_layout(
+                title=f"Price Chart for {symbol} Signal",
+                yaxis_title="Price (PKR)",
+                xaxis_title="Time",
+                xaxis_rangeslider_visible=False,
+                height=400,
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Could not generate chart for {symbol}: {e}")
+
+def render_live_signals_section():
+    """Render live trading signals"""
+    st.markdown("## 📡 Live Trading Signals")
+
+    # Symbol selection
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        symbols_to_scan = st.multiselect(
+            "Select Symbols to Scan for Signals",
+            options=['HBL', 'UBL', 'MCB', 'ABL', 'BAFL', 'ENGRO', 'FFC', 'LUCK', 'DG.KHAN', 'NESTLE'],
+            default=['HBL', 'UBL', 'MCB', 'FFC', 'LUCK'],
+            help="Select symbols to actively scan for trading signals."
+        )
+    with col2:
+        min_confidence = st.slider(
+            "Minimum Confidence", min_value=50, max_value=100, value=70,
+            help="Minimum confidence level for a signal to be shown."
+        )
+    with col3:
+        use_ml_hybrid = st.checkbox("Enable ML Hybrid Mode", value=False, help="Integrate daily ML forecasts into intraday signals.")
+
+    if st.button("🔍 Scan for Signals", type="primary"):
+        if not symbols_to_scan:
+            st.warning("Please select at least one symbol to scan.")
+            return
+
+        ml_biases = {}
+        if use_ml_hybrid:
+            ml_biases = get_ml_biases(symbols_to_scan)
+            if ml_biases:
+                st.info(f"🧠 ML Hybrid Mode is ON. Using forecasts for {len(ml_biases)} symbols.")
+
+        with st.spinner(f"Scanning {len(symbols_to_scan)} symbols for trading signals..."):
+            try:
+                analyzer = IntradaySignalAnalyzer(ml_biases=ml_biases)
+                alerts = analyzer.get_live_alerts(symbols_to_scan, min_confidence=min_confidence)
+
+                if not alerts:
+                    st.success("✅ No strong trading signals found at the moment.")
+                    return
+
+                st.markdown(f"### Found {len(alerts)} Trading Alert(s):")
+
+                for alert in alerts:
+                    signal_color = "green" if "BUY" in alert.signal_type.name else "red"
+                    
+                    with st.expander(f"{alert.signal_type.name.replace('_', ' ')}: {alert.symbol} (Confidence: {alert.confidence:.1f}%)", expanded=True):
+                        st.markdown(f"""
+                        <div style="border-left: 5px solid {signal_color}; padding-left: 10px; margin-bottom: 10px;">
+                            <p>
+                                <strong>Entry:</strong> {alert.entry_price:.2f} |
+                                <strong>Target:</strong> {alert.target_price:.2f} |
+                                <strong>Stop Loss:</strong> {alert.stop_loss:.2f} |
+                                <strong>R/R Ratio:</strong> {alert.risk_reward_ratio:.2f}
+                            </p>
+                            <p><strong>Reasoning:</strong></p>
+                            <ul>
+                                {''.join([f"<li>{reason}</li>" for reason in alert.reasoning])}
+                            </ul>
+                            <p style="font-size: 0.8em; color: #888;">Analyzed at: {alert.analysis_time.strftime('%H:%M:%S')}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        render_signal_chart(alert, alert.symbol, st.session_state.psx_fetcher)
+
+            except Exception as e:
+                st.error(f"❌ An error occurred while scanning for signals: {e}")
+
+def render_model_management_section():
+    """Render the model management dashboard"""
+    st.markdown("## 🗂️ ML Model Management")
+
+    st.info("Manage, inspect, and select the active machine learning model for predictions.")
+
+    # Find all saved model directories
+    model_dirs = sorted(glob.glob("models/models_*"), reverse=True)
+    
+    if not model_dirs:
+        st.warning("No trained models found in the `models/` directory.")
+        st.info("You can train a new model using a training script, e.g., `train_models.py`.")
+        return
+
+    # Display active model
+    active_model = st.session_state.get('active_model_path', 'None (defaults to latest)')
+    st.success(f"**Active Model for Live Signals:** `{os.path.basename(active_model)}`")
+
+    # Model selection
+    selected_model_dir = st.selectbox("Select a Model Version to Inspect", options=model_dirs, format_func=lambda x: os.path.basename(x))
+
+    if selected_model_dir:
+        try:
+            metadata_path = os.path.join(selected_model_dir, "metadata.joblib")
+            metadata = joblib.load(metadata_path)
+
+            st.markdown(f"### Inspection for `{os.path.basename(selected_model_dir)}`")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🚀 Set as Active Model", key=f"activate_{selected_model_dir}"):
+                    st.session_state.active_model_path = selected_model_dir
+                    st.success(f"Model `{os.path.basename(selected_model_dir)}` is now active!")
+                    st.rerun()
+            with col2:
+                if st.button("🗑️ Delete Model", key=f"delete_{selected_model_dir}", type="secondary"):
+                    st.session_state.confirm_delete_model = selected_model_dir
+                
+            if st.session_state.get('confirm_delete_model') == selected_model_dir:
+                st.warning(f"Are you sure you want to delete `{os.path.basename(selected_model_dir)}`? This cannot be undone.")
+                if st.button("Yes, permanently delete", key=f"confirm_delete_btn_{selected_model_dir}"):
+                    shutil.rmtree(selected_model_dir)
+                    del st.session_state.confirm_delete_model
+                    st.success("Model deleted.")
+                    st.rerun()
+
+            # Display Model Performance
+            st.markdown("#### CV Performance Metrics")
+            perf = metadata.get('model_performance', {})
+            if perf:
+                perf_metrics = {
+                    "Mean Information Coefficient (IC)": f"{perf.get('mean_ic', 0):.4f}",
+                    "Std Dev of IC": f"{perf.get('std_ic', 0):.4f}",
+                    "Mean R^2 Score": f"{perf.get('mean_r2', 0):.4f}",
+                    "Mean RMSE": f"{perf.get('mean_rmse', 0):.4f}",
+                }
+                st.json(perf_metrics)
+            else:
+                st.info("No cross-validation performance data found in metadata.")
+
+            # Display Top Features
+            st.markdown("#### Top 20 Features")
+            features = metadata.get('feature_importance', {})
+            if features:
+                sorted_features = sorted(features.items(), key=lambda x: x[1], reverse=True)
+                top_features_df = pd.DataFrame(sorted_features[:20], columns=['Feature', 'Importance'])
+                st.dataframe(top_features_df)
+            else:
+                st.info("No feature importance data found.")
+
+            with st.expander("View Ensemble Weights and Config"):
+                st.markdown("##### Ensemble Weights")
+                st.json(metadata.get('ensemble_weights', {}))
+
+                st.markdown("##### Model Config")
+                st.json(metadata.get('config', {}))
+
+        except FileNotFoundError:
+            st.error(f"Could not find `metadata.joblib` for model `{os.path.basename(selected_model_dir)}`.")
+        except Exception as e:
+            st.error(f"An error occurred while inspecting the model: {e}")
+
+
 def main():
     """Main dashboard application"""
     
@@ -739,6 +1013,8 @@ def main():
         "Select Module",
         options=[
             "🏠 Overview",
+            "📡 Live Signals",
+            "🗂️ Model Management",
             "📊 Live Data", 
             "🔬 Backtesting",
             "🎯 Performance",
@@ -751,6 +1027,12 @@ def main():
     if page == "🏠 Overview":
         render_system_overview()
         render_performance_targets()
+        
+    elif page == "📡 Live Signals":
+        render_live_signals_section()
+        
+    elif page == "🗂️ Model Management":
+        render_model_management_section()
         
     elif page == "📊 Live Data":
         render_live_data_section()

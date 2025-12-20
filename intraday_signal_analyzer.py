@@ -54,8 +54,9 @@ class IntradaySignal:
 class IntradaySignalAnalyzer:
     """Real-time intraday signal analyzer using PSX DPS tick data"""
     
-    def __init__(self):
+    def __init__(self, ml_biases: Optional[Dict[str, float]] = None):
         self.fetcher = PSXDPSFetcher()
+        self.ml_biases = ml_biases if ml_biases is not None else {}
         self.min_trades_required = 5  # Minimum trades for analysis
         self.min_volume_required = 1000  # Minimum volume for signals
         
@@ -64,6 +65,15 @@ class IntradaySignalAnalyzer:
         self.moderate_momentum_threshold = 0.5  # % price change
         self.high_volume_threshold = 2.0  # Multiple of average volume
         self.liquidity_threshold = 5.0  # Liquidity score threshold
+
+    def _get_ml_adjustment(self, symbol: str) -> float:
+        """Get an adjustment factor based on the ML bias."""
+        bias = self.ml_biases.get(symbol, 0.0)  # e.g., predicted return
+        
+        # Say a 1% predicted return maps to a 15 point adjustment.
+        # Cap the adjustment at +/- 25 points.
+        adjustment = np.clip(bias * 1500, -25, 25)
+        return adjustment
         
     def analyze_symbol(self, symbol: str, analysis_period_minutes: int = 30) -> IntradaySignal:
         """
@@ -105,11 +115,24 @@ class IntradaySignalAnalyzer:
             technical_score = self._analyze_technical_levels(ticks_df, current_price)
             
             # Combine scores
-            overall_score = (momentum_score * 0.35 + 
+            base_score = (momentum_score * 0.35 + 
                            volume_score * 0.25 + 
                            liquidity_score * 0.20 + 
                            technical_score * 0.20)
             
+            # Get ML adjustment
+            ml_adjustment = self._get_ml_adjustment(symbol)
+            momentum_direction = momentum.get('momentum_direction', 'Neutral')
+            
+            if momentum_direction == 'Bullish':
+                overall_score = base_score + ml_adjustment
+            elif momentum_direction == 'Bearish':
+                overall_score = base_score - ml_adjustment
+            else:
+                overall_score = base_score
+            
+            overall_score = np.clip(overall_score, 0, 100)
+
             # Generate signal
             signal_type, confidence = self._determine_signal_type(
                 overall_score, momentum, volume_profile, liquidity
@@ -131,7 +154,7 @@ class IntradaySignalAnalyzer:
             
             # Generate reasoning
             reasoning = self._generate_reasoning(
-                momentum, volume_profile, liquidity, momentum_score, volume_score
+                momentum, volume_profile, liquidity, momentum_score, volume_score, ml_adjustment
             )
             
             # Determine holding period
@@ -397,10 +420,15 @@ class IntradaySignalAnalyzer:
         return target_price, stop_loss
     
     def _generate_reasoning(self, momentum: Dict, volume_profile: Dict, 
-                           liquidity: Dict, momentum_score: float, volume_score: float) -> List[str]:
+                           liquidity: Dict, momentum_score: float, volume_score: float, ml_adjustment: float) -> List[str]:
         """Generate human-readable reasoning for the signal"""
         reasoning = []
         
+        # ML reasoning
+        if abs(ml_adjustment) > 5:
+            adj_dir = "positive" if ml_adjustment > 0 else "negative"
+            reasoning.append(f"ML daily forecast provided a {adj_dir} bias ({ml_adjustment:.1f} pts)")
+
         # Momentum reasoning
         if momentum_score > 75:
             reasoning.append(f"Strong price momentum: {momentum['momentum_direction']}")

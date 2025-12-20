@@ -426,6 +426,7 @@ class MLModelSystem:
             
             logger.info(f"CV Results - Mean IC: {cv_results['mean_ic']:.4f} ± {cv_results['std_ic']:.4f}")
         
+        self.model_performance = cv_results
         return cv_results
     
     def generate_shap_explanations(self, X: pd.DataFrame, 

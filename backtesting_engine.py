@@ -69,6 +69,36 @@ class WalkForwardBacktester:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
+def _compute_forward_returns(price_data: pd.DataFrame, periods: int = 1) -> pd.DataFrame:
+    """Computes forward returns for each symbol in a wide-format dataframe."""
+    return price_data.pct_change(periods=periods).shift(-periods)
+
+class WalkForwardBacktester:
+    """
+    Walk-forward backtesting engine that prevents look-ahead bias
+    and implements proper out-of-sample testing
+    """
+    
+    def __init__(self, config: SystemConfig):
+        self.config = config
+        self.feature_eng = FeatureEngineer(config)
+        self.ml_system = MLModelSystem(config)
+        self.portfolio_opt = PortfolioOptimizer(config)
+        
+        # Backtest parameters
+        self.train_window_months = config.model.train_window_months
+        self.validation_months = config.model.validation_months
+        self.test_months = 1  # Test on 1 month at a time
+        self.rebalance_freq = config.portfolio.rebalance_frequency
+        
+        # Performance tracking
+        self.results = []
+        self.equity_curve = pd.Series(dtype=float)
+        self.benchmark_curve = pd.Series(dtype=float)
+        
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
     def run_backtest(self, 
                     price_data: pd.DataFrame,
                     fundamental_data: Optional[pd.DataFrame] = None,
@@ -77,133 +107,107 @@ class WalkForwardBacktester:
                     end_date: Optional[datetime] = None) -> List[BacktestResult]:
         """
         Run walk-forward backtest with proper time series validation
-        
-        Args:
-            price_data: DataFrame with OHLCV data, symbols as columns
-            fundamental_data: Optional fundamental data
-            benchmark_data: Benchmark returns (KSE100)
-            start_date: Backtest start date
-            end_date: Backtest end date
-            
-        Returns:
-            List of BacktestResult objects for each period
         """
         self.logger.info("Starting walk-forward backtest...")
         
-        # Prepare data
+        # Prepare dates and benchmark data
         if start_date is None:
             start_date = price_data.index[0] + timedelta(days=self.train_window_months * 30)
         if end_date is None:
             end_date = price_data.index[-1]
-            
         if benchmark_data is None:
-            # Use equal-weighted portfolio as benchmark
             benchmark_data = price_data.pct_change().mean(axis=1)
+
+        # --- DATA PREPARATION ---
+        self.logger.info("Preparing data, features, and labels for the entire backtest period...")
         
-        # Generate walk-forward periods
+        # 1. Convert wide price data to long format for feature engineering
+        price_data_long = price_data.stack().reset_index()
+        price_data_long.columns = ['date', 'symbol', 'adjClose']
+        price_data_long.set_index('date', inplace=True)
+        
+        # Mock other OHLCV columns for feature engineer if not present
+        mock_cols = {'open', 'high', 'low', 'close', 'volume'}
+        for col in mock_cols:
+            if col not in price_data_long.columns:
+                price_data_long[col] = price_data_long['adjClose']
+        
+        # 2. Generate features for all data
+        all_features = self.feature_eng.create_all_features(price_data_long)
+        
+        # 3. Generate labels (forward returns)
+        forward_returns = _compute_forward_returns(price_data, periods=self.config.model.label_forward_days)
+        labels_long = forward_returns.stack()
+        labels_long.index.names = ['date', 'symbol']
+        
+        # 4. Align features and labels
+        X, y = all_features.align(labels_long, join='inner', axis=0)
+        
+        # --- WALK-FORWARD LOOP ---
         test_periods = self._generate_walk_forward_periods(start_date, end_date)
         
-        # Initialize portfolio tracking
-        portfolio_value = 100000  # Start with 100K
+        portfolio_value = 100000
         cash = portfolio_value
         positions = pd.DataFrame()
         all_trades = []
-        equity_values = []
-        benchmark_values = [portfolio_value]
+        full_equity_curve = pd.Series(index=price_data.loc[start_date:end_date].index).fillna(1) * portfolio_value
         
         for i, (train_start, train_end, val_start, val_end, test_start, test_end) in enumerate(test_periods):
-            self.logger.info(f"Processing period {i+1}/{len(test_periods)}: {test_start} to {test_end}")
+            self.logger.info(f"Processing period {i+1}/{len(test_periods)}: {test_start.date()} to {test_end.date()}")
             
             try:
-                # Extract period data
-                train_data = price_data[train_start:train_end]
-                val_data = price_data[val_start:val_end]
-                test_data = price_data[test_start:test_end]
-                
-                if len(train_data) < 252:  # Need at least 1 year of training data
-                    self.logger.warning(f"Insufficient training data for period {i+1}")
+                # Slice features and labels for the current walk-forward period
+                X_train = X.loc[pd.IndexSlice[train_start:train_end]]
+                y_train = y.loc[pd.IndexSlice[train_start:train_end]]
+                X_val = X.loc[pd.IndexSlice[val_start:val_end]]
+                y_val = y.loc[pd.IndexSlice[val_start:val_end]]
+                X_test = X.loc[pd.IndexSlice[test_start:test_end]]
+
+                if len(X_train) < 500:
+                    self.logger.warning(f"Skipping period {i+1} due to insufficient training data ({len(X_train)} samples).")
                     continue
                 
-                # Feature engineering for training period
-                # Create simple momentum features for each symbol
-                train_features = pd.DataFrame(index=train_data.index)
-                val_features = pd.DataFrame(index=val_data.index)
+                X_train_prepared, y_train_prepared = self.ml_system.prepare_data_for_training(X_train.copy(), y_train.copy())
                 
-                for symbol in train_data.columns:
-                    if symbol in train_data.columns and not train_data[symbol].isna().all():
-                        # Basic momentum features
-                        returns = train_data[symbol].pct_change()
-                        train_features[f'{symbol}_return_5d'] = returns.rolling(5).mean()
-                        train_features[f'{symbol}_return_21d'] = returns.rolling(21).mean()
-                        train_features[f'{symbol}_vol_21d'] = returns.rolling(21).std()
-                        
-                        # Validation features
-                        val_returns = val_data[symbol].pct_change() if symbol in val_data.columns else pd.Series(index=val_data.index)
-                        val_features[f'{symbol}_return_5d'] = val_returns.rolling(5).mean()
-                        val_features[f'{symbol}_return_21d'] = val_returns.rolling(21).mean()
-                        val_features[f'{symbol}_vol_21d'] = val_returns.rolling(21).std()
-                
-                # Drop rows with all NaN values
-                train_features = train_features.dropna(how='all')
-                val_features = val_features.dropna(how='all')
-                
-                # Train model
-                model_results = self.ml_system.train_and_validate(
-                    train_features, val_features, 
-                    forward_returns_days=self.config.model.label_forward_days
-                )
-                
-                if model_results is None:
-                    self.logger.warning(f"Model training failed for period {i+1}")
+                selected_features = self.ml_system.selected_features
+                if not selected_features:
+                    self.logger.warning(f"No features selected in period {i+1}, skipping.")
                     continue
                 
-                # Generate predictions for test period
-                test_features = pd.DataFrame(index=test_data.index)
+                X_val_prepared = X_val[selected_features].fillna(X_val[selected_features].median())
+                X_test_prepared = X_test[selected_features].fillna(X_test[selected_features].median())
+
+                self.logger.info(f"Training model for period {i+1}...")
+                self.ml_system.train_ensemble(X_train_prepared, y_train_prepared, X_val_prepared, y_val_prepared)
                 
-                for symbol in test_data.columns:
-                    if symbol in test_data.columns and not test_data[symbol].isna().all():
-                        returns = test_data[symbol].pct_change()
-                        test_features[f'{symbol}_return_5d'] = returns.rolling(5).mean()
-                        test_features[f'{symbol}_return_21d'] = returns.rolling(21).mean()
-                        test_features[f'{symbol}_vol_21d'] = returns.rolling(21).std()
+                self.logger.info(f"Generating predictions for period {i+1}...")
+                raw_predictions = self.ml_system.predict(X_test_prepared)
                 
-                test_features = test_features.dropna(how='all')
-                predictions = self.ml_system.predict(test_features)
+                predictions = pd.Series(raw_predictions, index=X_test_prepared.index).unstack()
                 
-                # Portfolio construction for each rebalancing date
-                period_trades, period_returns, period_positions = self._run_period_backtest(
-                    test_data, predictions, cash, positions
+                period_trades, period_returns, positions, cash = self._run_period_backtest(
+                    price_data.loc[test_start:test_end], predictions, cash, positions
                 )
                 
-                # Update tracking
                 all_trades.extend(period_trades)
-                if len(period_returns) > 0:
-                    portfolio_value *= (1 + period_returns.sum())
-                    equity_values.extend([portfolio_value] * len(period_returns))
-                    
-                    # Update benchmark
-                    bench_returns = benchmark_data[test_start:test_end]
-                    if len(bench_returns) > 0:
-                        benchmark_values.extend([benchmark_values[-1] * (1 + bench_returns).cumprod().iloc[-1]])
-                
-                # Store period results
-                if len(period_returns) > 0:
+                if not period_returns.empty:
+                    period_equity = (1 + period_returns).cumprod() * full_equity_curve.loc[period_returns.index[0]]
+                    full_equity_curve.update(period_equity)
+
+                if not period_returns.empty:
                     result = self._calculate_period_metrics(
-                        period_returns, benchmark_data[test_start:test_end],
-                        test_start, test_end, period_positions, period_trades
+                        period_returns, benchmark_data.loc[test_start:test_end],
+                        test_start, test_end, positions, period_trades
                     )
                     self.results.append(result)
                 
             except Exception as e:
-                self.logger.error(f"Error in period {i+1}: {str(e)}")
+                self.logger.error(f"Error in period {i+1}: {str(e)}", exc_info=True)
                 continue
         
-        # Store final equity curves
-        self.equity_curve = pd.Series(equity_values, 
-                                    index=price_data[start_date:end_date].index[:len(equity_values)])
-        self.benchmark_curve = pd.Series(benchmark_values[1:], 
-                                       index=price_data[start_date:end_date].index[:len(benchmark_values)-1])
-        
+        self.equity_curve = full_equity_curve.ffill()
+        self.benchmark_curve = (1 + benchmark_data.loc[start_date:end_date]).cumprod() * portfolio_value
+
         self.logger.info(f"Backtest completed. Processed {len(self.results)} periods.")
         return self.results
 

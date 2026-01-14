@@ -77,5 +77,16 @@ temp/
 # Authentication tokens
 *.token
 *.key
-*.pemportfolio.json
+*.pem
+
+# Runtime state files (generated during execution)
+portfolio.json
+signal_history.json
+risk_manager_state.json
 all_psx_tickers.txt
+
+# Model files (large binaries)
+models/*.pkl
+
+# Generated reports (regenerated each run)
+PSX_HITLIST_CURRENT.md

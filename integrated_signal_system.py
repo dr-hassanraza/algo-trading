@@ -466,15 +466,15 @@ class IntegratedTradingSystem:
             )
             
             # Generate signal and confidence
-            if final_score > 1.5:
+            if final_score > 0.5:
                 signal = "BUY"
-                confidence = min(95, 60 + abs(final_score) * 10)
-            elif final_score < -1.5:
+                confidence = min(95, 50 + abs(final_score) * 15)  # Adjusted confidence formula
+            elif final_score < -0.5:
                 signal = "SELL"
-                confidence = min(95, 60 + abs(final_score) * 10)
+                confidence = min(95, 50 + abs(final_score) * 15)  # Adjusted confidence formula
             else:
                 signal = "HOLD"
-                confidence = max(30, 50 - abs(final_score) * 5)
+                confidence = max(30, 50 - abs(final_score) * 10) # Adjusted confidence formula
             
             # Calculate risk management levels
             volatility = df['volatility'].iloc[-1] if 'volatility' in df.columns else 0.02

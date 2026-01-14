@@ -128,7 +128,12 @@ class IntradayWalkForwardBacktester:
                 
                 if ticks_df.empty:
                     continue
-                
+
+                # --- BUG FIX: Convert to and set DatetimeIndex ---
+                ticks_df['datetime_pkt'] = pd.to_datetime(ticks_df['datetime_pkt'])
+                ticks_df.set_index('datetime_pkt', inplace=True)
+                # --- END FIX ---
+
                 # Filter for trading date
                 trading_day_data = ticks_df[
                     ticks_df.index.date == trading_date.date()

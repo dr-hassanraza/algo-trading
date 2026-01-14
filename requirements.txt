@@ -13,8 +13,7 @@ lightgbm>=4.0.0
 xgboost>=1.7.0
 joblib>=1.3.0
 
-# Data and analysis
-yfinance==0.2.31
+# Data and analysis (PSX data - no yfinance needed)
 ta>=0.10.0
 statsmodels>=0.14.0
 

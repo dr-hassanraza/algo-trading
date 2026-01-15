@@ -67,12 +67,8 @@ except ImportError as e:
     TA_AVAILABLE = False
     missing_dependencies.append('ta')
 
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError as e:
-    YFINANCE_AVAILABLE = False
-    missing_dependencies.append('yfinance')
+# yfinance not needed - using PSX data directly
+YFINANCE_AVAILABLE = False
 
 # Check overall ML availability
 ML_DEPENDENCIES_AVAILABLE = (
@@ -306,9 +302,13 @@ class AdvancedMLTradingSystem:
             return {f'sentiment_{key}': 0.0 for key in ['price_momentum', 'volatility', 'volume_trend', 'news']}
     
     # =================== ML/DL MODEL TRAINING ===================
-    
-    def build_lstm_model(self, input_shape: Tuple[int, int]) -> tf.keras.Model:
-        """Build LSTM deep learning model"""
+
+    def build_lstm_model(self, input_shape: Tuple[int, int]) -> Optional[object]:
+        """Build LSTM deep learning model (requires TensorFlow)"""
+        if not TF_AVAILABLE:
+            print("⚠️ TensorFlow not available - LSTM model skipped")
+            return None
+
         model = tf.keras.Sequential([
             tf.keras.layers.LSTM(128, return_sequences=True, input_shape=input_shape),
             tf.keras.layers.Dropout(0.2),
@@ -319,44 +319,48 @@ class AdvancedMLTradingSystem:
             tf.keras.layers.Dense(16, activation='relu'),
             tf.keras.layers.Dense(3, activation='softmax')  # BUY, SELL, HOLD
         ])
-        
+
         model.compile(
             optimizer='adam',
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
-        
+
         return model
-    
-    def build_transformer_model(self, input_shape: Tuple[int, int]) -> tf.keras.Model:
-        """Build Transformer deep learning model"""
+
+    def build_transformer_model(self, input_shape: Tuple[int, int]) -> Optional[object]:
+        """Build Transformer deep learning model (requires TensorFlow)"""
+        if not TF_AVAILABLE:
+            print("⚠️ TensorFlow not available - Transformer model skipped")
+            return None
+
         inputs = tf.keras.Input(shape=input_shape)
-        
+
         # Multi-head attention
         attention = tf.keras.layers.MultiHeadAttention(
             num_heads=8, key_dim=32
         )(inputs, inputs)
-        
+
         attention = tf.keras.layers.Dropout(0.1)(attention)
         attention = tf.keras.layers.LayerNormalization()(inputs + attention)
-        
+
         # Feed forward network
         ffn = tf.keras.layers.Dense(128, activation='relu')(attention)
         ffn = tf.keras.layers.Dropout(0.1)(ffn)
         ffn = tf.keras.layers.Dense(input_shape[-1])(ffn)
         ffn = tf.keras.layers.LayerNormalization()(attention + ffn)
-        
+
         # Global average pooling and output
         pooled = tf.keras.layers.GlobalAveragePooling1D()(ffn)
         outputs = tf.keras.layers.Dense(3, activation='softmax')(pooled)
-        
+
         model = tf.keras.Model(inputs, outputs)
         model.compile(
             optimizer='adam',
             loss='categorical_crossentropy',
             metrics=['accuracy']
         )
-        
+
         return model
     
     def train_ensemble_models(self):
@@ -423,36 +427,41 @@ class AdvancedMLTradingSystem:
         )
         self.models['neural_net'].fit(X_train_scaled, y_train_encoded)
         
-        # Train LSTM (Deep Learning)
-        print("🤖 Training LSTM Deep Learning model...")
-        # Reshape for LSTM (samples, timesteps, features)
-        X_train_lstm = X_train_scaled.reshape((X_train_scaled.shape[0], 1, X_train_scaled.shape[1]))
-        X_val_lstm = X_val_scaled.reshape((X_val_scaled.shape[0], 1, X_val_scaled.shape[1]))
-        
-        # Convert to categorical
-        y_train_cat = tf.keras.utils.to_categorical(y_train_encoded, 3)
-        y_val_cat = tf.keras.utils.to_categorical(y_val_encoded, 3)
-        
-        self.models['lstm_model'] = self.build_lstm_model((1, X_train_scaled.shape[1]))
-        self.models['lstm_model'].fit(
-            X_train_lstm, y_train_cat,
-            validation_data=(X_val_lstm, y_val_cat),
-            epochs=50,
-            batch_size=32,
-            verbose=0
-        )
-        
-        # Train Transformer
-        print("🔮 Training Transformer model...")
-        self.models['transformer'] = self.build_transformer_model((1, X_train_scaled.shape[1]))
-        self.models['transformer'].fit(
-            X_train_lstm, y_train_cat,
-            validation_data=(X_val_lstm, y_val_cat),
-            epochs=50,
-            batch_size=32,
-            verbose=0
-        )
-        
+        # Train LSTM (Deep Learning) - only if TensorFlow available
+        if TF_AVAILABLE:
+            print("🤖 Training LSTM Deep Learning model...")
+            # Reshape for LSTM (samples, timesteps, features)
+            X_train_lstm = X_train_scaled.reshape((X_train_scaled.shape[0], 1, X_train_scaled.shape[1]))
+            X_val_lstm = X_val_scaled.reshape((X_val_scaled.shape[0], 1, X_val_scaled.shape[1]))
+
+            # Convert to categorical
+            y_train_cat = tf.keras.utils.to_categorical(y_train_encoded, 3)
+            y_val_cat = tf.keras.utils.to_categorical(y_val_encoded, 3)
+
+            self.models['lstm_model'] = self.build_lstm_model((1, X_train_scaled.shape[1]))
+            if self.models['lstm_model']:
+                self.models['lstm_model'].fit(
+                    X_train_lstm, y_train_cat,
+                    validation_data=(X_val_lstm, y_val_cat),
+                    epochs=50,
+                    batch_size=32,
+                    verbose=0
+                )
+
+            # Train Transformer
+            print("🔮 Training Transformer model...")
+            self.models['transformer'] = self.build_transformer_model((1, X_train_scaled.shape[1]))
+            if self.models['transformer']:
+                self.models['transformer'].fit(
+                    X_train_lstm, y_train_cat,
+                    validation_data=(X_val_lstm, y_val_cat),
+                    epochs=50,
+                    batch_size=32,
+                    verbose=0
+                )
+        else:
+            print("⚠️ TensorFlow not available - skipping LSTM and Transformer training")
+
         # Save models
         self.save_models()
         print("✅ All models trained successfully!")
@@ -1080,11 +1089,12 @@ class AdvancedMLTradingSystem:
             if os.path.exists(filepath):
                 self.models[name] = joblib.load(filepath)
         
-        # Load deep learning models
-        if os.path.exists('models/lstm_model.h5'):
-            self.models['lstm_model'] = tf.keras.models.load_model('models/lstm_model.h5')
-        if os.path.exists('models/transformer.h5'):
-            self.models['transformer'] = tf.keras.models.load_model('models/transformer.h5')
+        # Load deep learning models (only if TensorFlow available)
+        if TF_AVAILABLE:
+            if os.path.exists('models/lstm_model.h5'):
+                self.models['lstm_model'] = tf.keras.models.load_model('models/lstm_model.h5')
+            if os.path.exists('models/transformer.h5'):
+                self.models['transformer'] = tf.keras.models.load_model('models/transformer.h5')
         
         # Load scalers and encoders
         if os.path.exists('models/scalers.pkl'):

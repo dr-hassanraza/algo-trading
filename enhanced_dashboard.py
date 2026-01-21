@@ -137,8 +137,8 @@ class EnhancedDashboard:
         
         # Calculate portfolio metrics
         total_signals = len(signals)
-        buy_signals = len([s for s in signals if s.get('signal') == 'BUY'])
-        sell_signals = len([s for s in signals if s.get('signal') == 'SELL'])
+        buy_signals = len([s for s in signals if s.get('signal') in ['BUY', 'STRONG_BUY']])
+        sell_signals = len([s for s in signals if s.get('signal') in ['SELL', 'STRONG_SELL']])
         hold_signals = len([s for s in signals if s.get('signal') == 'HOLD'])
         
         avg_confidence = np.mean([s.get('confidence', 0) for s in signals])

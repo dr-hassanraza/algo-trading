@@ -2615,33 +2615,44 @@ def render_live_trading_signals():
                         'position_size': 4.0  # Default position size
                     })
                 
-                # Import and use enhanced dashboard
+                # Import and use enhanced dashboard (with full error handling)
                 try:
                     from enhanced_dashboard import EnhancedDashboard
                     dashboard = EnhancedDashboard()
-                    
+
                     # Render enhanced portfolio summary
                     if all_signals:
-                        dashboard.render_portfolio_summary(all_signals)
-                        dashboard.render_signal_distribution_chart(all_signals)
-                        
+                        try:
+                            dashboard.render_portfolio_summary(all_signals)
+                        except Exception as e:
+                            st.warning(f"Portfolio summary error: {str(e)[:50]}")
+
+                        try:
+                            dashboard.render_signal_distribution_chart(all_signals)
+                        except Exception as e:
+                            pass  # Chart is optional
+
                         # Display individual enhanced signal cards for top opportunities
                         st.markdown("### 🌟 Top Trading Opportunities")
-                        
+
                         # Show top 5 signals by confidence with enhanced cards
                         top_signals = sorted(all_signals, key=lambda x: x['confidence'], reverse=True)[:5]
                         for signal in top_signals:
-                            # Use our new ML/DL enhanced signal card
-                            render_ml_dl_signal_card(signal, signal['symbol'])
-                        
-                        # Performance metrics
+                            try:
+                                render_ml_dl_signal_card(signal, signal['symbol'])
+                            except Exception as e:
+                                st.warning(f"Error rendering {signal['symbol']}: {str(e)[:30]}")
+
+                        # Performance metrics (optional)
                         try:
                             dashboard.render_performance_metrics(all_signals)
                         except Exception as e:
-                            st.warning(f"Performance metrics not available: {str(e)}")
-                        
-                except ImportError:
-                    st.warning("⚠️ Enhanced dashboard not available, using basic display")
+                            pass  # Performance metrics are optional
+
+                except Exception as e:
+                    # Fallback: Enhanced dashboard not available or errored
+                    if all_signals:
+                        st.info(f"📊 Found {len([s for s in all_signals if 'BUY' in s.get('signal', '')])} BUY and {len([s for s in all_signals if 'SELL' in s.get('signal', '')])} SELL signals")
                 
                 # Summary metrics (fallback)
                 col1, col2, col3, col4 = st.columns(4)

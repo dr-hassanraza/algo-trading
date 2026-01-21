@@ -1977,10 +1977,66 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
         }, debug_logs
 
 def render_ml_dl_signal_card(signal, symbol):
-    """Render enhanced ML/DL signal card with analysis breakdown"""
+    """Render enhanced signal card using native Streamlit components (no HTML)"""
     signal_type = signal.get('signal', 'HOLD')
     confidence = signal.get('confidence', 0)
-    
+
+    # Determine emoji based on signal type
+    if signal_type in ['BUY', 'STRONG_BUY']:
+        emoji = "🟢"
+        status_type = "success"
+    elif signal_type in ['SELL', 'STRONG_SELL']:
+        emoji = "🔴"
+        status_type = "error"
+    else:
+        emoji = "🟡"
+        status_type = "warning"
+
+    # Create card using native Streamlit
+    with st.container():
+        # Header row
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.subheader(f"{emoji} {symbol} - {signal_type}")
+        with col2:
+            st.metric("Confidence", f"{confidence:.0f}%")
+
+        # Price metrics row
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📈 Entry", f"{signal.get('entry_price', 0):.2f} PKR")
+        with col2:
+            st.metric("🛑 Stop Loss", f"{signal.get('stop_loss', 0):.2f} PKR")
+        with col3:
+            st.metric("🎯 Target", f"{signal.get('take_profit', 0):.2f} PKR")
+
+        # Calculate R/R ratio safely
+        entry = signal.get('entry_price', 1)
+        stop = signal.get('stop_loss', entry * 0.95)
+        target = signal.get('take_profit', entry * 1.05)
+        risk = abs(entry - stop) if abs(entry - stop) > 0 else 1
+        reward = abs(target - entry)
+        rr_ratio = reward / risk if risk > 0 else 1
+
+        # Reasons
+        reasons = signal.get('reasons', ['Technical Analysis'])
+        reason_text = reasons[0] if reasons else 'Technical Analysis'
+
+        if status_type == "success":
+            st.success(f"📋 {reason_text} | R/R: 1:{rr_ratio:.1f} | Position: {signal.get('position_size', 5):.0f}%")
+        elif status_type == "error":
+            st.error(f"📋 {reason_text} | R/R: 1:{rr_ratio:.1f} | Position: {signal.get('position_size', 5):.0f}%")
+        else:
+            st.warning(f"📋 {reason_text} | R/R: 1:{rr_ratio:.1f} | Position: {signal.get('position_size', 5):.0f}%")
+
+        st.divider()
+
+
+def render_ml_dl_signal_card_OLD(signal, symbol):
+    """OLD: Render enhanced ML/DL signal card with HTML (kept for reference)"""
+    signal_type = signal.get('signal', 'HOLD')
+    confidence = signal.get('confidence', 0)
+
     # Determine colors and styling
     if signal_type in ['BUY', 'STRONG_BUY']:
         color = "#00C851"
@@ -1994,7 +2050,7 @@ def render_ml_dl_signal_card(signal, symbol):
         color = "#FFA726"
         emoji = "🟡"
         gradient = "linear-gradient(135deg, #FFA726 0%, #FB8C00 100%)"
-    
+
     # Get ML/DL specific metrics
     ml_confidence = signal.get('ml_confidence', confidence)
     dl_confidence = signal.get('dl_confidence', confidence)
@@ -2002,7 +2058,7 @@ def render_ml_dl_signal_card(signal, symbol):
     fundamental_score = signal.get('fundamental_score', 50)
     sentiment_score = signal.get('sentiment_score', 50)
     system_type = signal.get('_system_type', 'standard')
-    
+
     st.markdown(f"""
     <div style='background: {gradient}; padding: 1.5rem; border-radius: 15px; margin: 1rem 0; color: white; box-shadow: 0 8px 32px rgba(0,0,0,0.1);'>
         <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;'>
@@ -2018,7 +2074,7 @@ def render_ml_dl_signal_card(signal, symbol):
                 <p style='margin: 0; opacity: 0.8;'>Confidence</p>
             </div>
         </div>
-        
+
         <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0;'>
             <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 0.8rem; border-radius: 10px;'>
                 <p style='margin: 0; font-size: 0.8rem; opacity: 0.8;'>Entry Price</p>
@@ -2033,22 +2089,22 @@ def render_ml_dl_signal_card(signal, symbol):
                 <p style='margin: 0; font-weight: bold; font-size: 1.1rem;'>{signal.get('take_profit', 0):.2f} PKR</p>
             </div>
         </div>
-        
+
         <div style='margin: 1rem 0;'>
             <p style='margin: 0; font-size: 0.9rem; opacity: 0.9;'>
-                Position Size: <strong>{signal.get('position_size', 0):.1f}%</strong> | 
+                Position Size: <strong>{signal.get('position_size', 0):.1f}%</strong> |
                 R/R Ratio: <strong>1:{abs(signal.get('take_profit', 0) - signal.get('entry_price', 1)) / abs(signal.get('entry_price', 1) - signal.get('stop_loss', 0.99)):.1f}</strong>
             </p>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # ML/DL Analysis Breakdown (if advanced system is being used)
     if system_type in ['ensemble_ml_dl', 'integrated_ml'] and any([ml_confidence != confidence, dl_confidence != confidence, technical_score != 50]):
         st.markdown("#### 🤖 AI Analysis Breakdown")
-        
+
         col1, col2, col3, col4 = st.columns(4)
-        
+
         with col1:
             st.metric(
                 "🤖 ML Model",

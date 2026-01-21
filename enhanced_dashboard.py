@@ -130,73 +130,45 @@ class EnhancedDashboard:
     
     @staticmethod
     def render_portfolio_summary(signals: List[Dict[str, Any]]):
-        """Render portfolio-level summary"""
-        
+        """Render portfolio-level summary using native Streamlit components"""
+
         if not signals:
             return
-        
+
         # Calculate portfolio metrics
         total_signals = len(signals)
         buy_signals = len([s for s in signals if s.get('signal') in ['BUY', 'STRONG_BUY']])
         sell_signals = len([s for s in signals if s.get('signal') in ['SELL', 'STRONG_SELL']])
         hold_signals = len([s for s in signals if s.get('signal') == 'HOLD'])
-        
+
         avg_confidence = np.mean([s.get('confidence', 0) for s in signals])
         high_confidence = len([s for s in signals if s.get('confidence', 0) > 75])
-        
-        # Portfolio summary card
-        st.markdown(f"""
-        <div style='
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 15px;
-            margin: 1rem 0;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        '>
-            <h2 style='margin-top: 0; text-align: center; font-size: 1.8rem;'>
-                📊 Portfolio Summary
-            </h2>
-            
-            <div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-top: 2rem;'>
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{buy_signals}</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>🟢 Buy Signals</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>{buy_signals/total_signals*100:.0f}% of stocks</div>
-                </div>
-                
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{sell_signals}</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>🔴 Sell Signals</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>{sell_signals/total_signals*100:.0f}% of stocks</div>
-                </div>
-                
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{hold_signals}</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>🟡 Hold Signals</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>{hold_signals/total_signals*100:.0f}% of stocks</div>
-                </div>
-                
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{high_confidence}</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>⭐ High Confidence</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>Above 75% confidence</div>
-                </div>
-                
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{avg_confidence:.0f}%</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>📊 Avg Confidence</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>Overall accuracy</div>
-                </div>
-                
-                <div style='text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px;'>
-                    <div style='font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;'>{"Bullish" if buy_signals > sell_signals else "Bearish" if sell_signals > buy_signals else "Neutral"}</div>
-                    <div style='font-size: 1rem; opacity: 0.9;'>📈 Market Sentiment</div>
-                    <div style='font-size: 0.9rem; opacity: 0.7;'>{abs(buy_signals - sell_signals)} signal difference</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+
+        # Determine sentiment
+        if buy_signals > sell_signals:
+            sentiment = "🟢 Bullish"
+        elif sell_signals > buy_signals:
+            sentiment = "🔴 Bearish"
+        else:
+            sentiment = "🟡 Neutral"
+
+        # Portfolio summary using native Streamlit
+        st.subheader("📊 Portfolio Summary")
+
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+        with col1:
+            st.metric("🟢 Buy", buy_signals, f"{buy_signals/total_signals*100:.0f}%")
+        with col2:
+            st.metric("🔴 Sell", sell_signals, f"{sell_signals/total_signals*100:.0f}%")
+        with col3:
+            st.metric("🟡 Hold", hold_signals, f"{hold_signals/total_signals*100:.0f}%")
+        with col4:
+            st.metric("⭐ High Conf", high_confidence, ">75%")
+        with col5:
+            st.metric("📊 Avg Conf", f"{avg_confidence:.0f}%")
+        with col6:
+            st.metric("📈 Sentiment", sentiment.split()[1], f"{abs(buy_signals - sell_signals)} diff")
     
     @staticmethod
     def render_signal_distribution_chart(signals: List[Dict[str, Any]]):

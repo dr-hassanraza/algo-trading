@@ -966,8 +966,20 @@ class AdvancedMLTradingSystem:
         
         return reasons if reasons else ["📊 Standard Analysis"]
     
-    def create_fallback_signal(self, symbol: str) -> MLTradingSignal:
+    def create_fallback_signal(self, symbol: str, current_price: float = None) -> MLTradingSignal:
         """Create fallback signal when data is insufficient"""
+        # Try to get current price if not provided
+        if current_price is None or current_price <= 0:
+            try:
+                df = self.get_market_data(symbol)
+                if not df.empty:
+                    current_price = float(df['Close'].iloc[-1])
+            except:
+                pass
+
+        # Use actual price or reasonable default
+        price = current_price if current_price and current_price > 0 else 100.0
+
         return MLTradingSignal(
             symbol=symbol,
             signal='HOLD',
@@ -978,9 +990,9 @@ class AdvancedMLTradingSystem:
             technical_score=50.0,
             sentiment_score=50.0,
             ensemble_score=25.0,
-            entry_price=100.0,
-            stop_loss=95.0,
-            take_profit=105.0,
+            entry_price=price,
+            stop_loss=price * 0.95,
+            take_profit=price * 1.05,
             position_size=0.01,
             reasons=["⚠️ Insufficient data for analysis"]
         )

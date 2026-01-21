@@ -1739,14 +1739,18 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                 if not signal_data or not isinstance(signal_data, dict):
                     raise ValueError("Invalid signal data returned")
             else:
-                # Insufficient data - return safe default
-                safe_price = market_data.get('price', 100)
+                # Insufficient data - return safe default using actual market price
+                safe_price = 100
+                if market_data and isinstance(market_data, dict):
+                    price_val = market_data.get('price', 0)
+                    if price_val and price_val > 0:
+                        safe_price = price_val
                 signal_data = {
                     'signal': 'HOLD',
-                    'confidence': 0,
+                    'confidence': 25,
                     'entry_price': safe_price,
-                    'stop_loss': safe_price * 0.98,
-                    'take_profit': safe_price * 1.04,
+                    'stop_loss': safe_price * 0.95,
+                    'take_profit': safe_price * 1.05,
                     'reasons': ['Insufficient data for analysis'],
                     'volume_support': False,
                     'liquidity_ok': False,
@@ -1754,13 +1758,20 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                 }
         
         # Ensure required fields exist with safe defaults
-        safe_price = market_data.get('price', signal_data.get('entry_price', 100))
+        # Prioritize market price, then signal price, then fallback to 100
+        safe_price = 100
+        if market_data and isinstance(market_data, dict):
+            price_val = market_data.get('price', 0)
+            if price_val and price_val > 0:
+                safe_price = price_val
+        if safe_price == 100 and signal_data.get('entry_price', 0) > 0 and signal_data.get('entry_price', 0) != 100:
+            safe_price = signal_data['entry_price']
         defaults = {
             'signal': 'HOLD',
-            'confidence': 0,
+            'confidence': 25,
             'entry_price': safe_price,
-            'stop_loss': safe_price * 0.98,
-            'take_profit': safe_price * 1.04,
+            'stop_loss': safe_price * 0.95,
+            'take_profit': safe_price * 1.05,
             'reasons': ['Enhanced ML/DL analysis'],
             'volume_support': False,
             'liquidity_ok': True,
@@ -1770,7 +1781,18 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
         for field, default_value in defaults.items():
             if field not in signal_data:
                 signal_data[field] = default_value
-        
+
+        # CRITICAL FIX: Always use actual market price for entry/stop/target
+        # This fixes the issue where fallback signals return hardcoded 100/95/105
+        actual_price = market_data.get('price', 0) if market_data else 0
+        if actual_price > 0:
+            # Check if entry_price seems invalid (either 0, 100, or very different from actual price)
+            current_entry = signal_data.get('entry_price', 0)
+            if current_entry <= 0 or current_entry == 100 or (actual_price > 0 and abs(current_entry - actual_price) / actual_price > 0.3):
+                signal_data['entry_price'] = actual_price
+                signal_data['stop_loss'] = actual_price * 0.95
+                signal_data['take_profit'] = actual_price * 1.05
+
         # Add enhanced system tracking
         signal_data['_enhanced_system'] = True
         signal_data['_generation_timestamp'] = datetime.now().isoformat()
@@ -1789,13 +1811,18 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
         print(f"Advanced signal generation error for {symbol}: {error_msg}")
         
         # Error in analysis - return safe fallback
-        safe_price = market_data.get('price', 100)
+        # Use actual market price if available, otherwise use 100 as absolute last resort
+        safe_price = 100
+        if market_data and isinstance(market_data, dict):
+            price_val = market_data.get('price', 0)
+            if price_val and price_val > 0:
+                safe_price = price_val
         return {
             'signal': 'HOLD',
-            'confidence': 0,
+            'confidence': 25,
             'entry_price': safe_price,
-            'stop_loss': safe_price * 0.98,
-            'take_profit': safe_price * 1.04,
+            'stop_loss': safe_price * 0.95,
+            'take_profit': safe_price * 1.05,
             'reasons': [error_msg],
             'volume_support': False,
             'liquidity_ok': True,

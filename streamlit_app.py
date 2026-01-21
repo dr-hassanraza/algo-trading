@@ -1568,6 +1568,150 @@ def get_cached_real_time_data(symbol):
         print(f"Error fetching real-time data for {symbol}: {e}")
         return {'price': 0.0, 'volume': 0, 'change': 0.0, 'change_pct': 0.0}
 
+def direct_technical_scan(symbol):
+    """
+    Direct technical analysis scanner - works without ML dependencies.
+    Returns reliable BUY/SELL signals based on classic technical indicators.
+    """
+    try:
+        # Fetch data directly from PSX DPS API
+        import requests
+        session = requests.Session()
+        session.headers.update({'User-Agent': 'PSX-Scanner/1.0', 'Accept': 'application/json'})
+
+        url = f"https://dps.psx.com.pk/timeseries/int/{symbol}"
+        response = session.get(url, timeout=10)
+
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+        if not data or 'data' not in data or not data['data'] or len(data['data']) < 30:
+            return None
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data['data'], columns=['timestamp', 'price', 'volume'])
+        df['price'] = pd.to_numeric(df['price'], errors='coerce')
+        df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
+        df = df.dropna().sort_values('timestamp').reset_index(drop=True)
+
+        if len(df) < 30:
+            return None
+
+        # Calculate technical indicators
+        df['sma_5'] = df['price'].rolling(5).mean()
+        df['sma_20'] = df['price'].rolling(20).mean()
+        df['ema_12'] = df['price'].ewm(span=12).mean()
+        df['ema_26'] = df['price'].ewm(span=26).mean()
+
+        # RSI calculation
+        delta = df['price'].diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+
+        # MACD
+        df['macd'] = df['ema_12'] - df['ema_26']
+        df['macd_signal'] = df['macd'].ewm(span=9).mean()
+
+        # Volume ratio
+        df['vol_ma'] = df['volume'].rolling(20).mean()
+        df['vol_ratio'] = df['volume'] / df['vol_ma']
+
+        latest = df.iloc[-1]
+        prev = df.iloc[-2] if len(df) > 1 else latest
+
+        price = float(latest['price'])
+        rsi = float(latest['rsi']) if pd.notna(latest['rsi']) else 50
+        sma_5 = float(latest['sma_5']) if pd.notna(latest['sma_5']) else price
+        sma_20 = float(latest['sma_20']) if pd.notna(latest['sma_20']) else price
+        macd = float(latest['macd']) if pd.notna(latest['macd']) else 0
+        macd_sig = float(latest['macd_signal']) if pd.notna(latest['macd_signal']) else 0
+        vol_ratio = float(latest['vol_ratio']) if pd.notna(latest['vol_ratio']) else 1
+
+        # Signal scoring system
+        score = 0
+        reasons = []
+
+        # RSI Analysis (weight: 3)
+        if rsi < 30:
+            score += 3
+            reasons.append(f"RSI oversold ({rsi:.0f})")
+        elif rsi < 40:
+            score += 1
+            reasons.append(f"RSI low ({rsi:.0f})")
+        elif rsi > 70:
+            score -= 3
+            reasons.append(f"RSI overbought ({rsi:.0f})")
+        elif rsi > 60:
+            score -= 1
+            reasons.append(f"RSI high ({rsi:.0f})")
+
+        # Trend Analysis (weight: 2)
+        if sma_5 > sma_20:
+            score += 2
+            reasons.append("Bullish trend (SMA5>SMA20)")
+        else:
+            score -= 2
+            reasons.append("Bearish trend (SMA5<SMA20)")
+
+        # MACD Analysis (weight: 2)
+        if macd > macd_sig and prev['macd'] <= prev['macd_signal']:
+            score += 2
+            reasons.append("MACD bullish crossover")
+        elif macd < macd_sig and prev['macd'] >= prev['macd_signal']:
+            score -= 2
+            reasons.append("MACD bearish crossover")
+        elif macd > macd_sig:
+            score += 1
+        else:
+            score -= 1
+
+        # Volume confirmation
+        if vol_ratio > 1.5:
+            reasons.append(f"High volume ({vol_ratio:.1f}x)")
+            if score > 0:
+                score += 1
+            elif score < 0:
+                score -= 1
+
+        # Determine signal and confidence
+        if score >= 4:
+            signal = 'STRONG_BUY'
+            confidence = min(85, 60 + score * 3)
+        elif score >= 2:
+            signal = 'BUY'
+            confidence = min(75, 50 + score * 3)
+        elif score <= -4:
+            signal = 'STRONG_SELL'
+            confidence = min(85, 60 + abs(score) * 3)
+        elif score <= -2:
+            signal = 'SELL'
+            confidence = min(75, 50 + abs(score) * 3)
+        else:
+            signal = 'HOLD'
+            confidence = 40
+
+        return {
+            'symbol': symbol,
+            'signal': signal,
+            'confidence': confidence,
+            'price': price,
+            'entry_price': price,
+            'stop_loss': price * 0.95,
+            'take_profit': price * 1.05,
+            'rsi': rsi,
+            'score': score,
+            'reasons': reasons,
+            'volume': int(latest['volume']),
+            'vol_ratio': vol_ratio
+        }
+
+    except Exception as e:
+        print(f"Direct scan error for {symbol}: {e}")
+        return None
+
 @st.cache_data(ttl=60)
 def get_cached_intraday_ticks(symbol, limit=100):
     """Cache intraday ticks for 1 minute with error handling"""
@@ -2380,29 +2524,27 @@ def render_live_trading_signals():
                 buy_opportunities = []
                 sell_opportunities = []
                 
-                # Scan through symbols
+                # Scan through symbols using DIRECT technical analysis (no ML dependency)
                 for i, symbol in enumerate(scan_symbols):
                     try:
                         progress = (i + 1) / len(scan_symbols)
                         progress_bar.progress(progress)
                         status_text.text(f"Scanning {symbol}... ({i+1}/{len(scan_symbols)}) - {len(all_symbols)} total stocks available")
-                        
-                        # Get market data
-                        market_data = get_cached_real_time_data(symbol)
-                        
-                        if market_data:
-                            # Use UNIFIED signal generation for consistency
-                            signal_data, debug_logs = safe_generate_signal(symbol, market_data, system, data_points=100, debug_mode=debug_mode)
-                            
-                            # Show debug logs if debug mode is enabled
-                            if debug_mode and debug_logs:
+
+                        # Use direct technical scanner for reliable results
+                        scan_result = direct_technical_scan(symbol)
+
+                        if scan_result:
+                            confidence = scan_result['confidence']
+                            signal_type = scan_result['signal']
+
+                            # Show debug info if enabled
+                            if debug_mode:
                                 with st.expander(f"🔍 Debug: {symbol}"):
-                                    for log in debug_logs:
-                                        st.text(log)
-                            
-                            confidence = signal_data['confidence']
-                            signal_type = signal_data['signal']
-                            
+                                    st.text(f"Signal: {signal_type}, Confidence: {confidence}%")
+                                    st.text(f"RSI: {scan_result['rsi']:.1f}, Score: {scan_result['score']}")
+                                    st.text(f"Reasons: {', '.join(scan_result['reasons'])}")
+
                             # Filter by confidence and signal type
                             if confidence >= min_confidence:
                                 if signal_type in ['BUY', 'STRONG_BUY']:
@@ -2410,28 +2552,30 @@ def render_live_trading_signals():
                                         'Symbol': symbol,
                                         'Signal': signal_type,
                                         'Confidence': f"{confidence:.1f}%",
-                                        'Price': f"{market_data['price']:.2f}",
-                                        'Entry': f"{signal_data['entry_price']:.2f}",
-                                        'Stop': f"{signal_data['stop_loss']:.2f}",
-                                        'Target': f"{signal_data['take_profit']:.2f}",
-                                        'Volume': f"{market_data.get('volume', 0):,}",
-                                        'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                        'Price': f"{scan_result['price']:.2f}",
+                                        'Entry': f"{scan_result['entry_price']:.2f}",
+                                        'Stop': f"{scan_result['stop_loss']:.2f}",
+                                        'Target': f"{scan_result['take_profit']:.2f}",
+                                        'Volume': f"{scan_result.get('volume', 0):,}",
+                                        'Reason': scan_result['reasons'][0] if scan_result['reasons'] else 'Technical analysis'
                                     })
-                                
+
                                 elif signal_type in ['SELL', 'STRONG_SELL']:
                                     sell_opportunities.append({
                                         'Symbol': symbol,
                                         'Signal': signal_type,
                                         'Confidence': f"{confidence:.1f}%",
-                                        'Price': f"{market_data['price']:.2f}",
-                                        'Entry': f"{signal_data['entry_price']:.2f}",
-                                        'Stop': f"{signal_data['stop_loss']:.2f}",
-                                        'Target': f"{signal_data['take_profit']:.2f}",
-                                        'Volume': f"{market_data.get('volume', 0):,}",
-                                        'Reason': signal_data.get('reasons', ['N/A'])[0][:50] + "..." if signal_data.get('reasons') else 'Technical analysis'
+                                        'Price': f"{scan_result['price']:.2f}",
+                                        'Entry': f"{scan_result['entry_price']:.2f}",
+                                        'Stop': f"{scan_result['stop_loss']:.2f}",
+                                        'Target': f"{scan_result['take_profit']:.2f}",
+                                        'Volume': f"{scan_result.get('volume', 0):,}",
+                                        'Reason': scan_result['reasons'][0] if scan_result['reasons'] else 'Technical analysis'
                                     })
-                    
+
                     except Exception as e:
+                        if debug_mode:
+                            st.warning(f"Error scanning {symbol}: {str(e)[:50]}")
                         continue
                 
                 # Clear progress indicators

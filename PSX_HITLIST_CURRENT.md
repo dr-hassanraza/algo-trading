@@ -1,151 +1,120 @@
-# 🎯 PSX TRADING HITLIST - Enhanced ML System
 
-**Generated:** September 16, 2025 | **System:** Enhanced ML + Technical Analysis
+======================================================================
+              PSX PROFESSIONAL TRADING HITLIST
+======================================================================
+  Generated: 2026-01-14T19:27:46
+  Market: AFTER-HOURS
+======================================================================
 
-## 📈 TOP BUY OPPORTUNITIES (8 Signals)
+MARKET OVERVIEW
+----------------------------------------------------------------------
+  Stocks Analyzed: 100
+  BUY Signals: 15 | SELL Signals: 7 | HOLD: 26
+  High Confidence (75%+): 0 | Grade A Signals: 0
 
-### 🥇 **TIER 1 - HIGH CONFIDENCE (>70%)**
+PORTFOLIO STATUS
+----------------------------------------------------------------------
+  Capital: 1,000,000 PKR | Cash: 1,000,000 PKR
+  Active Positions: 0 | Risk Heat: 0/100
+  Can Take New Position: Yes
 
-1. **LUCK** 🟢 BUY **76.8%**
-   - Entry: **477.52** | SL: 465.58 | TP: 501.40
-   - Position Size: **5.0%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (82%) | Tech: Strong uptrend
-   - **Sector:** Cement | **Risk:** Medium
+======================================================================
+                    TOP BUY OPPORTUNITIES
+======================================================================
 
-2. **COLG** 🟢 BUY **74.2%**
-   - Entry: **2420.00** | SL: 2359.50 | TP: 2541.00
-   - Position Size: **4.9%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (76%) | Tech: Bullish flag
-   - **Sector:** FMCG | **Risk:** Low
+  #   SYMBOL   GRADE  CONF   ENTRY      STOP       TARGET     R/R   POS% 
+  --------------------------------------------------------------------
+  1   ATBA     [B]       72%    241.93    241.08    243.21  1.5  3.6%
+      Reasons: Bullish RSI Divergence: Price lower, RSI higher | Strong uptrend
+      Warning: Low volume - weak conviction
 
-3. **HBL** 🟢 BUY **72.3%**
-   - Entry: **255.18** | SL: 248.80 | TP: 267.94
-   - Position Size: **4.8%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (78%) | Tech: Bullish momentum
-   - **Sector:** Banking | **Risk:** Medium
+  2   AYTM     [C]       68%    146.99    143.62    152.04  1.5  3.4%
+      Reasons: RSI oversold (26) | Bullish RSI Divergence: Price lower, RSI higher
 
-4. **FFC** 🟢 BUY **71.5%**
-   - Entry: **452.59** | SL: 441.28 | TP: 475.22
-   - Position Size: **4.8%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (74%) | Tech: Bullish breakout
-   - **Sector:** Fertilizer | **Risk:** Medium
+  3   AZTM     [C]       68%    150.27    147.28    154.77  1.5  3.4%
+      Reasons: Strong uptrend | High volume (1.6x)
 
-### 🥈 **TIER 2 - GOOD CONFIDENCE (65-70%)**
+  4   BNWM     [C]       68%     70.70     70.28     71.33  1.5  3.4%
+  5   AGL      [C]       66%     70.80     70.68     70.98  1.5  3.3%
+  6   ALIFE    [C]       66%     39.35     39.25     39.50  1.5  3.3%
+  7   AVN      [C]       66%     43.81     43.63     44.07  1.5  3.3%
+  8   ADTM     [C]       62%    151.15    147.60    156.48  1.5  3.1%
 
-5. **PSO** 🟢 BUY **69.7%**
-   - Entry: **424.58** | SL: 413.97 | TP: 445.81
-   - Position Size: **4.6%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (72%) | Tech: Volume support
-   - **Sector:** Oil & Gas | **Risk:** High
+======================================================================
+                    TOP SELL OPPORTUNITIES
+======================================================================
 
-6. **DGKC** 🟢 BUY **67.9%**
-   - Entry: **195.30** | SL: 190.42 | TP: 205.07
-   - Position Size: **4.5%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (70%) | Tech: Cup pattern
-   - **Sector:** Cement | **Risk:** Medium
+  #   SYMBOL   GRADE  CONF   ENTRY      STOP       TARGET     R/R  
+  ---------------------------------------------------------------
+  1   AWWAL    [B]       72%    145.78    149.93    139.54  1.5
+  2   BAFS     [B]       71%    153.10    158.30    145.29  1.5
+  3   BIPLS    [C]       66%     38.60     39.04     37.94  1.5
+  4   ADOS     [C]       65%    152.91    158.35    144.75  1.5
+  5   BERG     [C]       63%    102.70    103.45    101.57  1.5
 
-7. **SYSTEMS** 🟢 BUY **66.8%**
-   - Entry: **142.80** | SL: 139.23 | TP: 149.94
-   - Position Size: **4.5%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (68%) | Tech: Recovery pattern
-   - **Sector:** Technology | **Risk:** High
+======================================================================
+                    DETAILED: TOP PICK
+======================================================================
 
-8. **ABL** 🟢 BUY **64.2%**
-   - Entry: **171.00** | SL: 166.72 | TP: 179.55
-   - Position Size: **4.3%** | R/R: **2.0**
-   - **Analysis:** ML: BUY (67%) | Tech: Oversold bounce
-   - **Sector:** Banking | **Risk:** Medium
+  Symbol: ATBA
+  Signal: BUY (STRONG_BUY)
+  Quality Grade: B
+  Confidence: 72.0%
 
-## 📉 TOP SELL OPPORTUNITIES (4 Signals)
+  ENTRY LEVELS:
+    Entry Price:     241.93 PKR
+    Stop Loss:       241.08 PKR (-0.4%)
+    Target 1:        243.21 PKR (+0.5%)
+    Target 2:        243.85 PKR (+0.8%)
+    Risk/Reward:     1.50
 
-1. **TRG** 🔴 SELL **71.2%**
-   - Entry: **75.06** | SL: 76.94 | TP: 71.31
-   - Position Size: **4.0%** | R/R: **2.0**
-   - **Analysis:** ML: SELL (73%) | Tech: Bearish divergence
-   - **Sector:** Technology | **Risk:** High
+  TECHNICAL ANALYSIS:
+    RSI:             55.7
+    ATR:             0.43 (0.2%)
+    Volume Ratio:    0.04x
+    Support:         241.20 (0.3% away)
+    Resistance:      241.96 (0.0% away)
 
-2. **MCB** 🔴 SELL **68.9%**
-   - Entry: **349.68** | SL: 358.42 | TP: 332.20
-   - Position Size: **3.8%** | R/R: **2.0**
-   - **Analysis:** ML: SELL (69%) | Tech: Bearish trend
-   - **Sector:** Banking | **Risk:** Medium
+  SCORES:
+    Technical:       80/100
+    Momentum:        75/100
+    Volume:          30/100
+    Overall:         66/100
 
-3. **CHCC** 🔴 SELL **65.3%**
-   - Entry: **245.75** | SL: 251.89 | TP: 233.46
-   - Position Size: **3.6%** | R/R: **2.0**
-   - **Analysis:** ML: SELL (67%) | Tech: Head & shoulders
-   - **Sector:** Cement | **Risk:** Medium
+  ** BULLISH DIVERGENCE DETECTED **
+  REASONS:
+    - Bullish RSI Divergence: Price lower, RSI higher
+    - Strong uptrend
+    - Near support (0.3% away)
+    - Near resistance (0.0% away)
 
-4. **PPL** 🔴 SELL **63.1%**
-   - Entry: **185.45** | SL: 190.09 | TP: 176.18
-   - Position Size: **3.5%** | R/R: **2.0**
-   - **Analysis:** ML: SELL (66%) | Tech: Breakdown
-   - **Sector:** Oil & Gas | **Risk:** High
+  WARNINGS:
+    ! Low volume - weak conviction
 
-## ⚡ MARKET OVERVIEW
+  POSITION SIZING:
+    Recommended: 3.6% of portfolio
+    Entry Window: Standard entry
 
-- **🎯 Signal Distribution:** 8 BUY | 4 SELL | 6 HOLD
-- **📊 Average Confidence:** 65.2%
-- **⭐ High Confidence (>75%):** 1 signal
-- **💰 Total Suggested Allocation:** 55.3%
-- **📈 Market Sentiment:** **Bullish 🐂** (4 signal difference)
+======================================================================
+                    MARKET SENTIMENT
+======================================================================
 
-## 🔥 TOP 5 PRIORITY WATCHLIST
+  Overall Sentiment: SLIGHTLY BULLISH
+  [>>>>>     ]
+  Bullish Signals: 38 | Bearish Signals: 30
 
-1. 🟢 **LUCK** - BUY 76.8% | Entry: 477.52
-2. 🟢 **COLG** - BUY 74.2% | Entry: 2420.00
-3. 🟢 **HBL** - BUY 72.3% | Entry: 255.18
-4. 🟢 **FFC** - BUY 71.5% | Entry: 452.59
-5. 🔴 **TRG** - SELL 71.2% | Entry: 75.06
+  SECTOR BREAKDOWN:
+    BANKS       : 1 BUY, 2 SELL
+    CEMENT      : 0 BUY, 1 SELL
+    OTHER       : 37 BUY, 26 SELL
+    PHARMA      : 0 BUY, 1 SELL
 
-## 📋 SECTOR ANALYSIS
-
-| Sector | Stocks | Avg Confidence | Trend |
-|--------|--------|----------------|-------|
-| **Banking** | 5 | 63.3% | **Bullish** |
-| **Industrial** | 6 | 66.0% | **Bullish** |
-| **Technology** | 2 | 69.0% | **Mixed** |
-| **FMCG** | 2 | 67.8% | **Bullish** |
-| **Cement** | 3 | 62.6% | **Mixed** |
-
-## 🎯 TRADING STRATEGY RECOMMENDATIONS
-
-### **Portfolio Allocation Strategy:**
-- **Aggressive:** Use full position sizes (Total: 55.3%)
-- **Conservative:** Reduce positions by 50% (Total: 27.7%)
-- **Moderate:** Focus only on >70% confidence signals
-
-### **Risk Management:**
-- **Stop Loss:** Strict 2.5% maximum per position
-- **Take Profit:** Target 5% gains (2:1 R/R ratio)
-- **Maximum Exposure:** Don't exceed 60% total allocation
-- **Sector Diversification:** Limit 20% per sector
-
-### **Entry Timing:**
-- **Best Hours:** 10:00 AM - 3:00 PM (High liquidity)
-- **Avoid:** First/last 30 minutes of trading
-- **Volume Confirmation:** Wait for above-average volume
-- **Technical Confirmation:** Look for breakout/breakdown validation
-
-## ⚠️ SYSTEM DISCLAIMER
-
-- **Based on:** Enhanced ML + Technical Analysis System
-- **ML Model Accuracy:** 77% (trained on diverse market conditions)
-- **Analysis Includes:** 10+ technical indicators, sentiment, fundamentals
-- **Update Frequency:** Real-time with 15-second refresh
-- **Risk Level:** Educational analysis - not financial advice
-
-## 📊 SYSTEM PERFORMANCE METRICS
-
-- **Signal Diversity:** ✅ Realistic BUY/SELL/HOLD distribution
-- **Confidence Range:** 52.8% - 76.8% (realistic variation)
-- **Risk/Reward:** Consistent 2:1 across all signals
-- **Sector Coverage:** 5 major sectors analyzed
-- **Volume Support:** Integrated in analysis
-- **Fundamental Factors:** Included in scoring
-
----
-
-**⚡ LIVE SYSTEM STATUS:** Fully operational with enhanced integration
-**🔄 Next Update:** Real-time via Streamlit dashboard
-**📈 Expected Win Rate:** 65-70% based on backtesting
+======================================================================
+                       DISCLAIMER
+======================================================================
+  This is algorithmic analysis for educational purposes only.
+  - Always conduct your own research before trading
+  - Past performance does not guarantee future results
+  - Only trade with capital you can afford to lose
+  - Consider your personal risk tolerance
+======================================================================

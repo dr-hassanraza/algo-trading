@@ -45,6 +45,15 @@ except ImportError:
     ENHANCED_SYSTEM_AVAILABLE = False
     # Enhanced system will show appropriate messages when needed
 
+# Import professional signal system (backtesting, tracking, multi-timeframe)
+try:
+    from professional_signal_system import ProfessionalSignalGenerator
+    PROFESSIONAL_SYSTEM_AVAILABLE = True
+    print("✅ Professional Signal System loaded successfully")
+except ImportError as e:
+    PROFESSIONAL_SYSTEM_AVAILABLE = False
+    print(f"⚠️ Professional Signal System not available: {e}")
+
 # Import advanced institutional trading system
 try:
     from src.advanced_trading_system import AdvancedTradingSystem, create_advanced_trading_system
@@ -2975,6 +2984,314 @@ def render_live_trading_signals():
                 else:
                     st.error("Unable to load symbols for market scan.")
 
+def render_professional_scanner():
+    """Professional-grade scanner with backtesting, tracking, and multi-timeframe analysis"""
+    st.title("🏆 Professional Trading Scanner")
+    st.markdown("*Investment-grade signals with backtesting validation and performance tracking*")
+
+    if not PROFESSIONAL_SYSTEM_AVAILABLE:
+        st.error("Professional Signal System not available. Please check installation.")
+        return
+
+    # Initialize professional system
+    try:
+        pro_system = ProfessionalSignalGenerator()
+    except Exception as e:
+        st.error(f"Error initializing Professional System: {e}")
+        return
+
+    # Tabs for different features
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🎯 Pro Scanner",
+        "📊 Backtest Analysis",
+        "📈 Performance History",
+        "⚙️ Settings"
+    ])
+
+    with tab1:
+        st.subheader("🎯 Multi-Timeframe Signal Scanner")
+        st.markdown("""
+        **How it works:**
+        - Analyzes 4 timeframes (5min, 15min, 30min, 1H)
+        - Only signals when 3+ timeframes align
+        - Grade A = 4 TF aligned + 75%+ confidence (INVESTABLE)
+        - Grade B = 3 TF aligned + 60%+ confidence (INVESTABLE)
+        - Grade C/D = Weak alignment (NOT recommended)
+        """)
+
+        # Scanner controls
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            min_grade = st.selectbox("Minimum Grade", ["A", "B", "C"], index=1,
+                                     help="A=Best, B=Good, C=Speculative")
+
+        with col2:
+            scan_size = st.selectbox("Scan Size", ["Top 20 Liquid", "Top 50", "Full Market"], index=0)
+
+        with col3:
+            track_signals = st.checkbox("Track Signals", value=True,
+                                        help="Save signals for performance tracking")
+
+        # Symbol lists based on scan size
+        if scan_size == "Top 20 Liquid":
+            scan_symbols = ['HBL', 'UBL', 'MCB', 'ABL', 'NBP', 'LUCK', 'DGKC', 'FFC', 'ENGRO',
+                           'PSO', 'OGDC', 'PPL', 'HUBC', 'TRG', 'SEARL', 'NESTLE', 'COLG', 'BAHL', 'MEBL', 'ATRL']
+        elif scan_size == "Top 50":
+            scan_symbols = ['HBL', 'UBL', 'MCB', 'ABL', 'NBP', 'LUCK', 'DGKC', 'MLCF', 'CHCC', 'FCCL',
+                           'FFC', 'ENGRO', 'EFERT', 'FATIMA', 'PSO', 'OGDC', 'PPL', 'POL', 'MARI',
+                           'HUBC', 'KEL', 'NCPL', 'TRG', 'SYS', 'AVN', 'NETSOL', 'UNITY', 'SEARL',
+                           'GLAXO', 'NESTLE', 'COLG', 'BATA', 'MTL', 'INDU', 'PAEL', 'ATRL', 'APL',
+                           'KAPCO', 'LOTCHEM', 'EPCL', 'PIOC', 'KOHC', 'PKGS', 'MEBL', 'BAFL', 'BAHL',
+                           'JSBL', 'MUGHAL', 'ISL', 'ASTL']
+        else:
+            scan_symbols = ['HBL', 'UBL', 'MCB', 'ABL', 'NBP', 'LUCK', 'DGKC', 'MLCF', 'FFC', 'ENGRO',
+                           'PSO', 'OGDC', 'PPL', 'HUBC', 'TRG', 'SEARL', 'NESTLE', 'COLG', 'MEBL', 'ATRL',
+                           'EFERT', 'FATIMA', 'MARI', 'KEL', 'KAPCO', 'LOTCHEM', 'PIOC', 'BAHL', 'BAFL',
+                           'JSBL', 'AKBL', 'SILK', 'MUGHAL', 'ISL', 'ASTL', 'THALL', 'AICL', 'AHL']
+
+        if st.button("🚀 Run Professional Scan", type="primary"):
+            with st.spinner(f"Scanning {len(scan_symbols)} stocks with multi-timeframe analysis..."):
+                progress_bar = st.progress(0)
+
+                opportunities = []
+
+                for i, symbol in enumerate(scan_symbols):
+                    progress_bar.progress((i + 1) / len(scan_symbols))
+
+                    try:
+                        signal = pro_system.generate_signal(symbol, track=track_signals)
+
+                        if signal['signal'] != 'HOLD' and signal.get('investable', False):
+                            opportunities.append(signal)
+                        elif signal['signal'] != 'HOLD' and min_grade == 'C':
+                            opportunities.append(signal)
+                    except Exception as e:
+                        continue
+
+                progress_bar.empty()
+
+            # Display results
+            if opportunities:
+                # Summary metrics
+                buy_opps = [o for o in opportunities if 'BUY' in o['signal']]
+                sell_opps = [o for o in opportunities if 'SELL' in o['signal']]
+                grade_a = [o for o in opportunities if o['grade'] == 'A']
+                grade_b = [o for o in opportunities if o['grade'] == 'B']
+
+                st.success(f"Found {len(opportunities)} investable opportunities!")
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("🟢 BUY", len(buy_opps))
+                with col2:
+                    st.metric("🔴 SELL", len(sell_opps))
+                with col3:
+                    st.metric("⭐ Grade A", len(grade_a))
+                with col4:
+                    st.metric("🅱️ Grade B", len(grade_b))
+
+                # Display opportunities
+                st.markdown("### 📋 Investable Opportunities")
+
+                for opp in sorted(opportunities, key=lambda x: (x['grade'], -x['confidence'])):
+                    grade_color = "🟢" if opp['grade'] == 'A' else "🟡" if opp['grade'] == 'B' else "⚪"
+                    signal_emoji = "🟢" if 'BUY' in opp['signal'] else "🔴"
+
+                    with st.expander(
+                        f"{signal_emoji} {opp['symbol']} | {opp['signal']} | Grade {grade_color}{opp['grade']} | {opp['confidence']:.0f}% conf | {opp['timeframes_aligned']}/{opp.get('total_timeframes', 4)} TF",
+                        expanded=(opp['grade'] == 'A')
+                    ):
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            st.metric("Entry", f"{opp['entry_price']:.2f} PKR")
+                        with col2:
+                            st.metric("Stop Loss", f"{opp['stop_loss']:.2f} PKR")
+                        with col3:
+                            st.metric("Target", f"{opp['take_profit']:.2f} PKR")
+                        with col4:
+                            risk = abs(opp['entry_price'] - opp['stop_loss'])
+                            reward = abs(opp['take_profit'] - opp['entry_price'])
+                            rr = reward / risk if risk > 0 else 0
+                            st.metric("R/R Ratio", f"1:{rr:.1f}")
+
+                        # Timeframe breakdown
+                        st.markdown("**📊 Timeframe Analysis:**")
+                        tf_cols = st.columns(4)
+                        for idx, (tf, analysis) in enumerate(opp.get('analysis', {}).items()):
+                            with tf_cols[idx % 4]:
+                                tf_signal = analysis.get('signal', 'N/A')
+                                tf_emoji = "🟢" if 'BUY' in tf_signal else "🔴" if 'SELL' in tf_signal else "⚪"
+                                st.write(f"{tf}: {tf_emoji} {tf_signal}")
+
+                        # Reasons
+                        if opp.get('reasons'):
+                            st.info("**Reasons:** " + " | ".join(opp['reasons'][:3]))
+
+                        # Investment recommendation
+                        if opp['investable']:
+                            st.success(f"✅ **INVESTABLE** - Grade {opp['grade']} signal with {opp['timeframes_aligned']} timeframes aligned")
+                        else:
+                            st.warning("⚠️ **SPECULATIVE** - Needs more confirmation")
+
+            else:
+                st.warning("No investable opportunities found with current filters. Try lowering the minimum grade.")
+
+    with tab2:
+        st.subheader("📊 Backtest Analysis")
+        st.markdown("*Test signal performance against historical data*")
+
+        # Symbol selection for backtest
+        backtest_symbol = st.selectbox(
+            "Select Symbol to Backtest",
+            ['HBL', 'UBL', 'MCB', 'LUCK', 'FFC', 'ENGRO', 'PSO', 'OGDC', 'TRG', 'NESTLE'],
+            index=0
+        )
+
+        if st.button("🔬 Run Backtest", type="primary"):
+            with st.spinner(f"Running backtest for {backtest_symbol}..."):
+                try:
+                    backtest_result = pro_system.get_backtest_summary(backtest_symbol)
+
+                    st.markdown(f"### 📈 Backtest Results: {backtest_symbol}")
+
+                    # Key metrics
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Total Trades", backtest_result['total_trades'])
+                    with col2:
+                        win_rate = float(backtest_result['win_rate'].replace('%', ''))
+                        st.metric("Win Rate", backtest_result['win_rate'],
+                                 delta="Good" if win_rate > 55 else "Low")
+                    with col3:
+                        st.metric("Total Return", backtest_result['total_return'])
+                    with col4:
+                        st.metric("Max Drawdown", backtest_result['max_drawdown'])
+
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        pf = float(backtest_result['profit_factor'])
+                        st.metric("Profit Factor", backtest_result['profit_factor'],
+                                 delta="Good" if pf > 1.5 else "Low")
+                    with col2:
+                        st.metric("Sharpe Ratio", backtest_result['sharpe_ratio'])
+                    with col3:
+                        st.metric("Avg Win", backtest_result['avg_win'])
+                    with col4:
+                        st.metric("Avg Loss", backtest_result['avg_loss'])
+
+                    # Equity curve
+                    if backtest_result.get('equity_curve'):
+                        st.markdown("### 💰 Equity Curve")
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            y=backtest_result['equity_curve'],
+                            mode='lines',
+                            name='Portfolio Value',
+                            line=dict(color='#00C851', width=2)
+                        ))
+                        fig.update_layout(
+                            title=f"{backtest_symbol} - Backtest Equity Curve",
+                            yaxis_title="Portfolio Value (PKR)",
+                            xaxis_title="Trade Number",
+                            height=400
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    # Assessment
+                    if backtest_result.get('is_profitable'):
+                        st.success(f"✅ **{backtest_symbol} shows PROFITABLE backtest results!** Consider for investment with proper risk management.")
+                    else:
+                        st.warning(f"⚠️ **{backtest_symbol} shows mixed backtest results.** Exercise caution.")
+
+                except Exception as e:
+                    st.error(f"Backtest failed: {str(e)}")
+
+    with tab3:
+        st.subheader("📈 Signal Performance History")
+        st.markdown("*Track record of generated signals*")
+
+        try:
+            performance = pro_system.get_performance_history()
+
+            if performance['total_signals'] > 0:
+                # Performance metrics
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    st.metric("Total Signals", performance['total_signals'])
+                with col2:
+                    st.metric("Completed", performance['completed'])
+                with col3:
+                    st.metric("Win Rate", f"{performance['win_rate']:.1f}%")
+                with col4:
+                    st.metric("Avg P&L", f"{performance['avg_pnl']:.2f}%")
+
+                # Wins/Losses breakdown
+                if performance['completed'] > 0:
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Wins", performance.get('wins', 0))
+                    with col2:
+                        st.metric("Losses", performance.get('losses', 0))
+                    with col3:
+                        st.metric("Best Trade", f"{performance['best_trade']:.2f}%")
+                    with col4:
+                        st.metric("Worst Trade", f"{performance['worst_trade']:.2f}%")
+
+                # Recent signals
+                st.markdown("### 📋 Recent Signals")
+                recent = pro_system.signal_tracker.get_recent_signals(10)
+
+                if recent:
+                    for sig in recent:
+                        outcome_emoji = "✅" if sig.outcome == 'WIN' else "❌" if sig.outcome == 'LOSS' else "⏳"
+                        signal_emoji = "🟢" if 'BUY' in sig.signal_type else "🔴"
+
+                        st.write(f"{outcome_emoji} {signal_emoji} **{sig.symbol}** | {sig.signal_type} | Entry: {sig.entry_price:.2f} | {sig.timestamp[:10]}")
+                else:
+                    st.info("No signals recorded yet. Run a scan with 'Track Signals' enabled.")
+            else:
+                st.info("No signal history yet. Run a scan with 'Track Signals' enabled to start building your track record.")
+
+        except Exception as e:
+            st.error(f"Error loading performance history: {e}")
+
+    with tab4:
+        st.subheader("⚙️ Scanner Settings")
+
+        st.markdown("""
+        ### Signal Quality Guidelines
+
+        | Grade | Timeframes Aligned | Confidence | Recommendation |
+        |-------|-------------------|------------|----------------|
+        | **A** | 4/4 | 75%+ | ✅ Investable |
+        | **B** | 3/4 | 60%+ | ✅ Investable |
+        | **C** | 2/4 | 50%+ | ⚠️ Speculative |
+        | **D** | 1/4 | <50% | ❌ Avoid |
+
+        ### Risk Management Rules
+
+        1. **Position Size**: Max 5% of portfolio per trade
+        2. **Stop Loss**: Always set, typically 5% below entry
+        3. **Take Profit**: Minimum 1:1 risk-reward ratio
+        4. **Max Open Positions**: 10 concurrent trades
+        5. **Daily Loss Limit**: Stop trading after 3% portfolio loss
+
+        ### How to Use
+
+        1. Run the **Pro Scanner** to find Grade A/B opportunities
+        2. Check **Backtest Analysis** for the symbols you're interested in
+        3. Only invest in stocks with profitable backtest history
+        4. Track your trades in **Performance History**
+        5. Review and adjust strategy based on actual results
+        """)
+
+
 def render_symbol_analysis():
     """Render detailed symbol analysis with interactive backtesting."""
     st.markdown("## 🔍 Deep Symbol Analysis")
@@ -4756,15 +5073,16 @@ def main():
     # Check if user is admin to show admin panel
     navigation_options = [
         "🚨 Live Signals",
-        "🔍 Symbol Analysis", 
+        "🏆 Pro Scanner",  # NEW: Professional Scanner with backtesting
+        "🔍 Symbol Analysis",
         "🏦 Institutional System",
         "🧠 Algorithm Overview",
         "🔧 System Status"
     ]
-    
+
     # Add enhanced intraday dashboard if available
     if ENHANCED_INTRADAY_AVAILABLE:
-        navigation_options.insert(1, "⚡ Enhanced Intraday Dashboard")
+        navigation_options.insert(2, "⚡ Enhanced Intraday Dashboard")
     
     # Add admin panel for admin users
     if AUTH_AVAILABLE and is_admin(st.session_state.get('username', '')):
@@ -4791,7 +5109,10 @@ def main():
     try:
         if page == "🚨 Live Signals":
             render_live_trading_signals()
-            
+
+        elif page == "🏆 Pro Scanner":
+            render_professional_scanner()
+
         elif page == "⚡ Enhanced Intraday Dashboard":
             try:
                 # Use the safe dashboard version that doesn't have circular dependencies

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSX Trading Bot - Professional Algorithmic Trading</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0e1a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* ===== NAVBAR ===== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(10, 14, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 0 40px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        }
+
+        .navbar.scrolled {
+            background: rgba(10, 14, 26, 0.98);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+
+        .nav-brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: #1a1a2e;
+        }
+
+        .nav-brand-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-brand-text span {
+            color: #FFD700;
+        }
+
+        /* ===== NAV MENU ===== */
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            list-style: none;
+        }
+
+        .nav-item {
+            position: relative;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            color: #b0b8c8;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .nav-link:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .nav-link.active {
+            color: #FFD700;
+            background: rgba(255, 215, 0, 0.08);
+        }
+
+        .nav-arrow {
+            font-size: 0.6rem;
+            transition: transform 0.2s ease;
+            opacity: 0.6;
+        }
+
+        .nav-item:hover .nav-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* ===== DROPDOWN MENU ===== */
+        .dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            min-width: 280px;
+            background: #151929;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+            padding: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.25s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item:hover .dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .dropdown::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: 0;
+            right: 0;
+            height: 8px;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #c0c8d8;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: #fff;
+        }
+
+        .dropdown-item:hover .dd-icon {
+            background: rgba(255, 215, 0, 0.15);
+            color: #FFD700;
+        }
+
+        .dd-icon {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: all 0.2s ease;
+        }
+
+        .dd-text h4 {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 3px;
+        }
+
+        .dd-text p {
+            font-size: 0.78rem;
+            color: #7a8299;
+            line-height: 1.4;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            margin: 6px 14px;
+        }
+
+        /* ===== MEGA DROPDOWN ===== */
+        .dropdown.mega {
+            min-width: 560px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .mega-section {
+            padding: 6px;
+        }
+
+        .mega-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #556;
+            padding: 8px 14px 6px;
+            font-weight: 600;
+        }
+
+        /* ===== NAV ACTIONS ===== */
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .nav-btn {
+            padding: 9px 22px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .nav-btn-outline {
+            background: transparent;
+            color: #b0b8c8;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .nav-btn-outline:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .nav-btn-primary {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #1a1a2e;
+        }
+
+        .nav-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+        }
+
+        /* ===== HAMBURGER (MOBILE) ===== */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px;
+            border: none;
+            background: none;
+        }
+
+        .hamburger span {
+            width: 24px;
+            height: 2px;
+            background: #b0b8c8;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+        .hamburger.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(5px, -5px);
+        }
+
+        /* ===== STATUS BADGE ===== */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.live {
+            background: rgba(0, 200, 83, 0.12);
+            color: #00c853;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #00c853;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ===== HERO SECTION ===== */
+        .hero {
+            padding: 140px 40px 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 600px;
+            background: radial-gradient(ellipse, rgba(102, 126, 234, 0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(255, 215, 0, 0.1);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 20px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: #FFD700;
+            margin-bottom: 24px;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1.5px;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .hero h1 .gradient {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 1.15rem;
+            color: #7a8299;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+        }
+
+        .hero-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn-hero {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-hero-primary {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            color: #1a1a2e;
+        }
+
+        .btn-hero-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-hero-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: #c0c8d8;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .btn-hero-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ===== FEATURES GRID ===== */
+        .features-section {
+            padding: 40px 40px 80px;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .section-title h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .section-title p {
+            font-size: 1rem;
+            color: #7a8299;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 215, 0, 0.15);
+            transform: translateY(-4px);
+        }
+
+        .feature-card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+        }
+
+        .feature-card-icon.blue { background: rgba(102, 126, 234, 0.15); }
+        .feature-card-icon.green { background: rgba(0, 200, 83, 0.15); }
+        .feature-card-icon.orange { background: rgba(255, 165, 0, 0.15); }
+        .feature-card-icon.purple { background: rgba(156, 39, 176, 0.15); }
+        .feature-card-icon.cyan { background: rgba(0, 188, 212, 0.15); }
+        .feature-card-icon.red { background: rgba(244, 67, 54, 0.15); }
+
+        .feature-card h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            font-size: 0.88rem;
+            color: #7a8299;
+            line-height: 1.6;
+        }
+
+        /* ===== QUICK START ===== */
+        .quickstart {
+            max-width: 700px;
+            margin: 0 auto 80px;
+            padding: 0 40px;
+        }
+
+        .quickstart-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .quickstart-card h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 16px 24px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #00c853;
+            display: inline-block;
+            margin-top: 8px;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 30px 40px;
+            text-align: center;
+            color: #556;
+            font-size: 0.82rem;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 900px) {
+            .navbar {
+                padding: 0 20px;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .nav-menu {
+                position: fixed;
+                top: 70px;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(10, 14, 26, 0.98);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                padding: 20px;
+                gap: 4px;
+                overflow-y: auto;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+            }
+
+            .nav-menu.open {
+                transform: translateX(0);
+            }
+
+            .nav-item {
+                width: 100%;
+            }
+
+            .nav-link {
+                padding: 14px 18px;
+                font-size: 1rem;
+                justify-content: space-between;
+            }
+
+            .dropdown, .dropdown.mega {
+                position: static;
+                transform: none;
+                min-width: auto;
+                max-height: 0;
+                overflow: hidden;
+                opacity: 1;
+                visibility: visible;
+                border: none;
+                background: rgba(255, 255, 255, 0.02);
+                border-radius: 10px;
+                margin: 4px 0;
+                box-shadow: none;
+                display: block;
+                padding: 0;
+                transition: max-height 0.3s ease, padding 0.3s ease;
+            }
+
+            .nav-item.mobile-open .dropdown {
+                max-height: 600px;
+                padding: 8px;
+            }
+
+            .nav-item.mobile-open .nav-arrow {
+                transform: rotate(180deg);
+            }
+
+            .nav-actions {
+                display: none;
+            }
+
+            .nav-menu.open ~ .nav-actions-mobile {
+                display: flex;
+            }
+
+            .hero {
+                padding: 120px 20px 60px;
+            }
+
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+
+            .features-section, .quickstart {
+                padding-left: 20px;
+                padding-right: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== NAVIGATION BAR ===== -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="nav-brand">
+            <div class="nav-brand-icon">P</div>
+            <div class="nav-brand-text">PSX <span>Trading</span></div>
+        </a>
+
+        <button class="hamburger" id="hamburger" onclick="toggleMenu()">
+            <span></span><span></span><span></span>
+        </button>
+
+        <ul class="nav-menu" id="navMenu">
+            <!-- HOME -->
+            <li class="nav-item">
+                <a href="#" class="nav-link active">Home</a>
+            </li>
+
+            <!-- TRADING dropdown -->
+            <li class="nav-item" onclick="toggleMobileDropdown(this)">
+                <a class="nav-link">
+                    Trading
+                    <svg class="nav-arrow" width="10" height="6" viewBox="0 0 10 6" fill="currentColor">
+                        <path d="M1 1l4 4 4-4"/>
+                    </svg>
+                </a>
+                <div class="dropdown">
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F6A8;</div>
+                        <div class="dd-text">
+                            <h4>Live Signals</h4>
+                            <p>Real-time buy/sell signals with AI confidence scores</p>
+                        </div>
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F3C6;</div>
+                        <div class="dd-text">
+                            <h4>Pro Scanner</h4>
+                            <p>Professional scanner with backtesting & multi-timeframe analysis</p>
+                        </div>
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F50D;</div>
+                        <div class="dd-text">
+                            <h4>Symbol Analysis</h4>
+                            <p>Deep technical analysis on any PSX-listed symbol</p>
+                        </div>
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x26A1;</div>
+                        <div class="dd-text">
+                            <h4>Intraday Dashboard</h4>
+                            <p>Enhanced intraday trading with volatility regime detection</p>
+                        </div>
+                    </a>
+                </div>
+            </li>
+
+            <!-- ANALYSIS dropdown (mega) -->
+            <li class="nav-item" onclick="toggleMobileDropdown(this)">
+                <a class="nav-link">
+                    Analysis
+                    <svg class="nav-arrow" width="10" height="6" viewBox="0 0 10 6" fill="currentColor">
+                        <path d="M1 1l4 4 4-4"/>
+                    </svg>
+                </a>
+                <div class="dropdown mega">
+                    <div class="mega-section">
+                        <div class="mega-section-title">Technical</div>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F4CA;</div>
+                            <div class="dd-text">
+                                <h4>Real-time Charts</h4>
+                                <p>Interactive candlestick & indicator charts</p>
+                            </div>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F9E0;</div>
+                            <div class="dd-text">
+                                <h4>Algorithm Overview</h4>
+                                <p>ML/DL model performance & signal logic</p>
+                            </div>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F4C8;</div>
+                            <div class="dd-text">
+                                <h4>Backtesting</h4>
+                                <p>Historical strategy validation & reports</p>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="mega-section">
+                        <div class="mega-section-title">Institutional</div>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F3E6;</div>
+                            <div class="dd-text">
+                                <h4>Institutional System</h4>
+                                <p>Quantitative models & advanced analytics</p>
+                            </div>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F4BC;</div>
+                            <div class="dd-text">
+                                <h4>Portfolio Manager</h4>
+                                <p>Position sizing & portfolio optimization</p>
+                            </div>
+                        </a>
+                        <a href="#" class="dropdown-item">
+                            <div class="dd-icon">&#x1F6E1;</div>
+                            <div class="dd-text">
+                                <h4>Risk Management</h4>
+                                <p>Stop-loss, drawdown & exposure controls</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </li>
+
+            <!-- TOOLS dropdown -->
+            <li class="nav-item" onclick="toggleMobileDropdown(this)">
+                <a class="nav-link">
+                    Tools
+                    <svg class="nav-arrow" width="10" height="6" viewBox="0 0 10 6" fill="currentColor">
+                        <path d="M1 1l4 4 4-4"/>
+                    </svg>
+                </a>
+                <div class="dropdown">
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F4AC;</div>
+                        <div class="dd-text">
+                            <h4>AI Chatbot</h4>
+                            <p>Natural language trading queries & insights</p>
+                        </div>
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F4C4;</div>
+                        <div class="dd-text">
+                            <h4>PDF Reports</h4>
+                            <p>Generate professional trading analysis reports</p>
+                        </div>
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <div class="dd-icon">&#x1F527;</div>
+                        <div class="dd-text">
+                            <h4>System Status</h4>
+                            <p>API health, data sources & system diagnostics</p>
+                        </div>
+                    </a>
+                </div>
+            </li>
+
+            <!-- PRICING -->
+            <li class="nav-item">
+                <a href="#" class="nav-link">Pricing</a>
+            </li>
+        </ul>
+
+        <div class="nav-actions">
+            <span class="status-badge live">
+                <span class="status-dot"></span>
+                PSX Live
+            </span>
+            <a href="#" class="nav-btn nav-btn-outline">Log In</a>
+            <a href="#" class="nav-btn nav-btn-primary">Get Started</a>
+        </div>
+    </nav>
+
+    <!-- ===== HERO SECTION ===== -->
+    <section class="hero">
+        <div class="hero-tag">&#x1F680; Advanced ML/DL Trading System for PSX</div>
+        <h1>
+            Trade Smarter on<br>
+            <span class="gradient">Pakistan Stock Exchange</span>
+        </h1>
+        <p class="hero-subtitle">
+            Professional algorithmic trading powered by ensemble ML models,
+            real-time signal analysis, and institutional-grade risk management
+            for PSX-listed stocks.
+        </p>
+        <div class="hero-buttons">
+            <a href="#" class="btn-hero btn-hero-primary">
+                Launch Dashboard &#x2192;
+            </a>
+            <a href="#" class="btn-hero btn-hero-secondary">
+                &#x25B6; Watch Demo
+            </a>
+        </div>
+    </section>
+
+    <!-- ===== FEATURES ===== -->
+    <section class="features-section">
+        <div class="section-title">
+            <h2>Everything You Need to Trade PSX</h2>
+            <p>Institutional-grade tools built for Pakistan's market</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-card-icon blue">&#x1F916;</div>
+                <h3>AI-Powered Signals</h3>
+                <p>Ensemble ML/DL models including LSTM, Transformer, XGBoost, and LightGBM with 90%+ accuracy on PSX data.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon green">&#x1F4CA;</div>
+                <h3>Real-time Charts</h3>
+                <p>Interactive Plotly charts with 50+ technical indicators, candlestick patterns, and volume analysis.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon orange">&#x1F4BC;</div>
+                <h3>Portfolio Management</h3>
+                <p>Comprehensive position sizing, portfolio optimization, and correlation-aware allocation.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon purple">&#x1F4AC;</div>
+                <h3>Natural Language Interface</h3>
+                <p>Ask questions about any stock in plain English and get instant AI-powered analysis.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon cyan">&#x26A1;</div>
+                <h3>Intraday Trading</h3>
+                <p>Multi-timeframe signal alignment (5m, 15m, 1h) with volatility regime detection.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon red">&#x1F6E1;</div>
+                <h3>Risk Management</h3>
+                <p>Professional stop-loss, drawdown control, and exposure management to protect your capital.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== QUICK START ===== -->
+    <section class="quickstart">
+        <div class="quickstart-card">
+            <h3>Quick Start</h3>
+            <p style="color: #7a8299; margin-bottom: 16px;">Launch the full trading system with a single command</p>
+            <div class="code-block">streamlit run streamlit_app.py</div>
+        </div>
+    </section>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+        PSX Trading Bot &copy; 2026 &mdash; Professional Algorithmic Trading for Pakistan Stock Exchange
+    </footer>
+
+    <script>
+        // Navbar scroll effect
+        window.addEventListener('scroll', () => {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+        });
+
+        // Mobile menu toggle
+        function toggleMenu() {
+            document.getElementById('hamburger').classList.toggle('active');
+            document.getElementById('navMenu').classList.toggle('open');
+        }
+
+        // Mobile dropdown toggle
+        function toggleMobileDropdown(item) {
+            if (window.innerWidth <= 900) {
+                item.classList.toggle('mobile-open');
+            }
+        }
+
+        // Close menu on outside click (mobile)
+        document.addEventListener('click', (e) => {
+            const nav = document.getElementById('navMenu');
+            const burger = document.getElementById('hamburger');
+            if (window.innerWidth <= 900 && !nav.contains(e.target) && !burger.contains(e.target)) {
+                nav.classList.remove('open');
+                burger.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

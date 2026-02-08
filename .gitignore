@@ -84,6 +84,7 @@ portfolio.json
 signal_history.json
 risk_manager_state.json
 all_psx_tickers.txt
+users.json
 
 # Model files (large binaries)
 models/*.pkl

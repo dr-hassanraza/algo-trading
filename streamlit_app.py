@@ -658,6 +658,162 @@ st.markdown("""
             box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(211, 47, 47, 0);
         }
     }
+
+    /* ===== PROFESSIONAL SIDEBAR NAVIGATION ===== */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0a0e1a 0%, #111827 100%);
+        border-right: 1px solid rgba(255,255,255,0.06);
+    }
+
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        color: #c0c8d8;
+    }
+
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 4px 18px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        margin-bottom: 18px;
+    }
+
+    .sidebar-brand-icon {
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: 800;
+        color: #1a1a2e;
+    }
+
+    .sidebar-brand-text {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1.2;
+    }
+
+    .sidebar-brand-text span {
+        color: #FFD700;
+    }
+
+    .sidebar-brand-sub {
+        font-size: 0.7rem;
+        color: #7a8299;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+    }
+
+    .nav-section-label {
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #556;
+        font-weight: 600;
+        padding: 14px 0 6px;
+        margin: 0;
+    }
+
+    .nav-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        margin: 2px 0;
+        border-radius: 8px;
+        color: #b0b8c8;
+        font-size: 0.88rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+    }
+
+    .nav-menu-item:hover {
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+    }
+
+    .nav-menu-item.active {
+        background: rgba(255,215,0,0.1);
+        color: #FFD700;
+        font-weight: 600;
+        border-left: 3px solid #FFD700;
+    }
+
+    .nav-menu-icon {
+        font-size: 1.1rem;
+        width: 24px;
+        text-align: center;
+    }
+
+    .nav-live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: rgba(0, 200, 83, 0.12);
+        color: #00c853;
+        margin-top: 12px;
+    }
+
+    .nav-live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #00c853;
+        animation: nav-pulse 2s infinite;
+    }
+
+    @keyframes nav-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    /* Style the radio buttons to look like nav items */
+    [data-testid="stSidebar"] .stRadio > div {
+        gap: 2px;
+    }
+
+    [data-testid="stSidebar"] .stRadio > div > label {
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin: 1px 0;
+        transition: all 0.15s ease;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+    }
+
+    [data-testid="stSidebar"] .stRadio > div > label:hover {
+        background: rgba(255,255,255,0.06);
+    }
+
+    [data-testid="stSidebar"] .stRadio > div > label[data-checked="true"],
+    [data-testid="stSidebar"] .stRadio > div [data-checked="true"] {
+        background: rgba(255,215,0,0.1) !important;
+        border-left: 3px solid #FFD700;
+    }
+
+    /* Hide radio button circles */
+    [data-testid="stSidebar"] .stRadio > div > label > div:first-child {
+        display: none;
+    }
+
+    .sidebar-divider {
+        height: 1px;
+        background: rgba(255,255,255,0.06);
+        margin: 12px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -5067,35 +5223,115 @@ def main():
         st.info("Please refresh the page. If the problem persists, contact support.")
         return
     
-    # Sidebar navigation
-    st.sidebar.title("🧭 Navigation")
-    
-    # Check if user is admin to show admin panel
-    navigation_options = [
-        "🚨 Live Signals",
-        "🏆 Pro Scanner",  # NEW: Professional Scanner with backtesting
-        "🔍 Symbol Analysis",
-        "🏦 Institutional System",
-        "🧠 Algorithm Overview",
-        "🔧 System Status"
+    # ===== PROFESSIONAL SIDEBAR NAVIGATION =====
+    st.sidebar.markdown("""
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">P</div>
+        <div>
+            <div class="sidebar-brand-text">PSX <span>Trading</span></div>
+            <div class="sidebar-brand-sub">Algorithmic Trading System</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.sidebar.markdown('<div class="nav-live-badge"><div class="nav-live-dot"></div>PSX Market Live</div>', unsafe_allow_html=True)
+
+    # --- TRADING section ---
+    st.sidebar.markdown('<p class="nav-section-label">Trading</p>', unsafe_allow_html=True)
+
+    trading_options = [
+        "🚨  Live Signals",
+        "🏆  Pro Scanner",
+    ]
+    if ENHANCED_INTRADAY_AVAILABLE:
+        trading_options.append("⚡  Intraday Dashboard")
+
+    trading_page = st.sidebar.radio(
+        "trading_nav",
+        options=trading_options,
+        label_visibility="collapsed",
+        key="trading_nav"
+    )
+
+    # --- ANALYSIS section ---
+    st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<p class="nav-section-label">Analysis</p>', unsafe_allow_html=True)
+
+    analysis_options = [
+        "🔍  Symbol Analysis",
+        "🏦  Institutional System",
+        "🧠  Algorithm Overview",
     ]
 
-    # Add enhanced intraday dashboard if available
-    if ENHANCED_INTRADAY_AVAILABLE:
-        navigation_options.insert(2, "⚡ Enhanced Intraday Dashboard")
-    
-    # Add admin panel for admin users
-    if AUTH_AVAILABLE and is_admin(st.session_state.get('username', '')):
-        navigation_options.append("👑 Admin Panel")
-    
-    page = st.sidebar.selectbox(
-        "Select Section",
-        options=navigation_options
+    analysis_page = st.sidebar.radio(
+        "analysis_nav",
+        options=analysis_options,
+        label_visibility="collapsed",
+        key="analysis_nav"
     )
-    
-    # Auto-refresh options
-    st.sidebar.markdown("### ⚙️ Settings")
+
+    # --- SYSTEM section ---
+    st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<p class="nav-section-label">System</p>', unsafe_allow_html=True)
+
+    system_options = ["🔧  System Status"]
+    if AUTH_AVAILABLE and is_admin(st.session_state.get('username', '')):
+        system_options.append("👑  Admin Panel")
+
+    system_page = st.sidebar.radio(
+        "system_nav",
+        options=system_options,
+        label_visibility="collapsed",
+        key="system_nav"
+    )
+
+    # --- Settings ---
+    st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+    st.sidebar.markdown('<p class="nav-section-label">Settings</p>', unsafe_allow_html=True)
     auto_refresh = st.sidebar.checkbox("🔄 Auto Refresh (30s)", value=False)
+
+    # Determine which page was last clicked using session state
+    all_pages = {
+        "🚨  Live Signals": "trading_nav",
+        "🏆  Pro Scanner": "trading_nav",
+        "⚡  Intraday Dashboard": "trading_nav",
+        "🔍  Symbol Analysis": "analysis_nav",
+        "🏦  Institutional System": "analysis_nav",
+        "🧠  Algorithm Overview": "analysis_nav",
+        "🔧  System Status": "system_nav",
+        "👑  Admin Panel": "system_nav",
+    }
+
+    # Track which section was most recently changed
+    if 'prev_trading' not in st.session_state:
+        st.session_state.prev_trading = trading_page
+    if 'prev_analysis' not in st.session_state:
+        st.session_state.prev_analysis = analysis_page
+    if 'prev_system' not in st.session_state:
+        st.session_state.prev_system = system_page
+
+    # Detect which radio group changed
+    if trading_page != st.session_state.prev_trading:
+        page = trading_page
+        st.session_state.prev_trading = trading_page
+        st.session_state.active_section = "trading"
+    elif analysis_page != st.session_state.prev_analysis:
+        page = analysis_page
+        st.session_state.prev_analysis = analysis_page
+        st.session_state.active_section = "analysis"
+    elif system_page != st.session_state.prev_system:
+        page = system_page
+        st.session_state.prev_system = system_page
+        st.session_state.active_section = "system"
+    else:
+        # Default: use the active section to determine current page
+        active = st.session_state.get('active_section', 'trading')
+        if active == "trading":
+            page = trading_page
+        elif active == "analysis":
+            page = analysis_page
+        else:
+            page = system_page
     
     # Display system status
     display_system_status()
@@ -5107,35 +5343,34 @@ def main():
     
     # Page routing with error handling
     try:
-        if page == "🚨 Live Signals":
+        if "Live Signals" in page:
             render_live_trading_signals()
 
-        elif page == "🏆 Pro Scanner":
+        elif "Pro Scanner" in page:
             render_professional_scanner()
 
-        elif page == "⚡ Enhanced Intraday Dashboard":
+        elif "Intraday Dashboard" in page:
             try:
-                # Use the safe dashboard version that doesn't have circular dependencies
                 from enhanced_dashboard_safe import render_enhanced_intraday_dashboard
                 render_enhanced_intraday_dashboard()
             except Exception as e:
                 st.error(f"Error loading Enhanced Intraday Dashboard: {e}")
                 st.info("Falling back to standard Symbol Analysis...")
                 render_symbol_analysis()
-            
-        elif page == "🔍 Symbol Analysis":
+
+        elif "Symbol Analysis" in page:
             render_symbol_analysis()
-            
-        elif page == "🏦 Institutional System":
+
+        elif "Institutional System" in page:
             render_advanced_institutional_system()
-            
-        elif page == "🧠 Algorithm Overview":
+
+        elif "Algorithm Overview" in page:
             render_algorithm_overview()
-            
-        elif page == "🔧 System Status":
+
+        elif "System Status" in page:
             render_system_status()
-            
-        elif page == "👑 Admin Panel":
+
+        elif "Admin Panel" in page:
             render_admin_panel()
             
     except Exception as e:

@@ -1,12 +1,13 @@
 [theme]
-primaryColor = "#1f77b4"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f0f2f6"
-textColor = "#262730"
+primaryColor = "#FFD700"
+backgroundColor = "#0a0e1a"
+secondaryBackgroundColor = "#111827"
+textColor = "#e0e6f0"
+font = "sans serif"
 
 [server]
 headless = true
 port = 8501
 
 [runner]
-magicEnabled = true# Deploy trigger Tue Sep 23 15:18:27 PKT 2025
+magicEnabled = true

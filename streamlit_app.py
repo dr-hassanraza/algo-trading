@@ -533,140 +533,295 @@ def check_authentication():
     
     return True
 
-# Professional CSS styling
+# Professional CSS styling - Full Dark Mode
 st.markdown("""
 <style>
+    /* ===== GLOBAL DARK THEME OVERRIDES ===== */
+    .stApp, .main, [data-testid="stAppViewContainer"] {
+        background: #0a0e1a !important;
+        color: #e0e6f0;
+    }
+
+    /* Main content block backgrounds */
+    [data-testid="stAppViewBlockContainer"] {
+        color: #e0e6f0;
+    }
+
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: #f0f2f6 !important;
+    }
+
     .main-header {
         font-size: 3.5rem;
         font-weight: bold;
         text-align: center;
-        background: linear-gradient(90deg, #1e3c72, #2a5298);
+        background: linear-gradient(90deg, #FFD700, #FFA500);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 2rem;
     }
-    
+
+    /* ===== CARDS & PANELS ===== */
+    [data-testid="stExpander"] {
+        background: #111827;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+    }
+
+    [data-testid="stMetric"] {
+        background: #111827;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+        padding: 12px;
+    }
+
+    [data-testid="stMetric"] label {
+        color: #8a92a6 !important;
+    }
+
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #fff !important;
+    }
+
+    /* Dataframes & tables */
+    [data-testid="stDataFrame"], .stDataFrame {
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 10px;
+    }
+
+    /* ===== SIGNAL CARDS ===== */
     .signal-strong-buy {
         background: linear-gradient(135deg, #00C851 0%, #007E33 100%);
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border: 2px solid #007E33;
+        box-shadow: 0 4px 15px rgba(0, 200, 81, 0.2);
+        border: 1px solid rgba(0, 200, 81, 0.3);
         font-weight: bold;
         animation: pulse-green 2s infinite;
     }
-    
+
     .signal-buy {
         background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.15);
     }
-    
+
     .signal-sell {
         background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.15);
     }
-    
+
     .signal-strong-sell {
         background: linear-gradient(135deg, #d32f2f 0%, #b71c1c 100%);
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        border: 2px solid #b71c1c;
+        box-shadow: 0 4px 15px rgba(211, 47, 47, 0.2);
+        border: 1px solid rgba(211, 47, 47, 0.3);
         font-weight: bold;
         animation: pulse-red 2s infinite;
     }
-    
+
     .signal-hold {
         background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
         padding: 1rem;
-        border-radius: 8px;
+        border-radius: 10px;
         color: white;
         text-align: center;
         margin: 0.5rem 0;
+        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.15);
     }
-    
+
     .algo-card {
         background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
         padding: 1.5rem;
         border-radius: 12px;
         color: white;
         margin: 1rem 0;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
     }
-    
+
     .performance-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1.5rem;
         border-radius: 12px;
         color: white;
         margin: 1rem 0;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
     }
-    
+
     .login-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
         border-radius: 15px;
         margin: 2rem 0;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
     }
-    
+
+    /* Forms - dark mode */
     .stForm > div {
-        background: rgba(255,255,255,0.95);
+        background: #111827;
         padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
+        border: 1px solid rgba(255,255,255,0.06);
     }
-    
-    /* Pulse animations for STRONG signals */
+
+    /* ===== INPUT FIELDS DARK MODE ===== */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div,
+    .stMultiSelect > div > div,
+    .stNumberInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        background: #1a2035 !important;
+        color: #e0e6f0 !important;
+        border-color: rgba(255,255,255,0.1) !important;
+        border-radius: 8px;
+    }
+
+    .stTextInput > div > div > input:focus,
+    .stNumberInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #FFD700 !important;
+        box-shadow: 0 0 0 1px #FFD700 !important;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+        color: #1a1a2e !important;
+        border: none;
+    }
+
+    /* Download buttons */
+    .stDownloadButton > button {
+        background: #111827;
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #e0e6f0;
+        border-radius: 8px;
+    }
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background: transparent;
+        gap: 4px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        background: #111827;
+        border-radius: 8px 8px 0 0;
+        border: 1px solid rgba(255,255,255,0.06);
+        color: #8a92a6;
+        padding: 8px 20px;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: #1a2035 !important;
+        color: #FFD700 !important;
+        border-bottom: 2px solid #FFD700;
+    }
+
+    /* Alerts & info boxes */
+    .stAlert {
+        border-radius: 10px;
+    }
+
+    /* Checkbox on dark */
+    .stCheckbox label span {
+        color: #c0c8d8 !important;
+    }
+
+    /* Selectbox dropdown dark */
+    [data-baseweb="popover"] {
+        background: #1a2035 !important;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    [data-baseweb="menu"] {
+        background: #1a2035 !important;
+    }
+
+    [data-baseweb="menu"] li {
+        color: #e0e6f0 !important;
+    }
+
+    [data-baseweb="menu"] li:hover {
+        background: rgba(255,215,0,0.1) !important;
+    }
+
+    /* Scrollbar dark */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #0a0e1a;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #2a3045;
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #3a4060;
+    }
+
+    /* ===== PULSE ANIMATIONS ===== */
     @keyframes pulse-green {
-        0% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(0, 200, 81, 0.7);
-        }
-        70% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 10px rgba(0, 200, 81, 0);
-        }
-        100% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(0, 200, 81, 0);
-        }
+        0% { box-shadow: 0 4px 15px rgba(0,200,81,0.2), 0 0 0 0 rgba(0,200,81,0.5); }
+        70% { box-shadow: 0 4px 15px rgba(0,200,81,0.2), 0 0 0 10px rgba(0,200,81,0); }
+        100% { box-shadow: 0 4px 15px rgba(0,200,81,0.2), 0 0 0 0 rgba(0,200,81,0); }
     }
-    
+
     @keyframes pulse-red {
-        0% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(211, 47, 47, 0.7);
-        }
-        70% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 10px rgba(211, 47, 47, 0);
-        }
-        100% {
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1), 0 0 0 0 rgba(211, 47, 47, 0);
-        }
+        0% { box-shadow: 0 4px 15px rgba(211,47,47,0.2), 0 0 0 0 rgba(211,47,47,0.5); }
+        70% { box-shadow: 0 4px 15px rgba(211,47,47,0.2), 0 0 0 10px rgba(211,47,47,0); }
+        100% { box-shadow: 0 4px 15px rgba(211,47,47,0.2), 0 0 0 0 rgba(211,47,47,0); }
     }
 
     /* ===== PROFESSIONAL SIDEBAR NAVIGATION ===== */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0a0e1a 0%, #111827 100%);
+        background: linear-gradient(180deg, #080c16 0%, #0f1524 100%) !important;
         border-right: 1px solid rgba(255,255,255,0.06);
+    }
+
+    [data-testid="stSidebar"] > div:first-child {
+        background: transparent !important;
     }
 
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
         color: #c0c8d8;
+    }
+
+    [data-testid="stSidebar"] .stRadio label,
+    [data-testid="stSidebar"] .stCheckbox label,
+    [data-testid="stSidebar"] span {
+        color: #c0c8d8 !important;
     }
 
     .sidebar-brand {
@@ -695,17 +850,17 @@ st.markdown("""
     .sidebar-brand-text {
         font-size: 1.15rem;
         font-weight: 700;
-        color: #fff;
+        color: #fff !important;
         line-height: 1.2;
     }
 
     .sidebar-brand-text span {
-        color: #FFD700;
+        color: #FFD700 !important;
     }
 
     .sidebar-brand-sub {
         font-size: 0.7rem;
-        color: #7a8299;
+        color: #7a8299 !important;
         font-weight: 400;
         letter-spacing: 0.5px;
     }
@@ -714,43 +869,10 @@ st.markdown("""
         font-size: 0.68rem;
         text-transform: uppercase;
         letter-spacing: 1.5px;
-        color: #556;
+        color: #4a5568 !important;
         font-weight: 600;
         padding: 14px 0 6px;
         margin: 0;
-    }
-
-    .nav-menu-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        margin: 2px 0;
-        border-radius: 8px;
-        color: #b0b8c8;
-        font-size: 0.88rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.15s ease;
-        text-decoration: none;
-    }
-
-    .nav-menu-item:hover {
-        background: rgba(255,255,255,0.06);
-        color: #fff;
-    }
-
-    .nav-menu-item.active {
-        background: rgba(255,215,0,0.1);
-        color: #FFD700;
-        font-weight: 600;
-        border-left: 3px solid #FFD700;
-    }
-
-    .nav-menu-icon {
-        font-size: 1.1rem;
-        width: 24px;
-        text-align: center;
     }
 
     .nav-live-badge {
@@ -762,7 +884,7 @@ st.markdown("""
         font-size: 0.72rem;
         font-weight: 600;
         background: rgba(0, 200, 83, 0.12);
-        color: #00c853;
+        color: #00c853 !important;
         margin-top: 12px;
     }
 
@@ -790,18 +912,21 @@ st.markdown("""
         margin: 1px 0;
         transition: all 0.15s ease;
         cursor: pointer;
-        background: transparent;
+        background: transparent !important;
         border: none;
+        color: #b0b8c8 !important;
     }
 
     [data-testid="stSidebar"] .stRadio > div > label:hover {
-        background: rgba(255,255,255,0.06);
+        background: rgba(255,255,255,0.05) !important;
+        color: #fff !important;
     }
 
     [data-testid="stSidebar"] .stRadio > div > label[data-checked="true"],
     [data-testid="stSidebar"] .stRadio > div [data-checked="true"] {
-        background: rgba(255,215,0,0.1) !important;
+        background: rgba(255,215,0,0.08) !important;
         border-left: 3px solid #FFD700;
+        color: #FFD700 !important;
     }
 
     /* Hide radio button circles */
@@ -813,6 +938,21 @@ st.markdown("""
         height: 1px;
         background: rgba(255,255,255,0.06);
         margin: 12px 0;
+    }
+
+    /* Sidebar logout/user section */
+    [data-testid="stSidebar"] .stButton > button {
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #c0c8d8;
+        border-radius: 8px;
+        width: 100%;
+    }
+
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255,70,70,0.1);
+        border-color: rgba(255,70,70,0.3);
+        color: #ff4646;
     }
 </style>
 """, unsafe_allow_html=True)

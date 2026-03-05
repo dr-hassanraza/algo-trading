@@ -2132,10 +2132,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                 debug_logs.append("Using advanced system")
             # Use advanced ML/DL system for signal generation
             if hasattr(advanced_system, 'generate_prediction'):
-                # Advanced ML/DL system (highest accuracy)
                 ml_signal = advanced_system.generate_prediction(symbol)
-                
-                # Convert ML signal to standard format
                 signal_data = {
                     'signal': ml_signal.signal,
                     'confidence': ml_signal.confidence,
@@ -2143,7 +2140,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                     'stop_loss': ml_signal.stop_loss,
                     'take_profit': ml_signal.take_profit,
                     'reasons': ml_signal.reasons[:5],
-                    'volume_support': True,  # Advanced system has volume analysis
+                    'volume_support': True,
                     'liquidity_ok': True,
                     'position_size': ml_signal.position_size,
                     'ml_confidence': getattr(ml_signal, 'ml_confidence', ml_signal.confidence),
@@ -2153,10 +2150,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                     'sentiment_score': getattr(ml_signal, 'sentiment_score', 50)
                 }
             elif hasattr(advanced_system, 'generate_integrated_signal'):
-                # Integrated system (high accuracy)
                 integrated_signal = advanced_system.generate_integrated_signal(symbol)
-                
-                # Convert integrated signal to standard format
                 signal_data = {
                     'signal': integrated_signal.signal,
                     'confidence': integrated_signal.confidence,
@@ -2172,6 +2166,30 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                     'fundamental_score': integrated_signal.fundamental_score
                 }
             else:
+                signal_data = None
+
+            # If advanced system returned a weak HOLD (no trained models),
+            # upgrade with direct technical analysis from PSX DPS API
+            if signal_data and signal_data.get('signal') == 'HOLD' and signal_data.get('confidence', 0) <= 40:
+                if debug_mode:
+                    debug_logs.append("Advanced system returned weak HOLD, trying direct_technical_scan")
+                scan_result = direct_technical_scan(symbol)
+                if scan_result:
+                    signal_data = {
+                        'signal': scan_result['signal'],
+                        'confidence': scan_result['confidence'],
+                        'entry_price': scan_result['price'],
+                        'stop_loss': scan_result['stop_loss'],
+                        'take_profit': scan_result['take_profit'],
+                        'reasons': scan_result.get('reasons', []),
+                        'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
+                        'liquidity_ok': True,
+                        'position_size': 0.02
+                    }
+                    if debug_mode:
+                        debug_logs.append(f"Upgraded to: {scan_result['signal']} ({scan_result['confidence']}%)")
+
+            if not signal_data:
                 raise ValueError("Advanced system not properly configured")
         else:
             if debug_mode:

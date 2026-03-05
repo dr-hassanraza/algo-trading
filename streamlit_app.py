@@ -2630,9 +2630,16 @@ def render_live_trading_signals():
                 if st.button(f"{sector} ({len(available_in_sector)})", key=f"sector_{sector}"):
                     # Add sector stocks to selection (up to remaining capacity)
                     remaining_slots = 12 - len(st.session_state.selected_stocks)
+                    added = 0
                     for stock in available_in_sector[:remaining_slots]:
                         if stock not in st.session_state.selected_stocks:
                             st.session_state.selected_stocks.append(stock)
+                            added += 1
+                    if added > 0:
+                        st.success(f"Added {added} {sector} stocks")
+                    else:
+                        st.info(f"All {sector} stocks already selected")
+                    st.rerun()
     
     # Control buttons
     col1, col2, col3 = st.columns(3)

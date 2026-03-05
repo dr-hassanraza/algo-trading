@@ -2540,14 +2540,17 @@ def render_live_trading_signals():
         with col1:
             if st.button("🏦 Banking Focus", help="Major banks and financial institutions", key="banking_focus_btn"):
                 st.session_state.selected_stocks = ['HBL', 'UBL', 'NBP', 'MCB', 'ABL', 'BAFL', 'AKBL', 'MEBL', 'JSBL', 'BAHL', 'FABL', 'BOK'][:12]
-        
+                st.rerun()
+
         with col2:
             if st.button("🏭 Industrial Mix", help="Mix of industrial and manufacturing stocks", key="industrial_mix_btn"):
                 st.session_state.selected_stocks = ['FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'PPL', 'EFERT', 'FATIMA', 'COLG', 'NESTLE', 'UNILEVER', 'ICI'][:12]
-        
+                st.rerun()
+
         with col3:
             if st.button("💼 Blue Chip", help="Top market cap and most liquid stocks", key="blue_chip_btn"):
                 st.session_state.selected_stocks = ['HBL', 'UBL', 'FFC', 'ENGRO', 'LUCK', 'PSO', 'OGDC', 'NBP', 'MCB', 'ABL', 'TRG', 'SYSTEMS']
+                st.rerun()
     
     with tab2:
         st.markdown("**Search and select individual stocks:**")
@@ -2572,12 +2575,13 @@ def render_live_trading_signals():
             if st.button("➕ Add Stock") and search_stock:
                 search_upper = search_stock.upper()
                 matching_stocks = [s for s in symbols if search_upper in s]
-                
+
                 if matching_stocks:
                     if len(st.session_state.selected_stocks) < 12:
                         if matching_stocks[0] not in st.session_state.selected_stocks:
                             st.session_state.selected_stocks.append(matching_stocks[0])
                             st.success(f"Added {matching_stocks[0]}")
+                            st.rerun()
                         else:
                             st.warning(f"{matching_stocks[0]} already selected")
                     else:

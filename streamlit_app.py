@@ -1875,11 +1875,10 @@ def get_cached_real_time_data(symbol):
 
 def direct_technical_scan(symbol):
     """
-    Direct technical analysis scanner - works without ML dependencies.
-    Returns reliable BUY/SELL signals based on classic technical indicators.
+    9-indicator confluence scanner with ADX regime weighting.
+    Returns professional-grade signals with dynamic ATR-based risk levels.
     """
     try:
-        # Fetch data directly from PSX DPS API
         import requests
         session = requests.Session()
         session.headers.update({'User-Agent': 'PSX-Scanner/1.0', 'Accept': 'application/json'})
@@ -1894,7 +1893,6 @@ def direct_technical_scan(symbol):
         if not data or 'data' not in data or not data['data'] or len(data['data']) < 30:
             return None
 
-        # Convert to DataFrame
         df = pd.DataFrame(data['data'], columns=['timestamp', 'price', 'volume'])
         df['price'] = pd.to_numeric(df['price'], errors='coerce')
         df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
@@ -1903,100 +1901,371 @@ def direct_technical_scan(symbol):
         if len(df) < 30:
             return None
 
-        # Calculate technical indicators
+        # ===== CALCULATE ALL INDICATORS =====
+
+        # 1. SMA (5, 20)
         df['sma_5'] = df['price'].rolling(5).mean()
         df['sma_20'] = df['price'].rolling(20).mean()
+
+        # 2. EMA (12, 26)
         df['ema_12'] = df['price'].ewm(span=12).mean()
         df['ema_26'] = df['price'].ewm(span=26).mean()
 
-        # RSI calculation
+        # 3. RSI (14)
         delta = df['price'].diff()
         gain = delta.where(delta > 0, 0).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-        rs = gain / loss
+        rs = gain / loss.replace(0, np.nan)
         df['rsi'] = 100 - (100 / (1 + rs))
 
-        # MACD
+        # 4. MACD + histogram
         df['macd'] = df['ema_12'] - df['ema_26']
         df['macd_signal'] = df['macd'].ewm(span=9).mean()
+        df['macd_hist'] = df['macd'] - df['macd_signal']
 
-        # Volume ratio
+        # 5. Stochastic %K/%D (14, 3) - from price-only data
+        period_k = 14
+        lowest_low = df['price'].rolling(period_k).min()
+        highest_high = df['price'].rolling(period_k).max()
+        denom = highest_high - lowest_low
+        df['stoch_k'] = 100 * (df['price'] - lowest_low) / denom.replace(0, np.nan)
+        df['stoch_d'] = df['stoch_k'].rolling(3).mean()
+
+        # 6. Bollinger Bands (20, 2)
+        bb_period = 20
+        df['bb_mid'] = df['price'].rolling(bb_period).mean()
+        bb_std = df['price'].rolling(bb_period).std()
+        df['bb_upper'] = df['bb_mid'] + 2 * bb_std
+        df['bb_lower'] = df['bb_mid'] - 2 * bb_std
+        bb_range = df['bb_upper'] - df['bb_lower']
+        df['bb_width'] = bb_range / df['bb_mid'].replace(0, np.nan)
+        df['bb_pos'] = (df['price'] - df['bb_lower']) / bb_range.replace(0, np.nan)
+
+        # BB squeeze detection
+        avg_len = min(len(df), 50)
+        avg_bb_width = df['bb_width'].rolling(avg_len).mean()
+        squeeze = False
+        if pd.notna(df['bb_width'].iloc[-1]) and pd.notna(avg_bb_width.iloc[-1]) and avg_bb_width.iloc[-1] > 0:
+            squeeze = df['bb_width'].iloc[-1] < avg_bb_width.iloc[-1] * 0.6
+
+        # 7. ATR (14) - simplified from price-only
+        high_low = df['price'].rolling(2).max() - df['price'].rolling(2).min()
+        high_close = (df['price'] - df['price'].shift(1)).abs()
+        tr = pd.concat([high_low, high_close], axis=1).max(axis=1)
+        df['atr'] = tr.rolling(14).mean()
+
+        # 8. ADX (14) - simplified
+        plus_dm = df['price'].diff().clip(lower=0)
+        minus_dm = (-df['price'].diff()).clip(lower=0)
+        atr_safe = df['atr'].replace(0, np.nan)
+        plus_di = 100 * plus_dm.rolling(14).mean() / atr_safe
+        minus_di = 100 * minus_dm.rolling(14).mean() / atr_safe
+        di_sum = plus_di + minus_di
+        dx = 100 * (plus_di - minus_di).abs() / di_sum.replace(0, np.nan)
+        df['adx'] = dx.rolling(14).mean()
+
+        # 9. Volume ratio + OBV
         df['vol_ma'] = df['volume'].rolling(20).mean()
-        df['vol_ratio'] = df['volume'] / df['vol_ma']
+        df['vol_ratio'] = df['volume'] / df['vol_ma'].replace(0, np.nan)
+        df['obv'] = (np.sign(df['price'].diff()) * df['volume']).fillna(0).cumsum()
 
+        # ===== EXTRACT LATEST VALUES =====
         latest = df.iloc[-1]
         prev = df.iloc[-2] if len(df) > 1 else latest
 
         price = float(latest['price'])
-        rsi = float(latest['rsi']) if pd.notna(latest['rsi']) else 50
-        sma_5 = float(latest['sma_5']) if pd.notna(latest['sma_5']) else price
-        sma_20 = float(latest['sma_20']) if pd.notna(latest['sma_20']) else price
-        macd = float(latest['macd']) if pd.notna(latest['macd']) else 0
-        macd_sig = float(latest['macd_signal']) if pd.notna(latest['macd_signal']) else 0
-        vol_ratio = float(latest['vol_ratio']) if pd.notna(latest['vol_ratio']) else 1
 
-        # Signal scoring system
-        score = 0
+        def safe_float(val, default):
+            return float(val) if pd.notna(val) else default
+
+        rsi = safe_float(latest['rsi'], 50)
+        sma_5 = safe_float(latest['sma_5'], price)
+        sma_20 = safe_float(latest['sma_20'], price)
+        ema_12 = safe_float(latest['ema_12'], price)
+        ema_26 = safe_float(latest['ema_26'], price)
+        macd_val = safe_float(latest['macd'], 0)
+        macd_sig_val = safe_float(latest['macd_signal'], 0)
+        macd_hist = safe_float(latest['macd_hist'], 0)
+        prev_macd_hist = safe_float(prev['macd_hist'], 0) if 'macd_hist' in prev.index else 0
+        stoch_k = safe_float(latest['stoch_k'], 50)
+        stoch_d = safe_float(latest['stoch_d'], 50)
+        bb_pos = safe_float(latest['bb_pos'], 0.5)
+        atr_val = safe_float(latest['atr'], price * 0.02)
+        atr_pct = (atr_val / price * 100) if price > 0 else 2.0
+        adx_val = safe_float(latest['adx'], 20)
+        vol_ratio = safe_float(latest['vol_ratio'], 1)
+        obv_now = safe_float(latest['obv'], 0)
+        obv_5ago = safe_float(df['obv'].iloc[-6], 0) if len(df) >= 6 else obv_now
+
+        prev_sma5 = safe_float(prev['sma_5'], price)
+        prev_sma20 = safe_float(prev['sma_20'], price)
+        prev_ema12 = safe_float(prev['ema_12'], price)
+        prev_ema26 = safe_float(prev['ema_26'], price)
+        prev_macd = safe_float(prev['macd'], 0)
+        prev_macd_sig = safe_float(prev['macd_signal'], 0)
+
+        # ===== ADX REGIME DETECTION =====
+        if adx_val > 40:
+            trend_mult = 1.0
+            market_regime = 'STRONG_TREND'
+        elif adx_val > 25:
+            trend_mult = 0.8
+            market_regime = 'TRENDING'
+        elif adx_val > 20:
+            trend_mult = 0.5
+            market_regime = 'WEAK_TREND'
+        else:
+            trend_mult = 0.3
+            market_regime = 'RANGING'
+
+        mean_rev_mult = min(1.3, 1.0 / trend_mult) if trend_mult > 0 else 1.3
+
+        # ===== PER-INDICATOR SCORING (-10 to +10 each) =====
+        scores = []
         reasons = []
 
-        # RSI Analysis (weight: 3)
-        if rsi < 30:
-            score += 3
-            reasons.append(f"RSI oversold ({rsi:.0f})")
-        elif rsi < 40:
-            score += 1
-            reasons.append(f"RSI low ({rsi:.0f})")
-        elif rsi > 70:
-            score -= 3
-            reasons.append(f"RSI overbought ({rsi:.0f})")
-        elif rsi > 60:
-            score -= 1
-            reasons.append(f"RSI high ({rsi:.0f})")
-
-        # Trend Analysis (weight: 2)
+        # 1. SMA Crossover (5/20)
+        sma_spread = (sma_5 - sma_20) / sma_20 * 100 if sma_20 != 0 else 0
         if sma_5 > sma_20:
-            score += 2
-            reasons.append("Bullish trend (SMA5>SMA20)")
+            if prev_sma5 <= prev_sma20:
+                s = 10; r = "SMA golden cross (5/20)"
+            elif sma_spread > 1.0:
+                s = 7; r = f"Strong uptrend (SMA5 +{sma_spread:.1f}%)"
+            else:
+                s = 4; r = "Mild uptrend (SMA5>SMA20)"
         else:
-            score -= 2
-            reasons.append("Bearish trend (SMA5<SMA20)")
+            if prev_sma5 >= prev_sma20:
+                s = -10; r = "SMA death cross (5/20)"
+            elif sma_spread < -1.0:
+                s = -7; r = f"Strong downtrend (SMA5 {sma_spread:.1f}%)"
+            else:
+                s = -4; r = "Mild downtrend (SMA5<SMA20)"
+        sma_score = s * trend_mult
+        scores.append(s)
+        reasons.append(r)
 
-        # MACD Analysis (weight: 2)
-        if macd > macd_sig and prev['macd'] <= prev['macd_signal']:
-            score += 2
-            reasons.append("MACD bullish crossover")
-        elif macd < macd_sig and prev['macd'] >= prev['macd_signal']:
-            score -= 2
-            reasons.append("MACD bearish crossover")
-        elif macd > macd_sig:
-            score += 1
+        # 2. EMA Crossover (12/26)
+        if ema_12 > ema_26:
+            if prev_ema12 <= prev_ema26:
+                s = 10; r = "EMA bullish crossover (12/26)"
+            else:
+                s = 5; r = "EMA bullish alignment"
         else:
-            score -= 1
+            if prev_ema12 >= prev_ema26:
+                s = -10; r = "EMA bearish crossover (12/26)"
+            else:
+                s = -5; r = "EMA bearish alignment"
+        ema_score = s * trend_mult
+        scores.append(s)
+        reasons.append(r)
 
-        # Volume confirmation
-        if vol_ratio > 1.5:
-            reasons.append(f"High volume ({vol_ratio:.1f}x)")
-            if score > 0:
-                score += 1
-            elif score < 0:
-                score -= 1
+        # 3. RSI (14)
+        if rsi < 25:
+            s = 10; r = f"RSI deeply oversold ({rsi:.0f})"
+        elif rsi < 30:
+            s = 7; r = f"RSI oversold ({rsi:.0f})"
+        elif rsi < 40:
+            s = 3; r = f"RSI low ({rsi:.0f})"
+        elif rsi > 75:
+            s = -10; r = f"RSI deeply overbought ({rsi:.0f})"
+        elif rsi > 70:
+            s = -7; r = f"RSI overbought ({rsi:.0f})"
+        elif rsi > 60:
+            s = -3; r = f"RSI high ({rsi:.0f})"
+        else:
+            s = 0; r = f"RSI neutral ({rsi:.0f})"
+        rsi_score = s
+        scores.append(s)
+        if s != 0:
+            reasons.append(r)
 
-        # Determine signal and confidence
-        if score >= 4:
+        # 4. MACD + histogram acceleration
+        if macd_val > macd_sig_val and prev_macd <= prev_macd_sig:
+            s = 8; r = "MACD bullish crossover"
+        elif macd_val < macd_sig_val and prev_macd >= prev_macd_sig:
+            s = -8; r = "MACD bearish crossover"
+        elif macd_val > macd_sig_val:
+            s = 4; r = "MACD above signal"
+        else:
+            s = -4; r = "MACD below signal"
+        # Histogram acceleration bonus
+        if macd_hist > 0 and macd_hist > prev_macd_hist:
+            s = min(s + 2, 10)
+            r += " (accelerating)"
+        elif macd_hist < 0 and macd_hist < prev_macd_hist:
+            s = max(s - 2, -10)
+            r += " (accelerating)"
+        macd_score = s
+        scores.append(s)
+        reasons.append(r)
+
+        # 5. Stochastic %K/%D
+        if stoch_k < 20 and stoch_d < 20:
+            if stoch_k > stoch_d:
+                s = 10; r = f"Stochastic bullish crossover in oversold (K={stoch_k:.0f})"
+            else:
+                s = 6; r = f"Stochastic oversold (K={stoch_k:.0f})"
+        elif stoch_k > 80 and stoch_d > 80:
+            if stoch_k < stoch_d:
+                s = -10; r = f"Stochastic bearish crossover in overbought (K={stoch_k:.0f})"
+            else:
+                s = -6; r = f"Stochastic overbought (K={stoch_k:.0f})"
+        elif stoch_k > stoch_d:
+            s = 3; r = f"Stochastic bullish (K={stoch_k:.0f})"
+        else:
+            s = -3; r = f"Stochastic bearish (K={stoch_k:.0f})"
+        stoch_score = s * mean_rev_mult
+        scores.append(s)
+        reasons.append(r)
+
+        # 6. Bollinger Band position + squeeze
+        if bb_pos < 0:
+            s = 8; r = "Price below lower BB (mean reversion BUY)"
+        elif bb_pos < 0.15:
+            s = 5; r = f"Price near lower BB ({bb_pos:.0%})"
+        elif bb_pos > 1.0:
+            s = -8; r = "Price above upper BB (mean reversion SELL)"
+        elif bb_pos > 0.85:
+            s = -5; r = f"Price near upper BB ({bb_pos:.0%})"
+        else:
+            s = 0; r = None
+        if squeeze and r:
+            r += " [BB SQUEEZE]"
+        elif squeeze:
+            r = "BB Squeeze - breakout imminent"
+        bb_score = s * mean_rev_mult
+        scores.append(s)
+        if r:
+            reasons.append(r)
+
+        # 7. Volume + OBV
+        vs = 0
+        vr_parts = []
+        if vol_ratio > 2.0:
+            vs += 5; vr_parts.append(f"Volume surge ({vol_ratio:.1f}x)")
+        elif vol_ratio > 1.5:
+            vs += 3; vr_parts.append(f"Above-avg volume ({vol_ratio:.1f}x)")
+        elif vol_ratio < 0.5:
+            vs -= 2; vr_parts.append(f"Low volume ({vol_ratio:.1f}x)")
+
+        obv_slope = obv_now - obv_5ago
+        if obv_slope > 0:
+            vs += 3; vr_parts.append("OBV rising")
+        elif obv_slope < 0:
+            vs -= 3; vr_parts.append("OBV falling")
+
+        vol_score = vs
+        scores.append(vs)
+        if vr_parts:
+            reasons.append(" + ".join(vr_parts))
+
+        # ===== AGGREGATE WEIGHTED SCORE =====
+        # Apply regime weights: trend indicators already multiplied, mean-rev already multiplied
+        raw_score = sma_score + ema_score + rsi_score + macd_score + stoch_score + bb_score + vol_score
+        # Normalize to -100..+100 (empirical realistic max ~45 with regime dampening)
+        normalized_score = max(-100, min(100, (raw_score / 45) * 100))
+
+        # ===== SIGNAL DETERMINATION =====
+        if normalized_score >= 50:
             signal = 'STRONG_BUY'
-            confidence = min(85, 60 + score * 3)
-        elif score >= 2:
+        elif normalized_score >= 20:
             signal = 'BUY'
-            confidence = min(75, 50 + score * 3)
-        elif score <= -4:
+        elif normalized_score <= -50:
             signal = 'STRONG_SELL'
-            confidence = min(85, 60 + abs(score) * 3)
-        elif score <= -2:
+        elif normalized_score <= -20:
             signal = 'SELL'
-            confidence = min(75, 50 + abs(score) * 3)
         else:
             signal = 'HOLD'
-            confidence = 40
+
+        # ===== CONFIDENCE: indicator agreement =====
+        raw_scores = scores  # unweighted per-indicator scores
+        if signal in ['BUY', 'STRONG_BUY']:
+            agreeing = sum(1 for s in raw_scores if s > 0)
+        elif signal in ['SELL', 'STRONG_SELL']:
+            agreeing = sum(1 for s in raw_scores if s < 0)
+        else:
+            agreeing = sum(1 for s in raw_scores if abs(s) <= 2)
+        total_ind = len(raw_scores)
+        agreement_pct = (agreeing / total_ind * 100) if total_ind > 0 else 0
+
+        mag_list = [abs(s) for s in raw_scores if (s > 0 if signal in ['BUY', 'STRONG_BUY'] else s < 0 if signal in ['SELL', 'STRONG_SELL'] else True)]
+        avg_mag = np.mean(mag_list) if mag_list else 0
+        mag_factor = min(avg_mag / 10.0, 1.0)
+
+        confidence = 30 + (agreement_pct * 0.50) + (mag_factor * 20)
+
+        # Volume confirmation bonus
+        if (signal in ['BUY', 'STRONG_BUY'] and vol_score > 3) or \
+           (signal in ['SELL', 'STRONG_SELL'] and vol_score < -3):
+            confidence += 5
+        # Ranging market penalty on directional signals
+        if market_regime == 'RANGING' and signal != 'HOLD':
+            confidence -= 10
+
+        confidence = max(15, min(95, confidence))
+
+        # ===== DYNAMIC ATR STOP/TARGET =====
+        atr_stop_mult = 2.0
+        atr_target_mult = 3.0
+        if signal in ['STRONG_BUY', 'STRONG_SELL']:
+            atr_target_mult = 4.0
+
+        if signal in ['BUY', 'STRONG_BUY']:
+            stop_loss = price - (atr_val * atr_stop_mult)
+            take_profit = price + (atr_val * atr_target_mult)
+        elif signal in ['SELL', 'STRONG_SELL']:
+            stop_loss = price + (atr_val * atr_stop_mult)
+            take_profit = price - (atr_val * atr_target_mult)
+        else:
+            stop_loss = price - (atr_val * atr_stop_mult)
+            take_profit = price + (atr_val * atr_target_mult)
+
+        # Clamp stop distance 1-8%
+        stop_dist_pct = abs(price - stop_loss) / price if price > 0 else 0.03
+        if stop_dist_pct > 0.08:
+            stop_loss = price * (1 - 0.08) if signal in ['BUY', 'STRONG_BUY', 'HOLD'] else price * (1 + 0.08)
+        elif stop_dist_pct < 0.01:
+            stop_loss = price * (1 - 0.01) if signal in ['BUY', 'STRONG_BUY', 'HOLD'] else price * (1 + 0.01)
+
+        # Ensure minimum 1:1.5 R:R
+        risk = abs(price - stop_loss)
+        reward = abs(take_profit - price)
+        if risk > 0 and reward < risk * 1.5:
+            if signal in ['BUY', 'STRONG_BUY', 'HOLD']:
+                take_profit = price + risk * 1.5
+            else:
+                take_profit = price - risk * 1.5
+            reward = abs(take_profit - price)
+
+        rr_ratio = (reward / risk) if risk > 0 else 1.5
+
+        # ===== SIGNAL GRADE =====
+        grade_score = 0
+        grade_score += agreeing * 5                    # agreement (max 35)
+        if abs(vol_score) >= 5: grade_score += 15      # volume (max 15)
+        elif abs(vol_score) >= 3: grade_score += 10
+        elif abs(vol_score) >= 1: grade_score += 5
+
+        if market_regime in ['STRONG_TREND', 'TRENDING'] and signal != 'HOLD':
+            grade_score += 20                           # regime match (max 20)
+        elif market_regime == 'RANGING' and abs(bb_score) >= 5:
+            grade_score += 10
+
+        if squeeze:
+            grade_score += 15                           # squeeze bonus (max 15)
+
+        if rr_ratio >= 2.0: grade_score += 15           # R:R (max 15)
+        elif rr_ratio >= 1.5: grade_score += 10
+        elif rr_ratio >= 1.0: grade_score += 5
+
+        if grade_score >= 75:
+            grade = 'A'
+        elif grade_score >= 55:
+            grade = 'B'
+        elif grade_score >= 35:
+            grade = 'C'
+        else:
+            grade = 'D'
 
         return {
             'symbol': symbol,
@@ -2004,13 +2273,24 @@ def direct_technical_scan(symbol):
             'confidence': confidence,
             'price': price,
             'entry_price': price,
-            'stop_loss': price * 0.95,
-            'take_profit': price * 1.05,
+            'stop_loss': round(stop_loss, 2),
+            'take_profit': round(take_profit, 2),
             'rsi': rsi,
-            'score': score,
+            'macd': macd_val,
+            'stoch_k': stoch_k,
+            'adx': adx_val,
+            'bb_position': bb_pos,
+            'bb_squeeze': squeeze,
+            'atr': atr_val,
+            'atr_pct': atr_pct,
+            'score': normalized_score,
+            'grade': grade,
+            'market_regime': market_regime,
             'reasons': reasons,
+            'indicator_agreement': f"{agreeing}/{total_ind}",
             'volume': int(latest['volume']),
-            'vol_ratio': vol_ratio
+            'vol_ratio': vol_ratio,
+            'risk_reward': round(rr_ratio, 1),
         }
 
     except Exception as e:
@@ -2110,6 +2390,31 @@ def render_header():
         </div>
         """, unsafe_allow_html=True)
 
+def _scan_result_to_signal_data(scan_result):
+    """Convert direct_technical_scan result to standard signal_data dict."""
+    return {
+        'signal': scan_result['signal'],
+        'confidence': scan_result['confidence'],
+        'entry_price': scan_result['price'],
+        'stop_loss': scan_result['stop_loss'],
+        'take_profit': scan_result['take_profit'],
+        'reasons': scan_result.get('reasons', []),
+        'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
+        'liquidity_ok': True,
+        'position_size': 0.02,
+        'grade': scan_result.get('grade', '-'),
+        'rsi': scan_result.get('rsi', 50),
+        'adx': scan_result.get('adx', 0),
+        'stoch_k': scan_result.get('stoch_k', 50),
+        'atr_pct': scan_result.get('atr_pct', 0),
+        'bb_squeeze': scan_result.get('bb_squeeze', False),
+        'bb_position': scan_result.get('bb_position', 0.5),
+        'market_regime': scan_result.get('market_regime', 'N/A'),
+        'indicator_agreement': scan_result.get('indicator_agreement', '?/?'),
+        'risk_reward': scan_result.get('risk_reward', 1.0),
+        'vol_ratio': scan_result.get('vol_ratio', 1.0),
+    }
+
 def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mode=False):
     """UNIFIED signal generation using advanced ML/DL system for highest accuracy"""
     debug_logs = []
@@ -2175,17 +2480,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                     debug_logs.append("Advanced system returned weak HOLD, trying direct_technical_scan")
                 scan_result = direct_technical_scan(symbol)
                 if scan_result:
-                    signal_data = {
-                        'signal': scan_result['signal'],
-                        'confidence': scan_result['confidence'],
-                        'entry_price': scan_result['price'],
-                        'stop_loss': scan_result['stop_loss'],
-                        'take_profit': scan_result['take_profit'],
-                        'reasons': scan_result.get('reasons', []),
-                        'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
-                        'liquidity_ok': True,
-                        'position_size': 0.02
-                    }
+                    signal_data = _scan_result_to_signal_data(scan_result)
                     if debug_mode:
                         debug_logs.append(f"Upgraded to: {scan_result['signal']} ({scan_result['confidence']}%)")
 
@@ -2217,17 +2512,7 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
                     debug_logs.append("Trying direct_technical_scan")
                 scan_result = direct_technical_scan(symbol)
                 if scan_result:
-                    signal_data = {
-                        'signal': scan_result['signal'],
-                        'confidence': scan_result['confidence'],
-                        'entry_price': scan_result['price'],
-                        'stop_loss': scan_result['stop_loss'],
-                        'take_profit': scan_result['take_profit'],
-                        'reasons': scan_result.get('reasons', []),
-                        'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
-                        'liquidity_ok': True,
-                        'position_size': 0.02
-                    }
+                    signal_data = _scan_result_to_signal_data(scan_result)
                     if debug_mode:
                         debug_logs.append(f"direct_technical_scan: {scan_result['signal']} score={scan_result.get('score', 0)}")
 
@@ -2308,20 +2593,11 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
         try:
             scan_result = direct_technical_scan(symbol)
             if scan_result:
-                return {
-                    'signal': scan_result['signal'],
-                    'confidence': scan_result['confidence'],
-                    'entry_price': scan_result['price'],
-                    'stop_loss': scan_result['stop_loss'],
-                    'take_profit': scan_result['take_profit'],
-                    'reasons': scan_result.get('reasons', []),
-                    'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
-                    'liquidity_ok': True,
-                    'position_size': 0.02,
-                    '_enhanced_system': False,
-                    '_generation_timestamp': datetime.now().isoformat(),
-                    '_data_source': 'direct_technical_scan'
-                }, debug_logs
+                sd = _scan_result_to_signal_data(scan_result)
+                sd['_enhanced_system'] = False
+                sd['_generation_timestamp'] = datetime.now().isoformat()
+                sd['_data_source'] = 'direct_technical_scan'
+                return sd, debug_logs
         except Exception:
             pass
 
@@ -2784,27 +3060,44 @@ def render_live_trading_signals():
                             confidence = signal_data.get('confidence', 0)
                             signal_class = f"signal-{signal_type.lower().replace('_', '-')}"
                             
+                            grade = signal_data.get('grade', '')
+                            grade_badge = f' <span style="font-size:0.65em; opacity:0.85; background:rgba(255,255,255,0.15); padding:1px 6px; border-radius:4px;">Grade {grade}</span>' if grade else ''
+                            agreement = signal_data.get('indicator_agreement', '')
+                            rr = signal_data.get('risk_reward', 0)
+                            regime = signal_data.get('market_regime', '')
+
                             st.markdown(f"""
                             <div class="{signal_class}">
-                                <h5>{symbol}</h5>
+                                <h5>{symbol}{grade_badge}</h5>
                                 <h3>{signal_type}</h3>
-                                <p>Confidence: {confidence:.1f}%</p>
+                                <p>Confidence: {confidence:.0f}% ({agreement})</p>
                                 <p>Price: {market_data['price']:.2f} PKR</p>
                                 <small>Entry: {signal_data.get('entry_price', market_data['price']):.2f}</small><br>
-                                <small>Stop: {signal_data.get('stop_loss', market_data['price'] * 0.98):.2f}</small><br>
-                                <small>Target: {signal_data.get('take_profit', market_data['price'] * 1.04):.2f}</small>
+                                <small>Stop: {signal_data.get('stop_loss', market_data['price'] * 0.98):.2f} | Target: {signal_data.get('take_profit', market_data['price'] * 1.04):.2f}</small><br>
+                                <small>R:R 1:{rr:.1f} | {regime}</small>
                             </div>
                             """, unsafe_allow_html=True)
-                            
-                            # Show reasons if available
+
+                            # Show detailed analysis in expander
                             if signal_data.get('reasons'):
-                                with st.expander(f"📋 {symbol} Analysis"):
-                                    for reason in signal_data['reasons'][:3]:
-                                        st.write(f"• {reason}")
-                                    
-                                    st.write(f"**Volume Support**: {'✅' if signal_data.get('volume_support', False) else '❌'}")
-                                    st.write(f"**Liquidity OK**: {'✅' if signal_data.get('liquidity_ok', True) else '❌'}")
-                                    st.write(f"**Position Size**: {signal_data.get('position_size', 0.0):.2%}")
+                                with st.expander(f"📋 {symbol} Analysis (Grade {grade})"):
+                                    ic1, ic2, ic3, ic4 = st.columns(4)
+                                    with ic1:
+                                        st.metric("RSI", f"{signal_data.get('rsi', 50):.0f}")
+                                    with ic2:
+                                        st.metric("ADX", f"{signal_data.get('adx', 0):.0f}")
+                                    with ic3:
+                                        st.metric("Stoch %K", f"{signal_data.get('stoch_k', 50):.0f}")
+                                    with ic4:
+                                        st.metric("ATR%", f"{signal_data.get('atr_pct', 0):.1f}%")
+
+                                    for reason in signal_data['reasons'][:5]:
+                                        st.write(f"- {reason}")
+
+                                    st.write(f"**Market Regime**: {regime}")
+                                    st.write(f"**Volume**: {'High' if signal_data.get('vol_ratio', 1) > 1.5 else 'Normal'} ({signal_data.get('vol_ratio', 1):.1f}x)")
+                                    st.write(f"**BB Squeeze**: {'Yes - breakout imminent' if signal_data.get('bb_squeeze', False) else 'No'}")
+                                    st.write(f"**Agreement**: {agreement} indicators")
                         
                         elif market_data and 'price' in market_data:
                             # Show price-only view when price is available but possibly invalid
@@ -2849,41 +3142,52 @@ def render_live_trading_signals():
     buy_signals = 0
     sell_signals = 0
     high_confidence_signals = 0
+    grade_a_count = 0
+    rr_ratios = []
     total_processed = 0
-    
+
     for symbol in available_symbols:
         try:
             market_data = get_cached_real_time_data(symbol)
             if market_data:
-                # Use SAME enhanced signal generation as individual signals above
                 signal_data, debug_logs = safe_generate_signal(symbol, market_data, system, data_points=100)
-                
+
                 total_processed += 1
                 if signal_data['signal'] in ['BUY', 'STRONG_BUY']:
                     buy_signals += 1
                 elif signal_data['signal'] in ['SELL', 'STRONG_SELL']:
                     sell_signals += 1
-                
+
                 if signal_data['confidence'] > 75:
                     high_confidence_signals += 1
+                if signal_data.get('grade') == 'A':
+                    grade_a_count += 1
+                rr_ratios.append(signal_data.get('risk_reward', 1.0))
         except:
             continue
-    
+
     # Display portfolio metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+
     with col1:
-        st.metric("🟢 Buy Signals", buy_signals, f"{buy_signals/max(total_processed,1)*100:.0f}% of stocks")
-    
+        st.metric("Buy", buy_signals, f"{buy_signals/max(total_processed,1)*100:.0f}%")
+
     with col2:
-        st.metric("🔴 Sell Signals", sell_signals, f"{sell_signals/max(total_processed,1)*100:.0f}% of stocks")
-    
+        st.metric("Sell", sell_signals, f"{sell_signals/max(total_processed,1)*100:.0f}%")
+
     with col3:
-        st.metric("⭐ High Confidence", high_confidence_signals, f"{high_confidence_signals/max(total_processed,1)*100:.0f}% of stocks")
-    
+        st.metric("High Conf.", high_confidence_signals, f"{high_confidence_signals/max(total_processed,1)*100:.0f}%")
+
     with col4:
         market_sentiment = "Bullish" if buy_signals > sell_signals else "Bearish" if sell_signals > buy_signals else "Neutral"
-        st.metric("📈 Market Sentiment", market_sentiment, f"{abs(buy_signals-sell_signals)} signal difference")
+        st.metric("Sentiment", market_sentiment, f"{abs(buy_signals-sell_signals)} diff")
+
+    with col5:
+        st.metric("Grade A", grade_a_count)
+
+    with col6:
+        avg_rr = np.mean(rr_ratios) if rr_ratios else 1.0
+        st.metric("Avg R:R", f"1:{avg_rr:.1f}")
     
     # Add trading session info
     st.info("🕒 **Trading Session**: PSX operates 9:30 AM - 3:30 PM PKT | 📍 **Optimal Hours**: 10:00 AM - 3:00 PM for best liquidity")
@@ -2984,31 +3288,26 @@ def render_live_trading_signals():
 
                             # Filter by confidence and signal type
                             if confidence >= min_confidence:
+                                opp_data = {
+                                    'Symbol': symbol,
+                                    'Signal': signal_type,
+                                    'Grade': scan_result.get('grade', '-'),
+                                    'Confidence': f"{confidence:.0f}%",
+                                    'Price': f"{scan_result['price']:.2f}",
+                                    'Entry': f"{scan_result['entry_price']:.2f}",
+                                    'Stop': f"{scan_result['stop_loss']:.2f}",
+                                    'Target': f"{scan_result['take_profit']:.2f}",
+                                    'R:R': f"1:{scan_result.get('risk_reward', 1):.1f}",
+                                    'RSI': f"{scan_result.get('rsi', 50):.0f}",
+                                    'ADX': f"{scan_result.get('adx', 0):.0f}",
+                                    'Regime': scan_result.get('market_regime', 'N/A'),
+                                    'Volume': f"{scan_result.get('volume', 0):,}",
+                                    'Reason': scan_result['reasons'][0] if scan_result['reasons'] else 'Technical analysis'
+                                }
                                 if signal_type in ['BUY', 'STRONG_BUY']:
-                                    buy_opportunities.append({
-                                        'Symbol': symbol,
-                                        'Signal': signal_type,
-                                        'Confidence': f"{confidence:.1f}%",
-                                        'Price': f"{scan_result['price']:.2f}",
-                                        'Entry': f"{scan_result['entry_price']:.2f}",
-                                        'Stop': f"{scan_result['stop_loss']:.2f}",
-                                        'Target': f"{scan_result['take_profit']:.2f}",
-                                        'Volume': f"{scan_result.get('volume', 0):,}",
-                                        'Reason': scan_result['reasons'][0] if scan_result['reasons'] else 'Technical analysis'
-                                    })
-
+                                    buy_opportunities.append(opp_data)
                                 elif signal_type in ['SELL', 'STRONG_SELL']:
-                                    sell_opportunities.append({
-                                        'Symbol': symbol,
-                                        'Signal': signal_type,
-                                        'Confidence': f"{confidence:.1f}%",
-                                        'Price': f"{scan_result['price']:.2f}",
-                                        'Entry': f"{scan_result['entry_price']:.2f}",
-                                        'Stop': f"{scan_result['stop_loss']:.2f}",
-                                        'Target': f"{scan_result['take_profit']:.2f}",
-                                        'Volume': f"{scan_result.get('volume', 0):,}",
-                                        'Reason': scan_result['reasons'][0] if scan_result['reasons'] else 'Technical analysis'
-                                    })
+                                    sell_opportunities.append(opp_data)
 
                     except Exception as e:
                         if debug_mode:

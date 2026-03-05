@@ -2176,19 +2176,47 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
         else:
             if debug_mode:
                 debug_logs.append("Using fallback system")
-            # Fallback to legacy system
+
+            signal_data = None
+
+            # Fallback 1: Try legacy system with intraday ticks
             ticks_df = get_cached_intraday_ticks(symbol, data_points)
-            
+
             if not ticks_df.empty and len(ticks_df) >= 10:
                 # Calculate indicators and generate signals
                 ticks_df = system.calculate_technical_indicators(ticks_df)
                 signal_data = system.generate_trading_signals(ticks_df, symbol)
-                
+
                 # Validate signal data structure
                 if not signal_data or not isinstance(signal_data, dict):
-                    raise ValueError("Invalid signal data returned")
-            else:
-                # Insufficient data - return safe default using actual market price
+                    signal_data = None
+                    if debug_mode:
+                        debug_logs.append("Legacy system returned invalid data")
+
+            # Fallback 2: Use direct technical scan (RSI/MACD/SMA from PSX DPS API)
+            if signal_data is None:
+                if debug_mode:
+                    debug_logs.append("Trying direct_technical_scan")
+                scan_result = direct_technical_scan(symbol)
+                if scan_result:
+                    signal_data = {
+                        'signal': scan_result['signal'],
+                        'confidence': scan_result['confidence'],
+                        'entry_price': scan_result['price'],
+                        'stop_loss': scan_result['stop_loss'],
+                        'take_profit': scan_result['take_profit'],
+                        'reasons': scan_result.get('reasons', []),
+                        'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
+                        'liquidity_ok': True,
+                        'position_size': 0.02
+                    }
+                    if debug_mode:
+                        debug_logs.append(f"direct_technical_scan: {scan_result['signal']} score={scan_result.get('score', 0)}")
+
+            # Fallback 3: Last resort - HOLD with low confidence
+            if signal_data is None:
+                if debug_mode:
+                    debug_logs.append("All systems failed, using HOLD default")
                 safe_price = 100
                 if market_data and isinstance(market_data, dict):
                     price_val = market_data.get('price', 0)
@@ -2255,12 +2283,31 @@ def safe_generate_signal(symbol, market_data, system, data_points=100, debug_mod
     except Exception as e:
         if debug_mode:
             debug_logs.append(f"ERROR in safe_generate_signal: {str(e)}")
-        # Log error for debugging but don't clutter UI
         error_msg = f'ML/DL Analysis error: {str(e)[:50]}'
         print(f"Advanced signal generation error for {symbol}: {error_msg}")
-        
-        # Error in analysis - return safe fallback
-        # Use actual market price if available, otherwise use 100 as absolute last resort
+
+        # Try direct technical scan before giving up
+        try:
+            scan_result = direct_technical_scan(symbol)
+            if scan_result:
+                return {
+                    'signal': scan_result['signal'],
+                    'confidence': scan_result['confidence'],
+                    'entry_price': scan_result['price'],
+                    'stop_loss': scan_result['stop_loss'],
+                    'take_profit': scan_result['take_profit'],
+                    'reasons': scan_result.get('reasons', []),
+                    'volume_support': scan_result.get('vol_ratio', 1) > 1.5,
+                    'liquidity_ok': True,
+                    'position_size': 0.02,
+                    '_enhanced_system': False,
+                    '_generation_timestamp': datetime.now().isoformat(),
+                    '_data_source': 'direct_technical_scan'
+                }, debug_logs
+        except Exception:
+            pass
+
+        # Last resort fallback
         safe_price = 100
         if market_data and isinstance(market_data, dict):
             price_val = market_data.get('price', 0)

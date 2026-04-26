@@ -28,3 +28,11 @@ websocket-client>=1.6.0
 psutil>=5.9.0
 networkx>=3.2.0
 matplotlib>=3.7.0
+
+# PDF generation (used by pdf_generator.py)
+reportlab>=4.0.0
+
+# Data pipeline (Phase 2 / Phase 3)
+python-dotenv>=1.0.0
+pyarrow>=14.0.0
+tqdm>=4.66.0

@@ -89,5 +89,9 @@ users.json
 # Model files (large binaries)
 models/*.pkl
 
+# Local OHLCV data cache (Phase 2 EODHD pulls)
+data_cache/
+*.parquet
+
 # Generated reports (regenerated each run)
 PSX_HITLIST_CURRENT.md

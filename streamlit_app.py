@@ -92,6 +92,47 @@ except ImportError as e:
     ADVANCED_ML_SYSTEM_AVAILABLE = False
     print(f"⚠️ Advanced ML/DL system not available: {e}")
 
+# Import Phase 3 cross-sectional model (LightGBM, trained on EODHD 1y data)
+try:
+    import xs_model_inference as xs_model
+    XS_MODEL_AVAILABLE = xs_model.model_available()
+    if XS_MODEL_AVAILABLE:
+        print("✅ Cross-sectional ML model (Phase 3) available")
+    else:
+        print("⚠️ Cross-sectional model files missing — run train_psx_ml.py")
+except ImportError as e:
+    XS_MODEL_AVAILABLE = False
+    print(f"⚠️ Cross-sectional model not available: {e}")
+
+
+@st.cache_resource
+def _load_xs_model():
+    """Load the LightGBM model + feature names once per process."""
+    if not XS_MODEL_AVAILABLE:
+        return None, None
+    try:
+        return xs_model.load_model()
+    except Exception as e:
+        print(f"⚠️ Failed to load xs model: {e}")
+        return None, None
+
+
+@st.cache_data(ttl=3600)
+def get_xs_universe_predictions():
+    """Compute per-symbol predictions across the entire PSX universe.
+    Cached for 1 hour. Returns DataFrame indexed by symbol."""
+    import pandas as _pd
+    if not XS_MODEL_AVAILABLE:
+        return _pd.DataFrame()
+    model, feature_names = _load_xs_model()
+    if model is None:
+        return _pd.DataFrame()
+    try:
+        return xs_model.compute_universe_predictions(model, feature_names)
+    except Exception as e:
+        print(f"⚠️ xs prediction failed: {e}")
+        return _pd.DataFrame()
+
 # Import integrated signal system
 try:
     from integrated_signal_system import IntegratedTradingSystem, TradingSignal
@@ -2675,6 +2716,22 @@ def render_ml_dl_signal_card(signal, symbol):
         else:
             st.warning(f"📋 {reason_text} | R/R: 1:{rr_ratio:.1f} | Position: {signal.get('position_size', 5):.0f}%")
 
+        if XS_MODEL_AVAILABLE:
+            preds = get_xs_universe_predictions()
+            xs_pred = xs_model.get_prediction(symbol, preds) if not preds.empty else None
+            if xs_pred:
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric("🤖 ML Outperform Prob", f"{xs_pred['prob_outperform']*100:.1f}%")
+                with c2:
+                    st.metric("📊 Decile Rank", f"{xs_pred['decile']}/10")
+                with c3:
+                    st.metric("📅 Model As-of", str(pd.Timestamp(xs_pred['asof']).date()))
+                st.caption(
+                    f"Cross-sectional ML model: probability {symbol} outperforms the PSX universe over next 5 days. "
+                    f"Decile 10 = top 10% of {len(preds)} stocks. Trained on 1y EODHD data — paper-trade before deploying."
+                )
+
         st.divider()
 
 
@@ -2786,8 +2843,41 @@ def render_ml_dl_signal_card_OLD(signal, symbol):
             for i, reason in enumerate(reasons[:3], 1):
                 st.write(f"{i}. {reason}")
 
+def render_xs_model_top_picks():
+    """Render the cross-sectional ML model's top-decile picks across PSX universe."""
+    if not XS_MODEL_AVAILABLE:
+        return
+    preds = get_xs_universe_predictions()
+    if preds.empty:
+        return
+    asof = pd.Timestamp(preds["asof"].iloc[0]).date()
+    st.markdown(f"## 🤖 ML Model Top Picks — Cross-Sectional Ranking")
+    st.caption(
+        f"Phase 3 LightGBM model (AUC 0.594 on held-out test, see `models/v2/REPORT.md`). "
+        f"Data as-of latest EODHD pull ({asof}). Refresh by running `python fetch_eodhd_psx.py`. "
+        f"⚠️ Paper-trade for 3+ months before any real-money use."
+    )
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 🟢 Top 10 (model favors)")
+        top10 = preds.head(10).reset_index().rename(
+            columns={"symbol": "Symbol", "prob_outperform": "Prob", "decile": "Decile"}
+        )[["Symbol", "Prob", "Decile"]]
+        top10["Prob"] = (top10["Prob"] * 100).round(1).astype(str) + "%"
+        st.dataframe(top10, hide_index=True, use_container_width=True)
+    with col2:
+        st.markdown("### 🔴 Bottom 10 (model avoids)")
+        bot10 = preds.tail(10).iloc[::-1].reset_index().rename(
+            columns={"symbol": "Symbol", "prob_outperform": "Prob", "decile": "Decile"}
+        )[["Symbol", "Prob", "Decile"]]
+        bot10["Prob"] = (bot10["Prob"] * 100).round(1).astype(str) + "%"
+        st.dataframe(bot10, hide_index=True, use_container_width=True)
+    st.divider()
+
+
 def render_live_trading_signals():
     """Render live trading signals"""
+    render_xs_model_top_picks()
     st.markdown("## 🚨 Live Trading Signals")
     
     # Trading Guidelines Section

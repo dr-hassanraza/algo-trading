@@ -1,0 +1,20 @@
+[
+  "ret_1d",
+  "ret_5d",
+  "ret_20d",
+  "rsi_14",
+  "sma_ratio",
+  "macd_diff",
+  "atr_pct",
+  "bb_pos",
+  "vol_z",
+  "ret_1d_rank",
+  "ret_5d_rank",
+  "ret_20d_rank",
+  "rsi_14_rank",
+  "sma_ratio_rank",
+  "macd_diff_rank",
+  "atr_pct_rank",
+  "bb_pos_rank",
+  "vol_z_rank"
+]

@@ -23,8 +23,20 @@ import joblib
 import numpy as np
 import pandas as pd
 
-DATA_DIR = Path("data_cache/ohlcv")
-MODEL_DIR = Path("models/v2")
+# v3 uses 5y yfinance data (data_cache/ohlcv_yf/) — strictly better than v2's 1y EODHD.
+# Falls back to v2 if v3 artifacts are missing.
+_V3_DATA = Path("data_cache/ohlcv_yf")
+_V3_MODEL = Path("models/v3")
+_V2_DATA = Path("data_cache/ohlcv")
+_V2_MODEL = Path("models/v2")
+
+if (_V3_MODEL / "lightgbm_psx.pkl").exists() and _V3_DATA.exists():
+    DATA_DIR = _V3_DATA
+    MODEL_DIR = _V3_MODEL
+else:
+    DATA_DIR = _V2_DATA
+    MODEL_DIR = _V2_MODEL
+
 MODEL_PATH = MODEL_DIR / "lightgbm_psx.pkl"
 FEATURES_PATH = MODEL_DIR / "feature_names.json"
 

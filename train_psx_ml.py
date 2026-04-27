@@ -24,6 +24,7 @@ Pipeline:
    buy-hold strategy.
 """
 from __future__ import annotations
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -34,7 +35,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, accuracy_score
 
-# -------------------------- config --------------------------
+# -------------------------- config (overridable via CLI) --------------------------
 DATA_DIR = Path("data_cache/ohlcv")
 MODEL_DIR = Path("models/v2")
 LABEL_HORIZON = 5
@@ -130,7 +131,17 @@ def make_xs_label(panel: pd.DataFrame) -> pd.DataFrame:
 
 # -------------------------- main --------------------------
 def main() -> int:
-    files = sorted(DATA_DIR.glob("*.parquet"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", type=Path, default=DATA_DIR,
+                        help="Directory of per-symbol parquet OHLCV files")
+    parser.add_argument("--model-dir", type=Path, default=MODEL_DIR,
+                        help="Output directory for model + report")
+    args = parser.parse_args()
+
+    data_dir: Path = args.data_dir
+    model_dir: Path = args.model_dir
+
+    files = sorted(data_dir.glob("*.parquet"))
     if not files:
         print("ERROR: no parquet files in data_cache/ohlcv/", file=sys.stderr)
         return 1
@@ -245,9 +256,9 @@ def main() -> int:
     print(f"\nVerdict: {verdict}  (auc>0.55 AND ls_spread>0.5% per 5d trade required)")
 
     # ----- save artifacts -----
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_DIR / "lightgbm_psx.pkl")
-    (MODEL_DIR / "feature_names.json").write_text(json.dumps(feature_cols, indent=2))
+    model_dir.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, model_dir / "lightgbm_psx.pkl")
+    (model_dir / "feature_names.json").write_text(json.dumps(feature_cols, indent=2))
 
     fi = pd.DataFrame({"feature": feature_cols,
                        "importance": model.feature_importances_}).sort_values("importance", ascending=False)
@@ -335,8 +346,8 @@ This is the **honest** outcome — the system is saved for inspection but should
 3. **Until then**, the rule-based signal engine combined with strict risk
    management (position limits, hard stops) is the more honest tool.
 """
-    (MODEL_DIR / "REPORT.md").write_text(report)
-    print(f"\nArtifacts written to {MODEL_DIR}/")
+    (model_dir / "REPORT.md").write_text(report)
+    print(f"\nArtifacts written to {model_dir}/")
     return 0
 
 
